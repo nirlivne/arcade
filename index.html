@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1f3b">
+<title>Arcade | The Game Company</title>
+<meta name="description" content="Free browser games by The Game Company. A new game every day. No ads, no sign-ups, no tracking.">
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --bg: #141733;
+  --card: #232852;
+  --ink: #f3f5ff;
+  --muted: #a9b0d6;
+  --accent: #ffcf5c;
+  --accent-ink: #2a2200;
+  --radius: 16px;
+}
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: radial-gradient(1200px 600px at 50% -10%, #2a3070 0, var(--bg) 60%) fixed;
+  color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.wrap { width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+header { padding: 56px 0 28px; text-align: center; }
+h1 { margin: 0; font-size: clamp(2.2rem, 7vw, 3.5rem); letter-spacing: -0.02em; }
+.tagline { margin: 0.5rem 0 0; color: var(--muted); font-size: 1.1rem; }
+main { flex: 1; padding-bottom: 40px; }
+#status { text-align: center; color: var(--muted); padding: 40px 0; }
+#games { list-style: none; margin: 0; padding: 0; display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.card {
+  display: flex; flex-direction: column; height: 100%;
+  background: var(--card); border-radius: var(--radius); overflow: hidden;
+  color: inherit; text-decoration: none;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.card:hover, .card:focus-visible { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); }
+.card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.cover { aspect-ratio: 63 / 50; background: #2f3670; display: grid; place-items: center; font-size: 3rem; font-weight: 700; color: var(--muted); }
+.cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.body { padding: 16px 18px 20px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.body h2 { margin: 0; font-size: 1.25rem; }
+.body p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.body time { color: var(--muted); font-size: 0.8rem; }
+.play {
+  margin-top: auto; align-self: flex-start; padding: 8px 18px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink); font-weight: 700;
+}
+footer { padding: 28px 20px 36px; text-align: center; color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <h1>Arcade</h1>
+  <p class="tagline">Free browser games. A new one every day.</p>
+</header>
+<main class="wrap">
+  <p id="status" role="status">Loading games&hellip;</p>
+  <noscript><p id="status-noscript" style="text-align:center">This page needs JavaScript to list the games.</p></noscript>
+  <ul id="games"></ul>
+</main>
+<footer>No ads. No sign-ups. No tracking. Made by The Game Company.</footer>
+<script>
+(function () {
+  var list = document.getElementById('games');
+  var status = document.getElementById('status');
+
+  function formatDate(value) {
+    var d = new Date(String(value) + 'T00:00:00');
+    return isNaN(d) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function card(game) {
+    var base = 'games/' + encodeURIComponent(game.slug) + '/';
+    var li = document.createElement('li');
+    var a = document.createElement('a');
+    a.className = 'card';
+    a.href = base;
+
+    var cover = document.createElement('div');
+    cover.className = 'cover';
+    var img = document.createElement('img');
+    img.alt = '';
+    img.loading = 'lazy';
+    img.src = game.cover || base + 'cover-630x500.png';
+    img.onerror = function () { img.remove(); cover.textContent = (game.title || '?').charAt(0); };
+    cover.appendChild(img);
+
+    var body = document.createElement('div');
+    body.className = 'body';
+    var h2 = document.createElement('h2');
+    h2.textContent = game.title || game.slug;
+    body.appendChild(h2);
+    if (game.description) {
+      var p = document.createElement('p');
+      p.textContent = game.description;
+      body.appendChild(p);
+    }
+    var when = formatDate(game.date);
+    if (when) {
+      var t = document.createElement('time');
+      t.dateTime = game.date;
+      t.textContent = when;
+      body.appendChild(t);
+    }
+    var play = document.createElement('span');
+    play.className = 'play';
+    play.textContent = 'Play';
+    body.appendChild(play);
+
+    a.appendChild(cover);
+    a.appendChild(body);
+    li.appendChild(a);
+    return li;
+  }
+
+  fetch('games.json', { cache: 'no-cache' })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (all) {
+      var games = all
+        .filter(function (g) { return g && g.slug && g.status === 'released'; })
+        .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+      if (!games.length) { status.textContent = 'The first game is coming soon.'; return; }
+      status.hidden = true;
+      games.forEach(function (g) { list.appendChild(card(g)); });
+    })
+    .catch(function () {
+      status.textContent = 'Could not load the game list. If you opened this file directly, serve the folder over http instead.';
+    });
+})();
+</script>
+</body>
+</html>

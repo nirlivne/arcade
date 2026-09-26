@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1b1f3b">
+<title>Bloop Stack</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c" aria-label="Bloop Stack game"></canvas>
+<button id="mute" type="button" aria-label="Toggle sound">🔊</button>
+
+<div id="start" class="overlay">
+  <div class="panel">
+    <h1>Bloop Stack</h1>
+    <p class="hint">Drop. Match. Merge.</p>
+    <button id="play" type="button" class="big">Play</button>
+    <p class="best" id="startbest">Best: 0</p>
+    <p class="keys">Drag &amp; release, or ← → and Space</p>
+  </div>
+</div>
+
+<div id="paused" class="overlay hidden"><div class="panel"><h2>PAUSED</h2><p class="keys">Tap or press Space to resume</p></div></div>
+
+<div id="over" class="overlay hidden">
+  <div class="panel">
+    <h2>JAR FULL!</h2>
+    <div id="badge" class="badge hidden">NEW BEST!</div>
+    <div class="score"><span id="final">0</span></div>
+    <p class="best" id="bestline">Best 0</p>
+    <button id="again" type="button" class="big">Play again</button>
+    <button id="share" type="button" class="small">Share</button>
+    <p class="keys">R or Enter to restart</p>
+    <div id="spare" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script src="physics.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
