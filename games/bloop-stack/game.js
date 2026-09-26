@@ -410,9 +410,27 @@
   canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   elPaused.addEventListener('click', function () { setPaused(false); });
 
+  var elAbout = document.getElementById('about'), elAboutOpen = document.getElementById('about-open'), elAboutClose = document.getElementById('about-close');
+  function aboutOpen() { return !elAbout.classList.contains('hidden'); }
+  function setAbout(open) {
+    if (open && state !== 'start') return;
+    elAbout.classList.toggle('hidden', !open);
+    keys.left = keys.right = false;
+    (open ? elAboutClose : elAboutOpen).focus();
+  }
+  elAboutOpen.addEventListener('click', function () { setAbout(true); });
+  elAboutClose.addEventListener('click', function () { setAbout(false); });
+  elAbout.addEventListener('click', function (e) { if (e.target === elAbout) setAbout(false); });
+
   window.addEventListener('keydown', function (e) {
     var k = e.key;
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (aboutOpen()) {
+      if (k === 'Escape') { setAbout(false); e.preventDefault(); }
+      else if (k === 'Tab') { e.preventDefault(); elAboutClose.focus(); }
+      else if (k === ' ' || k === 'Enter') { if (e.target !== elAboutClose) e.preventDefault(); }
+      return;
+    }
     if (k === 'ArrowLeft' || k === 'a' || k === 'A') { keys.left = true; e.preventDefault(); }
     else if (k === 'ArrowRight' || k === 'd' || k === 'D') { keys.right = true; e.preventDefault(); }
     else if (k === 'm' || k === 'M') { toggleMute(); }

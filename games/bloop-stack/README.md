@@ -3,7 +3,7 @@
 Drop goo creatures into the jar. Two of the same kind that touch merge into the next one up (8 tiers, Dot to Kingloop). Two Kingloops burst for a big bonus. If the pile stays over the dashed line for 2 seconds, the jar is full.
 
 ## Run
-Open `index.html` in a browser (no build, no server, no network).
+Open `index.html` in a browser (no build, no server, no network). Served over http(s) (e.g. `npx serve .` from the workspace) it is also an installable PWA and plays offline after the first load (`manifest.json`, `sw.js`; bump `CACHE_VERSION` in `sw.js` whenever shipped files change).
 
 ## Controls
 - Mouse: move to aim, click to drop.
@@ -15,7 +15,7 @@ Open `index.html` in a browser (no build, no server, no network).
 Merge score = new tier (2, 4, 8 ... 128). Chain merges within 1 s multiply by the chain count (max x5). Kingloop + Kingloop = 256. Best score is stored in localStorage (`bloop-stack:best`).
 
 ## Credits
-Made by The Game Company. All art is drawn in code and all sound is generated with WebAudio.
+Created by The Game Company. Also shown in the in-game About dialog (ℹ️ About on the start screen). All art is drawn in code and all sound is generated with WebAudio.
 
 ## Known issues
 - Spikes/antennae/crown of large blobs can visually poke through the jar wall (collision is the body circle only).
