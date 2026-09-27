@@ -22,6 +22,37 @@ var TrayLogic = (function () {
   const INSTAB_LEAN_LO = 0.2; // |sway| below this: no destabilising term at all
   const INSTAB_LEAN_HI = 0.5; // |sway| at/above this: destabilising term at full INSTAB strength
 
+  // THE-53: a real drag gesture isn't the idealised small-gain PD law the THE-42 acceptance sim
+  // checked against — a human reacts late, then swings toward the input clamp, so |sway| routinely
+  // overshoots past INSTAB_LEAN_LO while genuinely correcting a hazard. Two knobs close that gap
+  // without touching zero-input play at all (both are no-ops whenever trayAngle is 0):
+  // - EQ_CAP bounds how far trayAngle * dish.gain alone can push a dish's equilibrium. Uncapped,
+  //   holding the drag near the input clamp put lobster/cake's equilibrium (gain*GAIN_SCALE 1.12/
+  //   1.36) past TOPPLE by itself, before any hazard or instab involvement — full-range correction
+  //   was catastrophic by construction for the two heaviest dishes.
+  // - CORRECT_SUPPRESS scales the instab term down while trayAngle is actively opposing the current
+  //   lean (`correctingStrength` below), so the momentum overshoot of a real correction sweeping
+  //   through the gated zone isn't punished the same as an ignored hazard sitting there unanswered.
+  //   It's the direction of trayAngle relative to sway that matters, not trayAngle's magnitude
+  //   alone — the earlier `INSTAB*(sway - trayAngle*gain)` term tried for THE-42 grew *larger* the
+  //   harder a player corrected (see DESIGN.md); gating by opposition direction instead shrinks it.
+  const EQ_CAP = 0.85;
+  const CORRECT_SUPPRESS = 0.85;
+
+  // THE-53 follow-up (QA caught this on real-input playtest): EQ_CAP/CORRECT_SUPPRESS alone only
+  // help while the player reacts fast (~<0.25s). At slower, still-realistic reaction cadences, a
+  // held bang-bang correction overshoots so far past centre that the underdamped spring's own
+  // momentum crashes it on the *next* swing — with instab() disabled entirely, this still happened,
+  // so instab was never the real culprit here, just the first bug this issue turned up. VEL_THRESH/
+  // VEL_RANGE/EXTRA_DAMPING add speed-dependent drag that only engages once a dish's sway is
+  // whipping dangerously fast (normal wobble at low speed is untouched), and ACTIVITY_REF gates it
+  // to only apply while trayAngle shows real player input — an unanswered hazard (trayAngle at rest)
+  // must still ring through at full speed and threaten the stack, so this cannot soften that.
+  const VEL_THRESH = 1.0; // |swayVel| below this: no extra damping
+  const VEL_RANGE = 1.5; // |swayVel| at VEL_THRESH + this: extra damping at full EXTRA_DAMPING strength
+  const EXTRA_DAMPING = 15;
+  const ACTIVITY_REF = 0.15; // |trayAngle| at/above this: extra damping fully gated on
+
   function hashString(s) {
     let h = 1779033703 ^ s.length;
     for (let i = 0; i < s.length; i++) {
@@ -221,13 +252,22 @@ var TrayLogic = (function () {
     const slippery = run.t < run.slipperyUntil;
     const gusting = run.t < run.gustUntil;
     for (const d of run.dishes) {
-      let eq = run.trayAngle * d.gain + Math.sin(run.t * 1.7 + d.phase) * 0.04; // ambient wobble
+      let eq = run.trayAngle * Math.min(d.gain, EQ_CAP) + Math.sin(run.t * 1.7 + d.phase) * 0.04; // ambient wobble
       if (lobster && d.index >= lobster.index) eq += Math.sin(run.t * Math.PI + d.phase) * 0.22; // claw sway, ~2s cycle
       if (gusting && d === run.dishes[run.dishes.length - 1]) eq += run.gustSign * 0.35;
       const damping = slippery ? d.damping * 0.5 : d.damping;
       const leanRamp = clamp((Math.abs(d.sway) - INSTAB_LEAN_LO) / (INSTAB_LEAN_HI - INSTAB_LEAN_LO), 0, 1);
-      const instab = INSTAB * (1 + INSTAB_IDX_SCALE * d.index) * d.sway * leanRamp;
-      const accel = -STIFFNESS * (d.sway - eq) - damping * 2 * Math.sqrt(STIFFNESS) * d.swayVel + instab;
+      // How hard trayAngle is currently pushing against this dish's own lean (0 = not opposing or no
+      // input, 1 = pushing fully the other way) — see THE-53 above.
+      const correctingStrength = Math.max(0, -run.trayAngle * Math.sign(d.sway || 1));
+      const instabScale = clamp(1 - correctingStrength * CORRECT_SUPPRESS, 0, 1);
+      const instab = INSTAB * (1 + INSTAB_IDX_SCALE * d.index) * d.sway * leanRamp * instabScale;
+      // Extra speed-dependent drag once a dish is whipping dangerously fast — see THE-53 above.
+      // Zero at rest/normal wobble; only engages while the player is actively driving the tray.
+      const overspeed = clamp((Math.abs(d.swayVel) - VEL_THRESH) / VEL_RANGE, 0, 1);
+      const activity = clamp(Math.abs(run.trayAngle) / ACTIVITY_REF, 0, 1);
+      const accel = -STIFFNESS * (d.sway - eq) - damping * 2 * Math.sqrt(STIFFNESS) * d.swayVel
+        - EXTRA_DAMPING * d.swayVel * overspeed * activity + instab;
       d.swayVel += accel * STEP;
       d.sway += d.swayVel * STEP;
       if (!run.over && Math.abs(d.sway) > TOPPLE) {
