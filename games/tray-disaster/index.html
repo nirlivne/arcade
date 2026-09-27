@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#C1F5E9">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Tray Disaster</title>
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c" aria-label="Tray Disaster. Drag left or right anywhere to tilt the tray and keep the dish stack balanced."></canvas>
+
+<header id="hud" class="hidden">
+  <div class="chip"><span class="label">Bill</span><span id="hud-bill" class="num">$0</span></div>
+  <div class="chip tips"><span class="label">Dishes</span><span id="hud-dishes" class="num">0</span></div>
+  <button id="pause-btn" type="button" class="btn ghost icon" aria-label="Pause">&#x275A;&#x275A;</button>
+</header>
+<div id="status" class="sr" role="status" aria-live="polite"></div>
+
+<div id="start" class="overlay">
+  <div class="panel">
+    <div class="lockup" aria-hidden="true">
+      <div class="word"><span class="l" style="transform: rotate(-5deg)">T</span><span class="l" style="transform: rotate(3deg) translateY(2px)">R</span><span class="l" style="transform: rotate(-2deg)">A<i class="eye" style="left: 7px; top: 16px"></i><i class="eye" style="left: 16px; top: 14px"></i></span><span class="l" style="transform: rotate(6deg) translateY(-2px)">Y</span></div>
+      <div class="tray"></div>
+      <div class="word w2"><span class="l" style="transform: rotate(4deg)">D</span><span class="l" style="transform: rotate(-3deg) translateY(3px)">I</span><span class="l" style="transform: rotate(2deg)">S</span><span class="l" style="transform: rotate(-6deg) translateY(-2px)">A</span><span class="l" style="transform: rotate(5deg) translateY(4px)">S</span><span class="l" style="transform: rotate(-2deg)">T</span><span class="l" style="transform: rotate(8deg) translateY(6px)">E</span><span class="l" style="transform: rotate(14deg) translateY(12px)">R</span></div>
+    </div>
+    <h1 class="sr">Tray Disaster</h1>
+    <button id="play" type="button" class="btn big">Order up!</button>
+    <p class="best" id="startinfo"></p>
+    <button id="about-open" type="button" class="btn ghost small" aria-haspopup="dialog">&#x2139;&#xFE0F; About</button>
+  </div>
+</div>
+
+<div id="about" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="about-title">
+  <div class="panel">
+    <h2 id="about-title">Tray Disaster</h2>
+    <p class="hint">Made by The Game Company</p>
+    <p class="keys">Original art and code, drawn and generated at runtime. Free and ad-free.</p>
+    <p class="keys">Keyboard: A/D or Left/Right arrows tilt the tray, R restarts.</p>
+    <a id="about-home" class="link" href="../../">More games</a>
+    <button id="about-close" type="button" class="btn big">Close</button>
+  </div>
+</div>
+
+<div id="paused" class="overlay hidden">
+  <div class="panel">
+    <h2>Paused</h2>
+    <button id="resume" type="button" class="btn big">Resume</button>
+    <button id="mute-toggle" type="button" class="btn ghost small">Sound: on</button>
+  </div>
+</div>
+
+<div id="over" class="overlay hidden">
+  <div class="panel over">
+    <div class="bill" role="group" aria-label="The bill">
+      <div class="head"><span>Guest Check</span><span id="bill-table">Table 7</span></div>
+      <ol id="bill-lines"></ol>
+      <div class="total"><span class="k">Damages</span><span id="final" class="v">$0</span></div>
+      <p class="best" id="bestline"></p>
+      <p class="quip" id="quip"></p>
+      <div id="badge" class="stamp hidden">Disaster</div>
+    </div>
+    <div class="btns">
+      <button id="again" type="button" class="btn big">Another shift</button>
+      <button id="share" type="button" class="btn ghost big">Copy the bill</button>
+    </div>
+    <p id="sharemsg" class="keys" role="status" aria-live="polite"></p>
+    <div id="spare" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script src="logic.js"></script>
+<script src="game.js"></script>
+<script src="register-sw.js"></script>
+</body>
+</html>

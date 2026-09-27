@@ -12,5 +12,12 @@
     "date": "2026-09-27",
     "status": "released",
     "description": "Drag tile shapes onto an 8x8 grid and clear full rows and columns. A new daily puzzle with a twist, plus an endless mode."
+  },
+  {
+    "slug": "tray-disaster",
+    "title": "Tray Disaster",
+    "date": "2026-09-27",
+    "status": "released",
+    "description": "Tilt a waiter's tray to keep a growing stack of absurd dishes balanced down the diner aisle while hazards jostle it. Game over is the bill."
   }
 ]

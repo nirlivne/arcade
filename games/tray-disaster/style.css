@@ -1,0 +1,97 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none;
+  background: var(--color-bg); background: linear-gradient(180deg, var(--color-bg), var(--color-bg-2));
+  color: var(--color-text); font-family: var(--font-body); font-weight: var(--weight-body);
+  font-size: var(--text-md); line-height: var(--line-height);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+}
+canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+.hidden { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+#hud {
+  position: fixed; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: var(--space-3);
+  padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-2);
+  pointer-events: none;
+}
+.chip { display: inline-flex; flex-direction: column; align-items: center; padding: var(--space-1) var(--space-3); border-radius: var(--radius-md); background: var(--color-surface); border: var(--outline-w) solid var(--color-outline); box-shadow: var(--shadow-1); }
+.chip .label { font-size: var(--text-sm); font-weight: var(--weight-strong); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em; line-height: 1.1; }
+.chip .num { font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-lg); line-height: 1.1; font-variant-numeric: tabular-nums lining-nums; }
+.chip.tips { background: var(--color-accent); }
+.chip.tips .label { color: var(--color-text); }
+#hud .icon { pointer-events: auto; margin-left: auto; }
+
+button { font: inherit; cursor: pointer; }
+.btn {
+  min-height: var(--hit-min); min-width: var(--hit-min); padding: var(--space-3) var(--space-5);
+  border: var(--outline-w) solid var(--color-outline); border-radius: var(--radius-md);
+  background: var(--color-primary); color: var(--color-primary-text);
+  font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-md);
+  text-transform: uppercase; letter-spacing: var(--display-tracking); box-shadow: var(--shadow-1);
+}
+.btn.ghost { background: var(--color-surface); color: var(--color-text); font-family: var(--font-body); font-weight: var(--weight-strong); text-transform: none; }
+.btn.icon { width: var(--hit-min); height: var(--hit-min); min-height: 0; padding: 0; font-size: 18px; }
+.btn.big { display: block; width: 100%; margin-top: var(--space-3); }
+.btn.small { min-height: 0; padding: var(--space-2) var(--space-4); font-size: var(--text-sm); margin-top: var(--space-3); box-shadow: none; background: transparent; border-color: transparent; }
+button:focus-visible, a:focus-visible { outline: var(--outline-w) solid var(--color-danger); outline-offset: 3px; }
+@media (prefers-reduced-motion: no-preference) {
+  .btn { transition: transform var(--dur-fast) var(--ease-out); }
+  .btn:active { transform: translate(3px, 3px) scale(1.04, 0.92); box-shadow: none; }
+}
+
+.overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; padding: var(--space-4); overflow: auto; }
+/* the start screen is not a modal: the waiter walks in the scene below the card, so the card sits in the
+   upper half, un-scrimmed, and only the card itself catches pointer input (drags on the empty area fall
+   through to the canvas and start the run, matching the ghost-hand hint drawn over the tray). */
+#start { background: transparent; align-items: flex-start; padding-top: calc(env(safe-area-inset-top, 0px) + var(--space-4)); pointer-events: none; }
+#start .panel { pointer-events: auto; padding: var(--space-3) var(--space-5); }
+#start .lockup { padding: var(--space-1) var(--space-3) 0; }
+#start .best { margin: var(--space-1) 0; }
+#start .btn.small { margin-top: var(--space-1); }
+.panel {
+  width: min(100%, 380px); text-align: center; background: var(--color-surface); color: var(--color-text);
+  border: var(--outline-w) solid var(--color-outline); border-radius: var(--radius-lg); box-shadow: var(--shadow-2);
+  padding: var(--space-5);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .panel { animation: panel-in var(--dur-med) var(--ease-out); }
+  @keyframes panel-in { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+}
+.panel h1, .panel h2 { font-family: var(--font-display); font-weight: var(--weight-display); margin: 0 0 var(--space-2); color: var(--color-text); text-transform: uppercase; letter-spacing: var(--display-tracking); }
+.panel h2 { font-size: var(--text-xl); line-height: 1.1; }
+.hint, .keys, .best { font-size: var(--text-min); color: var(--color-text-muted); margin: var(--space-2) 0; }
+.best { color: var(--color-text); }
+.link { display: inline-block; color: var(--color-text); font-size: var(--text-min); margin: var(--space-2) 0; padding: var(--space-3); }
+
+/* signature lockup: bouncy ink lettering, "TRAY" balanced on a tray, googly eyes in the A.
+   Sized down from the display scale (kept for About/other headings) so the start card stays in the
+   upper half of the screen and the waiter reads below it (THE-45). */
+.lockup { display: inline-block; position: relative; padding: var(--space-2) var(--space-3) var(--space-1); }
+.lockup .word { display: flex; justify-content: center; gap: 2px; }
+.lockup .l { display: inline-block; font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-xl); line-height: 1; letter-spacing: var(--display-tracking);
+  color: var(--color-primary); -webkit-text-stroke: var(--display-stroke) var(--color-outline); paint-order: stroke fill; text-shadow: 4px 5px 0 var(--color-outline); position: relative; }
+.lockup .w2 .l { color: var(--color-accent); font-size: var(--text-lg); }
+.lockup .tray { height: 8px; margin: 1px -6px 6px; background: var(--color-chrome); border: var(--outline-w) solid var(--color-outline); border-radius: var(--radius-pill); box-shadow: var(--shadow-1); transform: rotate(-4deg); }
+.eye { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: var(--color-shine); border: 3px solid var(--color-outline); box-sizing: border-box; }
+.eye::after { content: ""; position: absolute; width: 4px; height: 4px; border-radius: 50%; background: var(--color-outline); left: 1px; bottom: 0; }
+
+/* the bill: green guest check with a torn top edge */
+.bill { width: 100%; max-width: 300px; margin: 0 auto; box-sizing: border-box; padding: calc(var(--bill-tear) + var(--space-4)) var(--space-5) var(--space-5);
+  background: var(--color-bill); color: var(--color-bill-pencil); position: relative; transform: rotate(-2deg); filter: drop-shadow(6px 7px 0 var(--color-outline));
+  clip-path: polygon(0 10px, 5% 0, 10% 10px, 15% 0, 20% 10px, 25% 0, 30% 10px, 35% 0, 40% 10px, 45% 0, 50% 10px, 55% 0, 60% 10px, 65% 0, 70% 10px, 75% 0, 80% 10px, 85% 0, 90% 10px, 95% 0, 100% 10px, 100% 100%, 0 100%);
+  background-image: repeating-linear-gradient(180deg, transparent 0 33px, var(--color-bill-rule) 33px 35px); background-position: 0 70px; }
+.bill .head { display: flex; justify-content: space-between; align-items: baseline; color: var(--color-bill-print); font-family: var(--font-display); font-weight: var(--weight-display); letter-spacing: 0.1em; font-size: var(--text-md); text-transform: uppercase; border-bottom: 3px double var(--color-bill-print); padding-bottom: var(--space-1); }
+.bill .head span:last-child { font-family: var(--font-body); font-size: var(--text-sm); letter-spacing: 0; text-transform: none; }
+.bill ol { list-style: none; margin: var(--space-2) 0 0; padding: 0; font-family: var(--font-hand); font-size: var(--text-md); text-align: left; }
+.bill li { display: flex; justify-content: space-between; gap: var(--space-2); min-height: 30px; align-items: end; }
+.bill li b { font-weight: var(--weight-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bill .total { display: flex; justify-content: space-between; align-items: baseline; margin-top: var(--space-3); border-top: 3px solid var(--color-bill-print); padding-top: var(--space-2); }
+.bill .total .k { font-family: var(--font-display); font-weight: var(--weight-display); color: var(--color-bill-print); letter-spacing: 0.1em; text-transform: uppercase; }
+.bill .total .v { font-family: var(--font-hand); font-size: var(--text-xl); font-weight: var(--weight-strong); line-height: 1; font-variant-numeric: tabular-nums; }
+.bill .best { font-size: var(--text-min); color: var(--color-bill-pencil); margin: var(--space-1) 0 0; text-align: right; }
+.bill .quip { font-family: var(--font-hand); font-size: var(--text-min); margin: var(--space-3) 0 0; text-align: left; }
+.stamp { display: table; margin: var(--space-3) auto 0; transform: rotate(-8deg); border: 4px solid var(--color-bill-print); color: var(--color-bill-print); border-radius: var(--radius-sm); padding: 0 var(--space-2); font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-lg); letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
+.panel.over { background: transparent; border: none; box-shadow: none; padding: 0; }
+.btns { display: grid; gap: var(--space-2); width: min(100%, 300px); margin: var(--space-4) auto 0; }
+#spare { min-height: 0; }

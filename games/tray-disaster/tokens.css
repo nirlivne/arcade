@@ -1,0 +1,170 @@
+/* Tray Disaster design tokens. Art direction: "a Saturday-morning-cartoon diner drawn in boiling ink"
+   (see DESIGN.md, Art direction). Single source of truth for colour, type, space, shape, light and motion.
+   Canvas code reads these once at startup through getComputedStyle. Colour values are plain hex so contrast.mjs
+   can check them. No @font-face: this game uses system fonts only, and everything else is drawn in code. */
+
+:root {
+  /* color: surfaces (mint diner wall, cream counter, guest-check paper) */
+  --color-bg: #C1F5E9;          /* diner wall: mint, the dominant hue */
+  --color-bg-2: #A1E0D2;        /* wall gradient end, lower edge / wainscot */
+  --color-surface: #FFF4DE;     /* panels (start card, About): cream counter-top */
+  --color-outline: #221D23;     /* THE ink: every outline, every panel border */
+
+  /* color: text */
+  --color-text: #221D23;        /* ink */
+  --color-text-muted: #594E5C;  /* faded ink: labels, secondary lines */
+
+  /* color: actions and signals */
+  --color-primary: #DCB14D;     /* mustard-bottle button ("ORDER UP!", "Another shift") */
+  --color-primary-text: #221D23;
+  --color-accent: #F794BB;      /* bubblegum: booths, bow tie, score chip plate */
+  --color-accent-deep: #CA598B; /* booth shadow side, button shadow under accent */
+  --color-danger: #DE4F3E;      /* tomato: lean arc red zone, panic flush, crash flash */
+  --color-danger-ink: #8B3025;  /* danger text: "TIPPING!" and printed bill headings */
+
+  /* color: the lean arc (above the tray) */
+  --color-lean-safe: #55B1A0;   /* mint-400 zone */
+  --color-lean-warn: #DCB14D;   /* mustard zone */
+  --color-lean-needle: #221D23;
+
+  /* color: scene */
+  --color-floor-a: #FFF4DE;     /* checkerboard: cream tile */
+  --color-floor-b: #3D353F;     /* checkerboard: ink tile */
+  --color-booth: #F794BB;
+  --color-booth-deep: #CA598B;
+  --color-chrome: #D9CCDC;      /* tray, table legs, booth trim */
+  --color-chrome-deep: #917F95;
+  --color-door: #1F5E54;        /* kitchen swinging door */
+  --color-door-window: #D8FFF6;
+  --color-shine: #FFFFFF;       /* specular blobs and googly-eye whites, alpha below */
+
+  /* color: waiter */
+  --color-skin: #FFE5AF;        /* cartoon-yellow face and noodle arms (not a real skin tone) */
+  --color-shirt: #FFFFFF;
+  --color-trousers: #3D353F;
+  --color-bowtie: #CA598B;
+  --color-sweat: #7CC8B9;       /* sweat drops, always with an ink outline */
+  --color-panic-flush: #FF9686; /* cheeks in the panic state */
+
+  /* color: dishes (fill, deep side). Every dish has ink outline + googly eyes. */
+  --color-plate: #FFFFFF;
+  --color-plate-rim: #D9CCDC;
+  --color-soup: #DE4F3E;
+  --color-soup-deep: #B33F31;
+  --color-noodle: #F1CC7D;
+  --color-noodle-deep: #C79600;
+  --color-sauce: #DE4F3E;
+  --color-jelly: #E474A3;       /* drawn at --jelly-alpha over the plate, highlight in --color-shine */
+  --color-jelly-deep: #A34770;
+  --color-lobster: #F86C59;
+  --color-lobster-deep: #B33F31;
+  --color-cake: #FFF4DE;
+  --color-cake-deep: #F1CC7D;
+  --color-frosting: #F794BB;
+
+  /* color: hazards */
+  --color-grape: #7E3655;
+  --color-bucket: #C79600;
+  --color-mop: #F1CC7D;
+  --color-puddle: #A1E0D2;
+  --color-sign: #DCB14D;        /* the yellow wet-floor sign */
+
+  /* color: the bill (game over) */
+  --color-bill: #DCEDDE;        /* green guest-check paper */
+  --color-bill-rule: #8BA790;   /* ruled lines on the check */
+  --color-bill-print: #8B3025;  /* red printed headings: "GUEST CHECK", "TOTAL" */
+  --color-bill-pencil: #221D23; /* waiter's scrawl: line items and the total */
+
+  /* type: system stacks only. Character comes from weight, case, stroke and tilt, not from a bundled face. */
+  --font-display: "Arial Black", "Segoe UI Black", "Helvetica Neue", system-ui, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-hand: "Segoe Print", "Chalkboard SE", "Bradley Hand", "Comic Sans MS", cursive; /* bill scrawl only, >= 18px */
+  --text-sm: 14px;
+  --text-md: 18px;
+  --text-lg: 24px;
+  --text-xl: 36px;
+  --text-2xl: 60px;
+  --weight-body: 500;
+  --weight-strong: 700;
+  --weight-display: 900;
+  --text-min: 16px;           /* smallest text read during play */
+  --line-height: 1.4;
+  --measure: 60ch;
+  --display-tracking: 0.02em;
+  --display-stroke: 6px;      /* ink stroke around title letters (paint-order: stroke) */
+  --letter-tilt: 5deg;        /* max random tilt per title letter */
+
+  /* space (4 px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* shape: fat, round, squishy. Nothing has a sharp corner except the bill's torn edge. */
+  --radius-sm: 10px;
+  --radius-md: 18px;
+  --radius-lg: 28px;
+  --radius-pill: 999px;
+  --outline-w: 4px;           /* CSS ink line */
+  --ink-w: 0.075;             /* canvas: ink line width as a fraction of one dish width (~5-6 px at 390) */
+  --hit-min: 44px;
+  --safe-bottom: 60px;
+  --tray-w: 0.46;             /* canvas: tray width as a fraction of the play width, capped by --tray-max */
+  --tray-max: 260px;
+  --dish-h: 0.2;              /* canvas: base dish height as a fraction of tray width */
+  --bill-tear: 10px;          /* zigzag tooth on the bill's top edge */
+
+  /* light: flat cartoon cel, one hard shine blob, one ink drop shadow */
+  --shine-alpha: 0.85;        /* canvas: specular blob top-left on every dish */
+  --jelly-alpha: 0.82;
+  --shade-alpha: 0.22;        /* canvas: cel-shade crescent on the lower-right of each shape */
+  --shadow-1: 3px 3px 0 #221D23;           /* hard ink drop shadow: buttons, chips */
+  --shadow-2: 6px 7px 0 #221D23;           /* panels, the bill */
+  --scrim: rgba(34, 29, 35, 0.45);         /* behind panels; alpha colors are not contrast-checked */
+
+  /* motion: one family, "boing": fast out, big overshoot, settles with a wobble */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.8, 0.64, 1);
+  --dur-fast: 90ms;           /* button squash, dish landing squash */
+  --dur-med: 240ms;           /* dish drop-in, face-state swap, panel in */
+  --dur-slow: 600ms;          /* bill slides up, stamp lands */
+  --boil-fps: 8;              /* canvas: ink outlines re-jitter 8 times a second (the signature) */
+  --boil-px: 1.4px;           /* canvas: max vertex offset per boil frame */
+  --crash-slowmo: 0.5;        /* world speed during the crash */
+  --crash-dur: 1800ms;        /* real time from tip to bill */
+  --squash: 0.18;             /* landing squash: scaleY 0.82, scaleX 1.18 */
+  --shake-px: 7px;            /* crash only; door slam uses half */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-med: 0ms; --dur-slow: 0ms; --boil-px: 0px; --shake-px: 0px; --squash: 0.06; }
+}
+
+/* contrast: --color-text on --color-bg >= 4.5 */
+/* contrast: --color-text on --color-bg-2 >= 4.5 */
+/* contrast: --color-text on --color-surface >= 4.5 */
+/* contrast: --color-text-muted on --color-bg >= 4.5 */
+/* contrast: --color-text-muted on --color-surface >= 4.5 */
+/* contrast: --color-primary-text on --color-primary >= 4.5 */
+/* contrast: --color-text on --color-accent >= 4.5 */
+/* contrast: --color-danger-ink on --color-surface >= 4.5 */
+/* contrast: --color-danger on --color-bg >= 3 */
+/* contrast: --color-lean-needle on --color-lean-safe >= 3 */
+/* contrast: --color-lean-needle on --color-lean-warn >= 3 */
+/* contrast: --color-lean-needle on --color-danger >= 3 */
+/* contrast: --color-outline on --color-bg >= 3 */
+/* contrast: --color-outline on --color-floor-a >= 3 */
+/* contrast: --color-floor-a on --color-floor-b >= 3 */
+/* contrast: --color-bill-pencil on --color-bill >= 4.5 */
+/* contrast: --color-bill-print on --color-bill >= 4.5 */
+/* contrast: --color-outline on --color-soup >= 3 */
+/* contrast: --color-outline on --color-noodle >= 3 */
+/* contrast: --color-outline on --color-jelly >= 3 */
+/* contrast: --color-outline on --color-lobster >= 3 */
+/* contrast: --color-outline on --color-cake >= 3 */
+/* contrast: --color-outline on --color-sweat >= 3 */
+/* contrast: --color-outline on --color-skin >= 3 */
+/* contrast: --color-outline on --color-door-window >= 3 */
+/* contrast: --color-grape on --color-floor-a >= 3 */
