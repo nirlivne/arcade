@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#F9F4EC">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Tidy Tiles</title>
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c" aria-label="Tidy Tiles board. Drag a shape from the tray onto the grid, or press 1 to 3 to pick a shape, arrow keys to move it and Enter to place it."></canvas>
+
+<header id="hud" class="hidden">
+  <div class="stat"><span class="label">Score</span><span id="score" class="num">0</span></div>
+  <div class="stat"><span class="label">Best</span><span id="best" class="num small">0</span></div>
+  <div id="modeline" class="modeline"></div>
+  <button id="restart" type="button" class="icon" aria-label="Restart">&#x21BB;</button>
+</header>
+<div id="status" class="sr" role="status" aria-live="polite"></div>
+
+<div id="start" class="overlay">
+  <div class="panel">
+    <h1>Tidy Tiles</h1>
+    <p class="hint">Fill a row or column to clear it.</p>
+    <button id="play" type="button" class="big">Play today's puzzle</button>
+    <button id="endless" type="button" class="big secondary">Endless</button>
+    <p class="best" id="startinfo"></p>
+    <button id="about-open" type="button" class="small" aria-haspopup="dialog">&#x2139;&#xFE0F; About</button>
+  </div>
+</div>
+
+<div id="about" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="about-title">
+  <div class="panel">
+    <h2 id="about-title">Tidy Tiles</h2>
+    <p class="hint">Made by The Game Company</p>
+    <p class="keys">Original art and code. Free and ad-free. The heading font is Fraunces, by The Fraunces Project Authors, under the SIL Open Font License 1.1.</p>
+    <p class="keys">Keyboard: 1, 2, 3 pick a shape, arrows move it, Enter places it, R restarts.</p>
+    <a id="about-home" class="link" href="../../">More games</a>
+    <button id="about-close" type="button" class="big">Close</button>
+  </div>
+</div>
+
+<div id="paused" class="overlay hidden"><div class="panel"><h2>Paused</h2><button id="resume" type="button" class="big">Resume</button></div></div>
+
+<div id="over" class="overlay hidden">
+  <div class="panel">
+    <h2>No move fits</h2>
+    <div id="badge" class="badge hidden">New best!</div>
+    <div class="score"><span id="final">0</span></div>
+    <p class="best" id="bestline"></p>
+    <button id="again" type="button" class="big">Play again</button>
+    <button id="share" type="button" class="big secondary">Share</button>
+    <button id="endless2" type="button" class="small">Endless</button>
+    <p id="sharemsg" class="keys" role="status" aria-live="polite"></p>
+    <textarea id="sharetext" class="hidden" readonly rows="6" aria-label="Result text to copy"></textarea>
+    <div id="spare" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script src="logic.js"></script>
+<script src="game.js"></script>
+<script src="register-sw.js"></script>
+</body>
+</html>

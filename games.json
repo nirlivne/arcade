@@ -5,5 +5,12 @@
     "date": "2026-09-25",
     "status": "released",
     "description": "Drop goo creatures into a jar, merge matching pairs up eight tiers to the Kingloop, and don't let the pile cross the line."
+  },
+  {
+    "slug": "tidy-tiles",
+    "title": "Tidy Tiles",
+    "date": "2026-09-27",
+    "status": "released",
+    "description": "Drag tile shapes onto an 8x8 grid and clear full rows and columns. A new daily puzzle with a twist, plus an endless mode."
   }
 ]
