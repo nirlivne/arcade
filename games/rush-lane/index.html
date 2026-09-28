@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#FFE1D3">
+<title>Rush Lane</title>
+<link rel="icon" href="data:,">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="ui-kit.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="uk-root">
+<div class="sky" aria-hidden="true">
+  <i style="width:220px;height:86px;left:-60px;top:110px"></i>
+  <i style="width:190px;height:76px;right:-50px;top:430px"></i>
+  <i style="width:240px;height:96px;left:-40px;top:700px"></i>
+</div>
+<canvas id="board" aria-label="Rush Lane board. Tap an arrow to send it out; a blocked arrow bumps back and costs a heart."></canvas>
+<canvas id="demo-overlay" class="demo-overlay hidden" aria-hidden="true"></canvas>
+<p id="demo-caption" class="demo-caption hidden" data-theme-text="text.demoHint" aria-hidden="true">Try it!</p>
+
+<header id="hud" class="hud hidden" aria-hidden="true">
+  <div class="hud__top">
+    <button id="pause-btn" type="button" class="uk-icon-btn" aria-label="Pause">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+    </button>
+    <div class="hud__level"><canvas class="hud__pip" id="hud-pip" width="26" height="26" aria-hidden="true"></canvas><span id="levellabel">Level 1</span></div>
+    <canvas class="hud__hearts" id="hearts" width="84" height="30" aria-label="Hearts left"></canvas>
+  </div>
+  <div class="hud__bottom">
+    <button id="restart" type="button" class="uk-icon-btn" aria-label="Restart level">&#x21BB;</button>
+    <button id="hint-btn" type="button" class="uk-icon-btn" aria-label="Hint: highlight a free arrow">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="6"/><path d="M10 21h4M9 17h6"/></svg>
+    </button>
+    <button id="sound-btn" type="button" class="uk-icon-btn" aria-label="Sound" aria-pressed="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M17 8a5 5 0 0 1 0 8M19.5 5.5a8 8 0 0 1 0 13"/></svg>
+    </button>
+  </div>
+</header>
+
+<section class="uk-screen is-active" id="start" aria-hidden="false">
+  <div class="uk-panel uk-stack">
+    <canvas id="mascot" class="mascot" width="120" height="120" style="width:96px;height:96px" aria-hidden="true"></canvas>
+    <div>
+      <h1 class="uk-title rl-lockup" id="lockup"><span class="rl-lockup__w1" id="lockup-w1" aria-hidden="true"></span><span class="rl-lockup__w2" id="lockup-w2" aria-hidden="true"></span></h1>
+      <p class="uk-subtitle" data-theme-text="tagline"></p>
+    </div>
+    <div class="uk-actions">
+      <button class="uk-btn uk-btn--lg" id="play" autofocus data-theme-text="text.play">Play</button>
+      <button class="uk-btn uk-btn--secondary" id="levels-btn" data-theme-text="text.levels">Levels</button>
+      <button class="uk-btn uk-btn--secondary" id="daily-btn" data-theme-text="text.daily">Daily board</button>
+    </div>
+    <p class="uk-subtitle" id="startinfo"></p>
+    <button class="uk-btn uk-btn--ghost" id="showme-btn" data-theme-text="text.showMe">Show me</button>
+    <p class="uk-dedication" data-theme-text="dedication"></p>
+  </div>
+</section>
+
+<section class="uk-screen" id="levelmap" aria-hidden="true">
+  <div class="uk-panel uk-stack levelmap__panel">
+    <h2 class="uk-title" data-theme-text="text.levels">Levels</h2>
+    <div class="levelmap__scroll" id="levelgrid"></div>
+    <div class="uk-actions">
+      <button class="uk-btn uk-btn--ghost" id="levelmap-menu" data-theme-text="text.menu">Menu</button>
+    </div>
+  </div>
+</section>
+
+<section class="uk-screen uk-screen--clear" id="play-screen" aria-hidden="true"></section>
+
+<section class="uk-screen" id="clear" aria-hidden="true">
+  <div class="uk-panel uk-stack">
+    <canvas class="clear-pip" id="clear-pip" width="92" height="92" aria-hidden="true"></canvas>
+    <span class="uk-badge clear-newbest hidden" id="clear-newbest" data-theme-text="text.newBest">New best</span>
+    <p class="uk-eyebrow" id="clear-level"></p>
+    <span class="uk-badge" id="clear-badge" data-theme-text="text.win">Cleared!</span>
+    <div class="uk-row" id="clear-stars" aria-label="Stars earned"></div>
+    <div class="uk-actions">
+      <button class="uk-btn uk-btn--lg" id="next" data-theme-text="text.next">Next level</button>
+      <button class="uk-btn uk-btn--secondary hidden" id="clear-share" data-theme-text="text.share">Share result</button>
+      <button class="uk-btn uk-btn--ghost" id="clear-menu" data-theme-text="text.menu">Menu</button>
+    </div>
+  </div>
+</section>
+
+<section class="uk-screen" id="retry" aria-hidden="true">
+  <div class="uk-panel uk-stack">
+    <canvas class="retry-pip" id="retry-pip" width="92" height="92" aria-hidden="true"></canvas>
+    <h2 class="uk-title" data-theme-text="text.lose">Try again!</h2>
+    <p class="uk-subtitle" id="retry-info">No worries, have another go.</p>
+    <div class="uk-row" id="retry-hearts" aria-label="Hearts refilling"></div>
+    <div class="uk-actions">
+      <button class="uk-btn uk-btn--lg" id="retry-again"><span aria-hidden="true">↻ </span><span data-theme-text="text.retry">Retry</span></button>
+      <button class="uk-btn uk-btn--ghost" id="retry-menu" data-theme-text="text.menu">Menu</button>
+    </div>
+  </div>
+</section>
+
+<section class="uk-screen" id="allclear" aria-hidden="true">
+  <div class="uk-panel uk-stack">
+    <h2 class="uk-title" data-theme-text="text.allClearTitle">All levels clear!</h2>
+    <p class="uk-subtitle" data-theme-text="text.allClearBody">More lanes are on the way. Try today's daily board while you wait.</p>
+    <div class="uk-actions">
+      <button class="uk-btn uk-btn--lg" id="allclear-daily" data-theme-text="text.daily">Daily board</button>
+      <button class="uk-btn uk-btn--ghost" id="allclear-menu" data-theme-text="text.menu">Menu</button>
+    </div>
+  </div>
+</section>
+
+<div class="corner" id="corner">
+  <button class="uk-icon-btn" id="about-btn" aria-label="About">i</button>
+  <button class="uk-icon-btn" id="howto-btn" aria-label="How to play">?</button>
+  <button class="uk-icon-btn" id="settings-btn" aria-label="Settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+  </button>
+</div>
+
+<dialog class="uk-sheet" id="pause" aria-labelledby="pause-title">
+  <div class="uk-sheet__head">
+    <h2 class="uk-sheet__title" id="pause-title" data-theme-text="text.pause">Paused</h2>
+    <button class="uk-icon-btn" id="pause-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="uk-sheet__body uk-stack">
+    <div class="uk-actions">
+      <button class="uk-btn uk-btn--lg" id="pause-resume" data-theme-text="text.resume">Resume</button>
+      <button class="uk-btn uk-btn--secondary" id="pause-howto" data-theme-text="text.howTo">How to play</button>
+      <button class="uk-btn uk-btn--secondary" id="pause-settings" data-theme-text="text.settings">Settings</button>
+      <button class="uk-btn uk-btn--ghost" id="pause-menu" data-theme-text="text.menu">Menu</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog class="uk-sheet" id="howto" aria-labelledby="howto-title">
+  <div class="uk-sheet__head">
+    <h2 class="uk-sheet__title" id="howto-title" data-theme-text="text.howTo">How to play</h2>
+    <button class="uk-icon-btn" data-howto="close" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="uk-sheet__body">
+    <div class="uk-steps">
+      <div class="uk-step">
+        <div class="uk-step__art">
+          <svg viewBox="0 0 160 100" aria-hidden="true">
+            <rect x="30" y="55" width="70" height="14" rx="7" fill="var(--color-arrow-1)" stroke="var(--color-outline)" stroke-width="3"/>
+            <path d="M96 48 L118 62 L96 76 Z" fill="var(--color-arrow-1)" stroke="var(--color-outline)" stroke-width="3" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <p class="uk-step__text" data-theme-text="text.howToGoal">Clear the board: every arrow has to leave.</p>
+      </div>
+      <div class="uk-step">
+        <div class="uk-step__art">
+          <svg viewBox="0 0 160 100" aria-hidden="true">
+            <rect x="10" y="55" width="60" height="14" rx="7" fill="var(--color-arrow-3)" stroke="var(--color-outline)" stroke-width="3"/>
+            <path d="M76 48 L98 62 L76 76 Z" fill="var(--color-arrow-3)" stroke="var(--color-outline)" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M108 62 L150 62" stroke="var(--color-lane-hint)" stroke-width="5" stroke-dasharray="6 8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <p class="uk-step__text" data-theme-text="text.howToTap">Tap an arrow. If its lane is clear, it slides straight out.</p>
+      </div>
+      <div class="uk-step">
+        <div class="uk-step__art">
+          <svg viewBox="0 0 160 100" aria-hidden="true">
+            <rect x="16" y="55" width="50" height="14" rx="7" fill="var(--color-danger)" stroke="var(--color-outline)" stroke-width="3"/>
+            <path d="M76 48 L96 62 L76 76 Z" fill="var(--color-danger)" stroke="var(--color-outline)" stroke-width="3" stroke-linejoin="round"/>
+            <rect x="104" y="50" width="14" height="24" rx="4" fill="var(--color-surface-2)" stroke="var(--color-outline)" stroke-width="3"/>
+            <path d="M136 44 l6 6-6 6M148 44l-6 6 6 6" stroke="var(--color-heart-empty)" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <p class="uk-step__text" data-theme-text="text.howToBump">Blocked? It bumps back and costs a heart. Lose all 3 and you retry.</p>
+      </div>
+    </div>
+  </div>
+  <div class="uk-sheet__foot">
+    <button class="uk-btn uk-btn--ghost" data-howto="prev">Back</button>
+    <div class="uk-dots" aria-hidden="true"></div>
+    <button class="uk-btn" data-howto="next" data-next="Next" data-done="Let's play!">Next</button>
+  </div>
+</dialog>
+
+<dialog class="uk-sheet" id="settings" aria-labelledby="settings-title">
+  <div class="uk-sheet__head">
+    <h2 class="uk-sheet__title" id="settings-title" data-theme-text="text.settings">Settings</h2>
+    <button class="uk-icon-btn" id="settings-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="uk-sheet__body">
+    <label class="uk-setting"><span class="uk-setting__label" data-theme-text="text.sound">Sound</span>
+      <span class="uk-toggle"><input type="checkbox" id="opt-sound"><span class="uk-toggle__track"></span></span></label>
+    <label class="uk-setting"><span class="uk-setting__label" data-theme-text="text.reduceMotion">Reduce motion<span class="uk-setting__hint" data-theme-text="text.reduceMotionHint">No shake, no confetti</span></span>
+      <span class="uk-toggle"><input type="checkbox" id="opt-motion"><span class="uk-toggle__track"></span></span></label>
+  </div>
+</dialog>
+
+<dialog class="uk-sheet" id="about" aria-labelledby="about-title">
+  <div class="uk-sheet__head">
+    <h2 class="uk-sheet__title" id="about-title" data-theme-text="text.about">About</h2>
+    <button class="uk-icon-btn" id="about-close" aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="uk-sheet__body uk-stack" style="text-align:center">
+    <p><strong data-theme-text="title">Rush Lane</strong><br>Made by The Game Company.</p>
+    <p class="uk-subtitle">Heading font: Fredoka (SIL Open Font License 1.1).</p>
+  </div>
+</dialog>
+
+<script src="theme.js"></script>
+<script src="ui-kit.js"></script>
+<script src="board.js"></script>
+<script src="save.js"></script>
+<script src="levels.js"></script>
+<script src="game.js"></script>
+<script src="register-sw.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "Rush Lane",
+  "short_name": "Rush Lane",
+  "description": "Tap an arrow to send it sliding off the board along its lane. Blocked? It bumps back and costs a heart.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFE1D3",
+  "theme_color": "#FFE1D3",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

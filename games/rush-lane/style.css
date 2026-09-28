@@ -1,0 +1,253 @@
+/* Rush Lane: game-specific layout. Every color, size and duration comes from tokens.css / ui-kit.css;
+   nothing here hard-codes a palette value. */
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg);
+  background: linear-gradient(in oklab 180deg, var(--color-bg), var(--color-bg-2));
+  overscroll-behavior: none;
+}
+body { touch-action: none; }
+
+/* soft cream cloud blobs drifting slowly behind the board and every panel (design brief §6 "light and texture") */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sky i {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--color-surface);
+  opacity: 0.55;
+  animation: rl-drift 44s linear infinite alternate;
+}
+.sky i:nth-child(2) { animation-duration: 60s; }
+.sky i:nth-child(3) { animation-duration: 52s; }
+@keyframes rl-drift {
+  from { transform: translateX(-28px); }
+  to { transform: translateX(28px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky i { animation: none; }
+}
+:root[data-reduce-motion="true"] .sky i { animation: none; }
+
+#board {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* #play-screen has no content of its own (the board canvas underneath is the whole play UI); ui-kit's
+   generic .uk-screen.is-active rule makes it pointer-events:auto like every other screen, which -- being
+   painted on top of the canvas -- would silently eat every real tap meant for an arrow. */
+#play-screen { pointer-events: none; }
+
+.hidden { display: none !important; }
+
+/* DESIGN.md §4/§7: pause lives in a top row, restart/hint/sound in a bottom play bar at y ~ 664-736 on an
+   844 px phone, clear of the bottom 60 px gesture zone; both rows sit in the same centred 480 px column the
+   rest of the UI uses on desktop, instead of a single row spanning the full viewport width. */
+.hud {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.hud__top, .hud__bottom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(100%, 480px);
+  margin: 0 auto;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+.hud__top {
+  justify-content: space-between;
+  padding: max(var(--space-3), env(safe-area-inset-top)) var(--space-4) var(--space-3);
+}
+
+.hud__bottom {
+  justify-content: center;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-4) calc(max(60px, env(safe-area-inset-bottom)) + var(--space-3));
+}
+
+/* Ghost-hand demo (DESIGN.md §9): hearts and Pip stay visible so the bump's heart wobble and Pip wince read,
+   but the pause/hint/restart/sound buttons -- which the scripted hand never touches -- and the level pill,
+   which would misleadingly read "Level 1" over the demo board, are hidden. */
+.hud--demo .uk-icon-btn, .hud--demo #levellabel { visibility: hidden; }
+
+.hud__hearts { display: block; width: 84px; height: 30px; }
+
+.hud__level {
+  display: flex;
+  align-items: center;
+  font: var(--weight-strong) var(--text-md) / 1 var(--font-display);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: var(--outline-w) solid var(--color-outline);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-4);
+}
+
+#clear-stars { gap: var(--space-2); }
+#clear-stars .star { font-size: var(--text-xl); line-height: 1; }
+#clear-stars .star.is-filled { color: var(--color-accent); }
+#clear-stars .star.is-empty { color: var(--color-text-muted); opacity: 0.4; }
+/* DESIGN.md §3: each star pops in in turn instead of appearing all at once. */
+#clear-stars .star--pending { opacity: 0; transform: scale(0.4); }
+
+/* "Level N" caption above the clear badge (DESIGN.md §7). */
+.uk-eyebrow { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* The new-best chip wobbles in the panel's top corner instead of replacing the win text (DESIGN.md §3). */
+.clear-newbest { position: absolute; top: calc(-1 * var(--space-3)); right: calc(-1 * var(--space-2)); transform: rotate(8deg); }
+.clear-newbest:not(.hidden) { animation: rl-chip-wobble 1.8s var(--ease-spring) 1; }
+@keyframes rl-chip-wobble {
+  0% { transform: rotate(0deg) scale(0.6); opacity: 0; }
+  40% { transform: rotate(14deg) scale(1.08); opacity: 1; }
+  70% { transform: rotate(-8deg) scale(1); }
+  100% { transform: rotate(8deg); }
+}
+@media (prefers-reduced-motion: reduce) { .clear-newbest:not(.hidden) { animation: none; } }
+:root[data-reduce-motion="true"] .clear-newbest:not(.hidden) { animation: none; }
+
+/* A slow sunburst turns behind the clear panel (DESIGN.md §3); z-index keeps it under the panel and above the
+   screen's own translucent scrim. */
+#clear::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 130vmin;
+  height: 130vmin;
+  border-radius: 50%;
+  background: repeating-conic-gradient(var(--color-accent) 0deg 8deg, transparent 8deg 24deg);
+  opacity: 0;
+  z-index: -1;
+}
+#clear.is-active::before { opacity: 0.22; animation: rl-sunburst-spin 14s linear infinite; }
+@keyframes rl-sunburst-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #clear.is-active::before { animation: none; opacity: 0.14; } }
+:root[data-reduce-motion="true"] #clear.is-active::before { animation: none; opacity: 0.14; }
+
+/* Hearts refilling on the out-of-hearts panel (DESIGN.md §7), matching the HUD's heart colours. */
+#retry-hearts { font-size: var(--text-xl); }
+#retry-hearts .heart.is-full { color: var(--color-danger); }
+#retry-hearts .heart.is-empty { color: var(--color-text-muted); opacity: 0.4; }
+
+.corner {
+  position: fixed;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  right: var(--space-4);
+  display: flex;
+  gap: var(--space-2);
+  z-index: 5;
+}
+
+.demo-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: none !important;
+}
+
+.mascot { border-radius: var(--radius-pill); }
+
+/* The lockup: chunky cream/gold letters with an ink keyline and a hard ink drop (design brief §6 "typography").
+   Sizes are the brief's own lockup numbers (7 px stroke, 5/6 px drop), not scale tokens -- this is a fixed
+   brand mark, not a reusable text style. */
+.rl-lockup {
+  margin: 0;
+  font: var(--weight-strong) calc(var(--text-2xl) * 1.6) / 0.86 var(--font-display);
+  letter-spacing: -1px;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.rl-lockup__w1, .rl-lockup__w2 {
+  display: block;
+  color: var(--color-surface);
+  -webkit-text-stroke: 7px var(--color-outline);
+  paint-order: stroke fill;
+  text-shadow: 5px 6px 0 var(--color-outline);
+}
+.rl-lockup__w2 { color: var(--color-accent); }
+
+.hud__pip { display: block; width: 26px; height: 26px; margin-right: var(--space-1); }
+
+/* Pip rides the top edge of the clear panel; on the retry panel he sits inline above the copy. */
+.clear-pip {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -62%);
+  width: 92px;
+  height: 92px;
+}
+.retry-pip { display: block; width: 92px; height: 92px; margin: 0 auto; }
+
+.demo-caption {
+  position: fixed;
+  left: 50%;
+  bottom: max(var(--space-6), calc(env(safe-area-inset-bottom) + var(--space-5)));
+  transform: translateX(-50%);
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border: var(--outline-w) solid var(--color-outline);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-outline);
+  font: var(--weight-strong) var(--text-md) / 1 var(--font-display);
+  box-shadow: var(--shadow-1);
+  z-index: 11;
+}
+
+.levelmap__panel { width: min(100%, 480px); max-height: min(86vh, 640px); }
+.levelmap__scroll {
+  width: 100%;
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-1);
+}
+.levelmap__chapter { font: var(--weight-strong) var(--text-sm) / 1 var(--font-display); color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.08em; text-align: left; margin: 0; }
+.levelmap__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: var(--space-2); }
+.levelmap__btn {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  aspect-ratio: 1;
+  min-height: var(--hit-min);
+  border: var(--outline-w) solid var(--color-outline);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2, var(--color-bg));
+  color: var(--color-text);
+  font: var(--weight-strong) var(--text-md) / 1 var(--font-display);
+  box-shadow: 0 3px 0 var(--color-outline);
+  cursor: pointer;
+}
+.levelmap__btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--color-outline); }
+.levelmap__btn[aria-current="true"] { background: var(--color-primary); color: var(--color-primary-text); }
+.levelmap__btn[disabled] { filter: grayscale(0.8); opacity: 0.55; cursor: default; }
+.levelmap__stars { font-size: 10px; letter-spacing: 1px; color: var(--color-accent); line-height: 1; }
+.levelmap__btn[disabled] .levelmap__stars { color: var(--color-text-muted); }

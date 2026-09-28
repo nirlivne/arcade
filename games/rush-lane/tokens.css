@@ -1,0 +1,135 @@
+/* Rush Lane design tokens. Art direction: "sunny sticker play-mat" (see games/rush-lane/DESIGN.md and the
+   design-brief document on THE-70). Warm peach page, cream board, fat candy arrows stuck on like stickers with an
+   ink keyline and a hard ink offset shadow. Every value here comes from an OKLCH ramp (tools/design/palette.mjs).
+   Canvas code reads these once at startup; never hard-code a colour, size or duration. Keep URLs out of this file. */
+
+@font-face {
+  font-family: "Fredoka";
+  src: url("fonts/Fredoka-latin.woff2") format("woff2");
+  font-weight: 300 700; /* variable font; we use 500 and 700 */
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* color: surfaces */
+  --color-bg: #FFE1D3;        /* page: peach morning sky (apricot-100), the dominant hue */
+  --color-bg-2: #FFC1A5;      /* page gradient end, lower edge (apricot-200) */
+  --color-surface: #FDF3EC;   /* the board and every panel: cream play-mat paper (ink-50) */
+  --color-surface-2: #F1E6DD; /* pressed/sunken areas: level-map path, disabled tiles (ink-100) */
+  --color-outline: #231E1A;   /* THE ink: every keyline, every hard shadow, board frame (ink-900) */
+
+  /* color: text */
+  --color-text: #231E1A;       /* ink-900 */
+  --color-text-muted: #5B5048; /* ink-700: labels, secondary lines */
+
+  /* color: actions and signals */
+  --color-primary: #FC685A;      /* tomato candy: Play, Next, Retry */
+  --color-primary-text: #231E1A; /* ink on tomato (white fails 4.5) */
+  --color-accent: #FAC878;       /* gold: stars, daily badge, streak (gold-200) */
+  --color-accent-deep: #CF9100;  /* gold-400: star rims when filled, daily sun rays */
+  --color-danger: #B73B32;       /* tomato-600: bump flash keyline, lost-heart crack */
+  --color-heart: #FC685A;        /* heart fill (same candy as primary: hearts ARE the stakes) */
+  --color-heart-empty: #DBCEC4;  /* spent heart socket (ink-200) */
+
+  /* color: the board */
+  --color-dot: #C3B4A9;          /* empty-cell dot grid (ink-300) */
+  --color-lane-hint: #FAC878;    /* hint glow along a free arrow's lane (gold-200) */
+
+  /* color: the arrows (cycled by arrow index; colour never carries meaning, shape does) */
+  --color-arrow-1: #FC685A; /* tomato-400 */
+  --color-arrow-2: #FAC878; /* gold-200 */
+  --color-arrow-3: #6DCDAD; /* mint-300 */
+  --color-arrow-4: #72BFFE; /* sky-300 */
+  --color-arrow-5: #CBA0FC; /* grape-300 */
+  --color-arrow-gloss: #FFFFFF; /* the gloss stripe along each arrow's body, drawn at --arrow-gloss-alpha */
+
+  /* type (Fredoka, SIL OFL, bundled in fonts/; licence in licenses/Fredoka-OFL.txt) */
+  --font-display: "Fredoka", "Baloo 2", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --font-body: "Fredoka", "Arial Rounded MT Bold", system-ui, sans-serif;
+  --text-sm: 14px;
+  --text-md: 18px;
+  --text-lg: 24px;
+  --text-xl: 36px;
+  --text-2xl: 56px;
+  --weight-body: 500;
+  --weight-strong: 700;
+  --text-min: 16px; /* smallest text read during play */
+
+  /* space (4 px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* shape */
+  --radius-sm: 10px;
+  --radius-md: 18px;
+  --radius-lg: 28px;
+  --radius-pill: 999px;
+  --outline-w: 3px;     /* UI keyline */
+  --pop: 5px;           /* hard offset shadow of panels and big buttons (Where-is-Noam sticker look) */
+  --pop-sm: 3px;        /* hard offset shadow of small buttons, chips, hearts */
+  --hit-min: 44px;      /* minimum touch target */
+  --cell-min: 36px;     /* smallest board cell on a 390 px phone; the generator caps board width to keep it */
+
+  /* arrow geometry, as fractions of one cell (numbers only; never reuse these names for colours) */
+  --arrow-stroke: 0.42;      /* body thickness */
+  --arrow-keyline: 0.075;    /* ink keyline around body and head */
+  --arrow-head-w: 0.86;      /* head width across the lane */
+  --arrow-head-len: 0.52;    /* head length along the lane */
+  --arrow-corner: 0.5;       /* bend radius: bends are quarter circles centred on the cell corner */
+  --arrow-lift: 0.09;        /* hard ink offset shadow at rest (down-right) */
+  --arrow-lift-press: 0.16;  /* ... while pressed: the sticker lifts */
+  --arrow-gloss-alpha: 0.45; /* gloss stripe opacity */
+  --arrow-hit-pad: 0.2;      /* extra hit area around every body cell */
+  --dot-r: 0.07;             /* empty-cell dot radius */
+
+  /* light */
+  --shadow-1: 3px 3px 0 #231E1A;
+  --shadow-2: 5px 5px 0 #231E1A;
+  --glow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 70%, transparent);
+  --scrim: rgba(35, 30, 26, 0.45); /* overlay behind panels; alpha colours are not contrast-checked */
+  --scrim-screen: color-mix(in srgb, var(--color-bg) 78%, transparent); /* full-screen wash behind a panel: peach
+    dims through instead of the ink --scrim, which read as a muddy grey-brown lid over the sky (THE-79) */
+
+  /* motion: one family, "snappy and springy". Numbers come from the core-feel study (design-brief §1). */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);   /* exit launch */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur-med: 240ms;
+  --dur-slow: 480ms;
+  --exit-speed: 28;        /* cells per second at full speed (study: ~30) */
+  --exit-ramp: 90ms;       /* time to reach full speed from rest, --ease-in */
+  --bump-speed: 28;        /* cells per second toward the blocker (same as exit, so it "commits") */
+  --bump-hold: 50ms;       /* squash at contact */
+  --bump-return: 160ms;    /* back home, --ease-spring */
+  --bump-flash: 520ms;     /* both arrows' danger keyline fades out */
+  --streak-life: 420ms;    /* rush streaks fade */
+  --deal-stagger: 45ms;    /* arrows grow in one after another when a board is dealt */
+  --shake-px: 4;           /* the only screen nudge: on a bump, along the arrow's direction; 0 under reduced motion */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-med: 0ms; --dur-slow: 0ms; --bump-flash: 520ms; --shake-px: 0; --deal-stagger: 0ms; }
+}
+
+/* contrast: --color-text on --color-bg >= 4.5 */
+/* contrast: --color-text on --color-bg-2 >= 4.5 */
+/* contrast: --color-text-muted on --color-bg >= 4.5 */
+/* contrast: --color-text on --color-surface >= 4.5 */
+/* contrast: --color-text-muted on --color-surface >= 4.5 */
+/* contrast: --color-primary-text on --color-primary >= 4.5 */
+/* contrast: --color-text on --color-accent >= 4.5 */
+/* contrast: --color-outline on --color-surface >= 4.5 */
+/* contrast: --color-outline on --color-arrow-1 >= 4.5 */
+/* contrast: --color-outline on --color-arrow-2 >= 4.5 */
+/* contrast: --color-outline on --color-arrow-3 >= 4.5 */
+/* contrast: --color-outline on --color-arrow-4 >= 4.5 */
+/* contrast: --color-outline on --color-arrow-5 >= 4.5 */
+/* contrast: --color-outline on --color-heart >= 3 */
+/* contrast: --color-danger on --color-surface >= 3 */
+/* contrast: --color-danger on --color-bg >= 3 */
