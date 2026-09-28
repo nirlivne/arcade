@@ -87,6 +87,65 @@
   --arrow-hit-pad: 0.2;      /* extra hit area around every body cell */
   --dot-r: 0.07;             /* empty-cell dot radius */
 
+  /* ---- v1.1 "neon maze" board (THE-119, DESIGN.md §15). The play board is a night-navy slate; arrows are thin
+     neon lines packed inside a silhouette. The v1 candy tokens above stay for the title, map and UI decoration. */
+  --color-board: #121A2E;      /* play-screen page and board: night navy, oklch(0.21 0.04 265) */
+  --color-board-2: #0B1122;    /* page gradient end, lower edge */
+  --color-grid-dot: #2A3552;   /* faint dot on every silhouette cell, under the lines; shows the shape as it empties */
+  --color-line-danger: #FF3B30;/* bump flash on both arrows + the "tried" ring */
+  --color-line-hint: #FAC878;  /* hint: the free arrow's lane glows gold (same as --color-lane-hint) */
+  --color-line-trail: #FFFFFF; /* vacated-path glow after an exit, drawn at --trail-alpha */
+
+  /* line colours, one per arrow, chosen by the generator's greedy colouring (DESIGN.md §15.2).
+     Never-adjacent pairs (min OKLab distance < 12 under protan,
+     deutan or tritan simulation; design/rush-lane/v11/cvd-check.mjs): 1-6, 2-5, 2-9, 3-7, 5-8, 6-10, 7-10, 8-10, 9-10 */
+  --color-line-1: #FF4492;  /* hot pink */
+  --color-line-2: #F2E63A;  /* lemon */
+  --color-line-3: #447CFF;  /* electric blue */
+  --color-line-4: #E79700;  /* amber */
+  --color-line-5: #F4F6FF;  /* moon white */
+  --color-line-6: #00C899;  /* jade */
+  --color-line-7: #BB91FF;  /* lilac */
+  --color-line-8: #97FFC0;  /* mint glow */
+  --color-line-9: #F9B5FF;  /* candy pink */
+  --color-line-10: #34D8F0; /* cyan */
+
+  /* alternative "ink paper" board (Settings > Board style; theme.js may pick it): one ink colour on cream */
+  --color-mono-board: #FDF3EC;
+  --color-mono-line: #231E1A;
+  --color-mono-dot: #DBCEC4;
+  --color-mono-active: #2F5BD8; /* the pressed arrow in the mono style: one blue path, like the genre icon */
+
+  /* line geometry, fractions of one cell unless marked px */
+  --line-w: 0.18;          /* stroke width: 2.8 px at a 15.6 px cell */
+  --line-w-min: 2;         /* px floor, so a 14 px cell still gets a 2 px line */
+  --line-w-press: 1.35;    /* x line width while pressed / selected */
+  --line-w-bump: 1.6;      /* x line width during the bump flash */
+  --line-cap: round;       /* tail cap (canvas lineCap) */
+  --line-join: round;      /* bends: sharp 90-degree polyline corners with a round join, no arcs (maze look) */
+  --head-w: 0.62;          /* arrowhead base width across the lane */
+  --head-len: 0.5;         /* arrowhead length along the lane */
+  --head-tip: 0.46;        /* tip distance ahead of the head cell centre (< 0.5: the tip stays inside its cell) */
+  --grid-dot-r: 0.07;      /* silhouette dot radius */
+  --grid-dot-min: 1;       /* px floor for the dot radius */
+  --dim-others: 0.45;      /* share of their own colour the other arrows keep (opaque blend toward the board, not alpha) while one is pressed (the pressed one reads through the finger) */
+  --trail-alpha: 0.35;     /* vacated-path glow, fades over --trail-life */
+  --cell-min-maze: 14px;   /* smallest cell on a 360 px phone; the generator caps masks at 24 x 32 cells */
+  --cell-max-maze: 30px;   /* cap on tablets/desktop so lines don't turn chunky again */
+  --tap-radius: 0.8;       /* nearest arrow within max(0.8 cell, --tap-radius-min) of the finger */
+  --tap-radius-min: 12px;
+
+  /* snake motion (DESIGN.md §15.4) */
+  --snake-speed: 24;        /* cells per second */
+  --snake-speed-px: 480;    /* px per second floor; use whichever is faster */
+  --snake-ramp: 90ms;       /* start from rest, --ease-in */
+  --snake-max: 1100ms;      /* an exit never takes longer: speed up long snakes / long lanes to fit */
+  --snake-fade: 3;          /* cells past the silhouette's bounding box over which the leaving snake fades out */
+  --snake-retract: 1.5;     /* x speed on the way back after a bump */
+  --snake-bump-min: 0.3;    /* cells of push when the blocker is directly in front (no gap) */
+  --trail-life: 320ms;
+  --deal-total: 900ms;      /* whole-board deal-in; per-arrow stagger = min(20 ms, deal-total / arrows) */
+
   /* light */
   --shadow-1: 3px 3px 0 #231E1A;
   --shadow-2: 5px 5px 0 #231E1A;
@@ -114,7 +173,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root { --dur-fast: 0ms; --dur-med: 0ms; --dur-slow: 0ms; --bump-flash: 520ms; --shake-px: 0; --deal-stagger: 0ms; }
+  :root { --dur-fast: 0ms; --dur-med: 0ms; --dur-slow: 0ms; --bump-flash: 520ms; --shake-px: 0; --deal-stagger: 0ms;
+    --deal-total: 0ms; --trail-life: 0ms; } /* snakes: see DESIGN.md §15.4 "Reduced motion" (fade in place, no travel) */
 }
 
 /* contrast: --color-text on --color-bg >= 4.5 */
@@ -133,3 +193,17 @@
 /* contrast: --color-outline on --color-heart >= 3 */
 /* contrast: --color-danger on --color-surface >= 3 */
 /* contrast: --color-danger on --color-bg >= 3 */
+/* contrast: --color-line-1 on --color-board >= 4.5 */
+/* contrast: --color-line-2 on --color-board >= 4.5 */
+/* contrast: --color-line-3 on --color-board >= 4.5 */
+/* contrast: --color-line-4 on --color-board >= 4.5 */
+/* contrast: --color-line-5 on --color-board >= 4.5 */
+/* contrast: --color-line-6 on --color-board >= 4.5 */
+/* contrast: --color-line-7 on --color-board >= 4.5 */
+/* contrast: --color-line-8 on --color-board >= 4.5 */
+/* contrast: --color-line-9 on --color-board >= 4.5 */
+/* contrast: --color-line-10 on --color-board >= 4.5 */
+/* contrast: --color-line-danger on --color-board >= 4.5 */
+/* contrast: --color-line-hint on --color-board >= 4.5 */
+/* contrast: --color-mono-line on --color-mono-board >= 4.5 */
+/* contrast: --color-mono-active on --color-mono-board >= 4.5 */

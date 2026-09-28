@@ -1,9 +1,9 @@
 // Hand-written service worker: precache the game's own files, serve cache-first.
 // Bump CACHE_VERSION whenever any shipped file changes.
-var CACHE_VERSION = 'rush-lane-v2';
+var CACHE_VERSION = 'rush-lane-v3';
 var FILES = [
   './', 'index.html', 'style.css', 'tokens.css', 'ui-kit.css',
-  'theme.js', 'ui-kit.js', 'board.js', 'save.js', 'levels.js', 'game.js', 'register-sw.js',
+  'theme.js', 'ui-kit.js', 'board.js', 'save.js', 'levels.js', 'daily-shapes.js', 'game.js', 'register-sw.js',
   'fonts/Fredoka-latin.woff2',
   'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'
 ];

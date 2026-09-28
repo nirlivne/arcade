@@ -26,6 +26,14 @@ Pause (top corner; it also happens automatically if you switch tabs), restart, a
 
 Open `index.html` in a browser, or serve the folder (for example `python -m http.server`) and open it. It works offline once loaded and can be installed as an app.
 
+## What's new in v1.1: the neon maze
+
+- Every level is now a picture: the arrows are packed inside a shape (a heart, a cat, an umbrella, letters and more), drawn as thin neon lines so a full board looks like a maze.
+- Arrows move like snakes: the head leads and the body follows its own bent path out of the board. A blocked arrow snakes up to the blocker and back.
+- Much bigger boards: late levels have up to about 125 arrows on boards up to 24 x 32, and you'll need to plan the order you clear them in.
+- A new daily board built the same way.
+- **Your progress starts fresh.** Every level was rebuilt, so levels and daily bests saved before this update start over. Your old star total is kept on your device.
+
 ## Credits
 
 Created by The Game Company. Original art and code, drawn in code and shapes, no copied art.
@@ -38,3 +46,8 @@ Adapted from the classic sliding-arrow puzzle idea; Rush Lane's board, art, code
 
 - The colour-coded exit-gate twist mentioned in early pitches is not in this build; the first chapters are the plain slide-and-bump mechanic only.
 - On a phone held sideways (landscape), the board is drawn quite small. Portrait works best on phones.
+- There's no pinch-zoom. The board always fits the screen; if you're unsure you've got the right arrow, press and hold to see which one is highlighted, slide your finger to adjust, and release.
+- Smooth on the phones we tested, but not yet tested on very old, low-end phones with the biggest boards.
+- A new board appears all at once (no animation as it loads), and there's only the neon board style for now.
+- A few of the letter-shaped levels are a little less densely packed than the rest.
+- Stars earned before v1.1 aren't shown anywhere yet.

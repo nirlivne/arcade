@@ -111,9 +111,11 @@
   // trap count (arrows unlocked one layer in, whose sole blocker was free from the very first layer -- they
   // look one tap away the whole time but need that other arrow gone first), arrow count, fill density and
   // shortest/longest arrow length (so the generator can reject 1-cell stubs and check its snake lengths).
-  function analyze(board) {
+  // `playableCells` overrides the fill-density denominator: a mask-packed board's real playable area is the
+  // mask's cell count, not its w*h bounding box (most of the bbox is silhouette background).
+  function analyze(board, playableCells) {
     const arrowCount = board.arrows.size;
-    const totalCells = board.w * board.h;
+    const totalCells = playableCells !== undefined ? playableCells : board.w * board.h;
     const usedCells = totalCells === 0 ? 0 : [...board.arrows.values()].reduce((sum, a) => sum + a.cells.length, 0);
     const fillDensity = totalCells === 0 ? 0 : usedCells / totalCells;
     const lengths = [...board.arrows.values()].map((a) => a.cells.length);
@@ -226,12 +228,28 @@
   // but a tiny board. Leaving real empty space gives lanes an actual chance to be clear, which is what makes
   // solvable boards common enough for reject-sampling (see `generate`) to converge quickly, and turns fill
   // density into a meaningful difficulty knob rather than a constant.
-  function tile(w, h, rand, minLen, maxLen, bendProbability, density) {
+  //
+  // `mask`, when given, is a Set of "x,y" keys: only those cells are playable (a silhouette, per THE-119).
+  // Every other cell in the w*h bounding box is pre-marked occupied so walks never step outside the shape,
+  // and `density` is a fraction of the mask's cell count rather than the whole bounding box.
+  function tile(w, h, rand, minLen, maxLen, bendProbability, density, mask) {
     const occupied = new Set();
-    const order = [];
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) order.push([x, y]);
+    let order;
+    if (mask) {
+      order = [];
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (mask.has(cellKey(x, y))) order.push([x, y]);
+          else occupied.add(cellKey(x, y));
+        }
+      }
+    } else {
+      order = [];
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) order.push([x, y]);
+    }
     const cells = shuffle(order, rand);
-    const targetCells = Math.round(w * h * density);
+    const playableCount = mask ? mask.size : w * h;
+    const targetCells = Math.round(playableCount * density);
     const arrows = [];
     let nextId = 1;
     let filled = 0;
@@ -244,6 +262,208 @@
       filled += arrow.cells.length;
     }
     return createBoard(w, h, arrows);
+  }
+
+  // BFS distance from each mask cell to the nearest non-mask cell (or grid edge) -- 0 on the boundary,
+  // rising toward the interior. `tilePacked` places deep cells first and boundary cells last, since a
+  // boundary cell's straight-line lane to the grid edge is short and mostly outside the mask (rarely
+  // contested), while an interior cell's lane has to cross a lot of the shape and is only reliably clear
+  // very early, before much else is placed. Without this ordering the two get placed in random order and
+  // density plateaus well short of target once the board starts filling up (verified empirically).
+  function maskDepth(w, h, mask) {
+    const dist = new Map();
+    const queue = [];
+    for (const key of mask) {
+      const [x, y] = key.split(",").map(Number);
+      let boundary = x === 0 || y === 0 || x === w - 1 || y === h - 1;
+      if (!boundary) {
+        for (const name of DIR_NAMES) {
+          const [dx, dy] = DIRS[name];
+          if (!mask.has(cellKey(x + dx, y + dy))) {
+            boundary = true;
+            break;
+          }
+        }
+      }
+      if (boundary) {
+        dist.set(key, 0);
+        queue.push(key);
+      }
+    }
+    let qi = 0;
+    while (qi < queue.length) {
+      const key = queue[qi++];
+      const [x, y] = key.split(",").map(Number);
+      const d = dist.get(key);
+      for (const name of DIR_NAMES) {
+        const [dx, dy] = DIRS[name];
+        const nk = cellKey(x + dx, y + dy);
+        if (mask.has(nk) && !dist.has(nk)) {
+          dist.set(nk, d + 1);
+          queue.push(nk);
+        }
+      }
+    }
+    return dist;
+  }
+
+  // Builds a mask-packed board that is solvable *by construction* instead of by reject-sampling `tile`'s
+  // output: at the fill densities and board sizes THE-118 asks for (90%+ of 300-600 playable cells), an
+  // arrow's exit direction from a plain random walk is essentially arbitrary, so almost every dense tiling's
+  // "A blocked by B" graph has a cycle somewhere and whole-board reject-sampling stops converging (verified
+  // empirically while building the v1.1 ladder -- see tools/rush-lane/gen-levels.mjs's density-ceiling
+  // comment). This fixes that by adding arrows one at a time in *removal order, reversed*: each new arrow is
+  // only accepted once its own exit lane is already clear of every arrow placed before it. That single local
+  // invariant is enough to guarantee the finished board solves: reading the arrows back off in the reverse
+  // of their placement order is a valid greedy peel, because by the time the solver reaches an arrow, every
+  // arrow placed after it (the only ones allowed to sit in its lane) has already been removed. A starting
+  // cell that can't grow a free-lane arrow in `triesPerArrow` tries is left empty (a small gap) rather than
+  // placed anyway -- accepting a not-actually-free arrow there would break the invariant this function
+  // exists to guarantee, silently reintroducing the cyclic-board risk it's meant to avoid.
+  function tilePacked(w, h, rand, minLen, maxLen, bendProbability, density, mask, triesPerArrow, gapFillMaxLen) {
+    const tries = triesPerArrow || 15;
+    const wallOccupied = new Set();
+    let cells;
+    if (mask) {
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (!mask.has(cellKey(x, y))) wallOccupied.add(cellKey(x, y));
+        }
+      }
+      const depth = maskDepth(w, h, mask);
+      const byDepth = new Map();
+      for (const key of mask) {
+        const d = depth.get(key);
+        if (!byDepth.has(d)) byDepth.set(d, []);
+        byDepth.get(d).push(key.split(",").map(Number));
+      }
+      const depths = [...byDepth.keys()].sort((a, b) => b - a); // deepest (interior) first, boundary (0) last
+      cells = [];
+      for (const d of depths) cells.push(...shuffle(byDepth.get(d), rand));
+    } else {
+      const order = [];
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) order.push([x, y]);
+      cells = shuffle(order, rand);
+    }
+    const playableCount = mask ? mask.size : w * h;
+    const targetCells = Math.round(playableCount * density);
+
+    const board = createBoard(w, h, []);
+    const bodyOccupied = new Set(wallOccupied);
+    let nextId = 1;
+    let filled = 0;
+
+    for (const [x, y] of cells) {
+      if (filled >= targetCells) break;
+      if (bodyOccupied.has(cellKey(x, y))) continue;
+
+      let best = null;
+      for (let t = 0; t < tries; t++) {
+        const candidate = growArrow(x, y, bodyOccupied, rand, minLen, maxLen, bendProbability, nextId, w, h);
+        // growArrow falls back to a 1-cell stub when a cell is fully boxed in; treat that the same as a
+        // failed try here (skip the cell as a gap) rather than bake a stub into the shipped ladder.
+        if (candidate.cells.length < minLen) continue;
+        board.arrows.set(candidate.id, candidate);
+        if (isFree(board, candidate.id)) {
+          best = candidate;
+          break;
+        }
+        board.arrows.delete(candidate.id);
+      }
+      if (!best) continue; // no free-lane growth from this cell -- leave it a gap, try the next candidate
+      for (const [cx, cy] of best.cells) bodyOccupied.add(cellKey(cx, cy));
+      filled += best.cells.length;
+      nextId++;
+    }
+
+    // Opt-in second sweep (existing callers that don't pass gapFillMaxLen see byte-identical output): the
+    // pass above tries every mask cell exactly once at the level's real length band, so a cell stranded in a
+    // pocket too small for that band becomes a permanent gap even though a *shorter* arrow would fit there.
+    // Re-trying just the leftover cells with a short band (2..gapFillMaxLen) rescues those pockets -- this is
+    // what pushing fill density from the high-0.8s into the low-0.9s needs at these arrow lengths (THE-137).
+    if (gapFillMaxLen && mask) {
+      for (const [x, y] of cells) {
+        if (bodyOccupied.has(cellKey(x, y))) continue;
+        let best = null;
+        for (let t = 0; t < tries; t++) {
+          const candidate = growArrow(x, y, bodyOccupied, rand, 2, gapFillMaxLen, bendProbability, nextId, w, h);
+          if (candidate.cells.length < 2) continue;
+          board.arrows.set(candidate.id, candidate);
+          if (isFree(board, candidate.id)) {
+            best = candidate;
+            break;
+          }
+          board.arrows.delete(candidate.id);
+        }
+        if (!best) continue;
+        for (const [cx, cy] of best.cells) bodyOccupied.add(cellKey(cx, cy));
+        filled += best.cells.length;
+        nextId++;
+      }
+    }
+    return board;
+  }
+
+  // The "arrow A touches arrow B" graph: two arrows are neighbours when any of A's cells is 4-adjacent to
+  // one of B's. Used only for colour assignment below.
+  function neighborArrows(board) {
+    const occ = occupancyMap(board);
+    const neighbors = new Map();
+    for (const id of board.arrows.keys()) neighbors.set(id, new Set());
+    for (const arrow of board.arrows.values()) {
+      for (const [x, y] of arrow.cells) {
+        for (const name of DIR_NAMES) {
+          const [dx, dy] = DIRS[name];
+          const hit = occ.get(cellKey(x + dx, y + dy));
+          if (hit !== undefined && hit !== arrow.id) neighbors.get(arrow.id).add(hit);
+        }
+      }
+    }
+    return neighbors;
+  }
+
+  // Greedy graph colouring per THE-119's spec (DESIGN.md 15.2): visit arrows by most touching neighbours
+  // first (the hardest-to-colour ones get first pick); for each, prefer a colour that (1) no touching
+  // neighbour uses and (2) doesn't form a `neverAdjacent` pair with any neighbour's colour, tie-broken by (3)
+  // whichever such colour is least used so far (keeps the palette balanced). Relaxes (2) before (1) when
+  // nothing satisfies both, and as a last resort (a local neighbourhood denser than the palette) picks the
+  // least-used colour overall, accepting an occasional clash rather than growing the palette. Returns a new
+  // board; does not mutate the input. `neverAdjacent` is a list of [colourA, colourB] 0-indexed pairs (the
+  // CVD-unsafe pairs from THE-119's contrast check) to avoid placing next to each other when avoidable.
+  function assignColors(board, paletteSize, neverAdjacent) {
+    const size = paletteSize || 12;
+    const neighbors = neighborArrows(board);
+    const neverSet = new Set((neverAdjacent || []).map(([a, b]) => (a < b ? a + "," + b : b + "," + a)));
+    const isNeverAdjacent = (c1, c2) => neverSet.has(c1 < c2 ? c1 + "," + c2 : c2 + "," + c1);
+
+    const ids = [...board.arrows.keys()].sort((a, b) => neighbors.get(b).size - neighbors.get(a).size);
+    const colors = new Map();
+    const usage = new Array(size).fill(0);
+    for (const id of ids) {
+      const neighborColors = new Set();
+      for (const n of neighbors.get(id)) if (colors.has(n)) neighborColors.add(colors.get(n));
+
+      let best = null;
+      for (let relax = 0; relax < 2 && best === null; relax++) {
+        for (let c = 0; c < size; c++) {
+          if (neighborColors.has(c)) continue;
+          if (relax === 0) {
+            let clash = false;
+            for (const nc of neighborColors) if (isNeverAdjacent(c, nc)) { clash = true; break; }
+            if (clash) continue;
+          }
+          if (best === null || usage[c] < usage[best]) best = c;
+        }
+      }
+      if (best === null) {
+        best = 0;
+        for (let c = 1; c < size; c++) if (usage[c] < usage[best]) best = c;
+      }
+      colors.set(id, best);
+      usage[best]++;
+    }
+    const arrows = [...board.arrows.values()].map((a) => Object.assign({}, a, { color: colors.get(a.id) }));
+    return createBoard(board.w, board.h, arrows);
   }
 
   // mulberry32: a small, fast seeded RNG returning floats in [0, 1). Kept local (not shared with the
@@ -259,10 +479,13 @@
     };
   }
 
-  // Generates a solvable, cycle-free board. `rand` is a 0..1 RNG (see `rng` above). `accept(metrics)` is an
-  // optional predicate for a target difficulty band; without it, any solvable board is returned. Keeps
+  // Generates a solvable, cycle-free board. `rand` is a 0..1 RNG (see `rng` above). `accept(metrics, board)`
+  // is an optional predicate for a target difficulty band (the board is passed too, for checks metrics
+  // doesn't carry, e.g. per-row coverage against a mask); without it, any solvable board is returned. Keeps
   // retrying (drawing further from the same `rand` stream) until `accept` passes or `maxAttempts` is spent,
   // in which case it falls back to the first solvable board found so a level never fails to generate.
+  // `opts.mask` packs the board inside a silhouette instead of the full w*h rectangle (see `tile`).
+  // `opts.paletteSize`, when set, colours the returned board's arrows via `assignColors`.
   function generate(opts) {
     const w = opts.w;
     const h = opts.h;
@@ -273,15 +496,28 @@
     const density = opts.density === undefined ? 0.55 : opts.density;
     const maxAttempts = opts.maxAttempts || 500;
     const accept = opts.accept;
+    const mask = opts.mask;
+    const paletteSize = opts.paletteSize;
+    const neverAdjacent = opts.neverAdjacent;
+    const gapFillMaxLen = opts.gapFillMaxLen;
+    const playableCells = mask ? mask.size : w * h;
 
     let fallback = null;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const board = tile(w, h, rand, minLen, maxLen, bendProbability, density);
-      const metrics = analyze(board);
+      // A mask means a large, dense, irregular board is likely -- exactly the case plain `tile` reject-
+      // sampling stops converging on (see `tilePacked`'s comment), so build those by construction instead.
+      const board = mask
+        ? tilePacked(w, h, rand, minLen, maxLen, bendProbability, density, mask, opts.triesPerArrow, gapFillMaxLen)
+        : tile(w, h, rand, minLen, maxLen, bendProbability, density);
+      const metrics = analyze(board, playableCells);
       if (!metrics.solvable) continue;
       if (!fallback) fallback = { board, metrics, attempts: attempt + 1 };
-      if (!accept || accept(metrics)) return { board, metrics, attempts: attempt + 1 };
+      if (!accept || accept(metrics, board)) {
+        const finalBoard = paletteSize ? assignColors(board, paletteSize, neverAdjacent) : board;
+        return { board: finalBoard, metrics, attempts: attempt + 1 };
+      }
     }
+    if (fallback && paletteSize) fallback.board = assignColors(fallback.board, paletteSize, neverAdjacent);
     return fallback;
   }
 
@@ -298,6 +534,9 @@
     remove,
     solve,
     analyze,
+    neighborArrows,
+    assignColors,
+    tilePacked,
     generate,
     rng,
   };

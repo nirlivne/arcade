@@ -37,6 +37,14 @@ body { touch-action: none; }
 }
 :root[data-reduce-motion="true"] .sky i { animation: none; }
 
+/* v1.1 "neon maze" board (THE-119, DESIGN.md 15.1): play and the demo swap to a navy slate, full bleed, no
+   board card -- the silhouette itself is the board. HUD, panels and every other screen stay peach/cream. */
+body[data-screen="play"], body[data-screen="demo"] {
+  background: var(--color-board);
+  background: linear-gradient(in oklab 180deg, var(--color-board), var(--color-board-2));
+}
+body[data-screen="play"] .sky, body[data-screen="demo"] .sky { display: none; }
+
 #board {
   position: fixed;
   inset: 0;

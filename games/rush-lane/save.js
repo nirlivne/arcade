@@ -28,10 +28,28 @@
     return n >= min && n <= max ? n : null;
   }
 
+  // v1.1 (THE-120) repacked every level from scratch (shape-packed masks, a new difficulty curve) -- even
+  // though the ladder happens to still be 60 levels long, "level 45" in an old save earned its stars on a
+  // completely different board than "level 45" today. SAVE_VERSION lets a pre-v1.1 save (no `version` field
+  // at all) be told apart from a current one, so it isn't silently replayed against the wrong content.
+  const SAVE_VERSION = 2;
+
   // `raw` is whatever UIKit.store handed back for the "progress" key (already guaranteed to be valid JSON,
   // but not guaranteed to be an object, let alone the right shape). `levelCount` is LEVELS.length.
+  //
+  // Migration policy for a save at any version other than SAVE_VERSION (in practice: no `version` field at
+  // all, i.e. pre-v1.1): reset level progress to the start rather than mapping old level numbers onto new
+  // boards they were never earned on, but keep the player's total star count as `legacyStars` -- a small
+  // acknowledgement of their progress rather than discarding it outright. `legacyStars` itself carries
+  // forward unchanged on every later sanitize once a save is current, the same as `currentLevel` and `stars`.
   function sanitizeProgress(raw, levelCount) {
     const p = isPlainObject(raw) ? raw : {};
+    if (p.version !== SAVE_VERSION) {
+      const oldStars = isPlainObject(p.stars) ? p.stars : {};
+      let legacyStars = 0;
+      for (const key of Object.keys(oldStars)) legacyStars += clampInt(oldStars[key], 0, 3, 0);
+      return { version: SAVE_VERSION, currentLevel: 1, stars: {}, legacyStars };
+    }
     const rawStars = isPlainObject(p.stars) ? p.stars : {};
     const stars = {};
     for (const key of Object.keys(rawStars)) {
@@ -39,7 +57,12 @@
       if (level === null) continue;
       stars[level] = clampInt(rawStars[key], 0, 3, 0);
     }
-    return { currentLevel: clampInt(p.currentLevel, 1, levelCount + 1, 1), stars };
+    return {
+      version: SAVE_VERSION,
+      currentLevel: clampInt(p.currentLevel, 1, levelCount + 1, 1),
+      stars,
+      legacyStars: clampInt(p.legacyStars, 0, 1e6, 0),
+    };
   }
 
   // `raw` is whatever UIKit.store handed back for the "dailyBest" key: a map of "YYYY-MM-DD" -> hearts (0-3).
@@ -64,5 +87,5 @@
     return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   }
 
-  return { isPlainObject, clampInt, sanitizeProgress, sanitizeDailyBest, parseLocalDateKey };
+  return { isPlainObject, clampInt, sanitizeProgress, sanitizeDailyBest, parseLocalDateKey, SAVE_VERSION };
 });
