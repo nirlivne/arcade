@@ -1,0 +1,269 @@
+/* Potion Pour game-specific styles. tokens.css and ui-kit.css are loaded first; every value here comes from a
+   token. The cabinet, vials, Glub etc. are drawn on canvas by render.js / game.js; this file lays out the HUD
+   chrome and panels around it. */
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: linear-gradient(var(--color-night), var(--color-bg-2) 55%, var(--color-bg));
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+.hidden { display: none !important; }
+
+#shelf {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* #play-screen has no content of its own (the shelf canvas underneath is the whole play UI); ui-kit's
+   .uk-screen.is-active sets pointer-events:auto, and since it's a later, transparent, full-viewport sibling it
+   would otherwise sit on top of the canvas and swallow every tap (the exact bug Rush Lane hit). */
+#play-screen { pointer-events: none; }
+
+.demo-overlay { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 12; pointer-events: none !important; }
+.demo-caption {
+  position: fixed; left: 50%; bottom: max(var(--space-6), calc(env(safe-area-inset-bottom) + var(--space-5)));
+  transform: translateX(-50%); margin: 0; padding: var(--space-2) var(--space-4);
+  border: var(--outline-w) solid var(--color-outline); border-radius: var(--radius-pill);
+  background: var(--color-accent); color: var(--color-outline);
+  font: var(--weight-strong) var(--text-md) / 1 var(--font-display); box-shadow: var(--shadow-1); z-index: 13;
+}
+
+/* ---------- title lockup: POTION cream / POUR gold, ink stroke under the fill, hard offset drop ---------- */
+.pp-lockup {
+  margin: 0;
+  font: var(--weight-strong) calc(var(--text-2xl) * 0.9) / 0.92 var(--font-display);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.pp-lockup__w1, .pp-lockup__w2 {
+  display: block;
+  -webkit-text-stroke: 8px var(--color-outline);
+  paint-order: stroke fill;
+  text-shadow: 5px 6px 0 var(--color-outline);
+}
+.pp-lockup__w1 { color: var(--color-surface); }
+.pp-lockup__w2 { color: var(--color-accent); }
+
+.title-glub, .panel-glub { display: block; margin: 0 auto; width: 96px; height: 96px; }
+.panel-glub--sm { width: 56px; height: 56px; }
+
+/* ---------- HUD ---------- */
+
+.hud {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+.hud.hidden { display: none; }
+.hud > * { pointer-events: auto; }
+
+.hud__top {
+  position: absolute;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  left: max(var(--space-4), env(safe-area-inset-left));
+  right: max(var(--space-4), env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.hud__level {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: var(--outline-w) solid var(--color-outline);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-1);
+}
+.hud__level-label { font: var(--weight-body) 11px/1 var(--font-body); text-transform: uppercase; color: var(--color-text-muted); }
+.hud__level #levellabel { font: var(--weight-strong) var(--text-lg) / 1 var(--font-display); }
+
+.hud__counters {
+  position: absolute;
+  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 56px);
+  left: max(var(--space-4), env(safe-area-inset-left));
+  display: flex;
+  gap: var(--space-2);
+}
+.hud__chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: var(--outline-w) solid var(--color-outline);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: var(--weight-strong) var(--text-sm) / 1 var(--font-display);
+  box-shadow: var(--shadow-1);
+}
+.hud__chip-icon { width: 16px; height: 16px; fill: var(--color-primary); stroke: var(--color-outline); stroke-width: 2; }
+.hud__chip--stars { gap: 2px; }
+.hud-star { font-size: 14px; color: var(--color-surface-2); }
+.hud-star.is-lit { color: var(--color-accent); }
+
+.hud__helpers {
+  position: absolute;
+  display: flex;
+  gap: var(--space-2);
+  /* portrait: a bottom bar under the thumb */
+  left: 50%;
+  bottom: max(var(--space-5), calc(env(safe-area-inset-bottom) + var(--space-4)));
+  transform: translateX(-50%);
+}
+@media (min-aspect-ratio: 6/5) {
+  /* landscape / desktop: a right rail instead of a bottom bar (design brief §4) */
+  .hud__helpers {
+    left: auto;
+    right: max(var(--space-4), env(safe-area-inset-right));
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    flex-direction: column;
+  }
+}
+
+.helper-btn { position: relative; width: 56px; height: 56px; }
+.helper-btn__count {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-outline);
+  font: var(--weight-strong) 11px/18px var(--font-display);
+  text-align: center;
+  border: 2px solid var(--color-outline);
+}
+.helper-btn[disabled] { background: var(--color-surface-2); filter: none; opacity: 0.75; }
+.helper-btn[disabled] .helper-btn__count { background: var(--color-surface-2); color: var(--color-text-muted); }
+
+/* A dead end with a helper still unspent pulses that helper's button toward the player. */
+.helper-btn.is-pulsing { animation: helper-pulse 900ms var(--ease-out) infinite; }
+@keyframes helper-pulse {
+  0%, 100% { transform: none; box-shadow: none; }
+  50% { transform: scale(1.12); box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 45%, transparent); }
+}
+.helper-btn.is-wiggling { animation: helper-wiggle 420ms var(--ease-out); }
+@keyframes helper-wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+
+.corner {
+  position: fixed;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  right: max(var(--space-4), env(safe-area-inset-right));
+  z-index: 10;
+  display: flex;
+  gap: var(--space-2);
+}
+.corner.hidden { display: none; }
+
+.uk-daily-best {
+  margin: 0;
+  font: var(--weight-strong) var(--text-sm) / 1.3 var(--font-display);
+  color: var(--color-text-muted);
+}
+.uk-badge--soft { background: var(--color-surface-2); color: var(--color-text); }
+.uk-chip {
+  display: inline-block;
+  padding: var(--space-1) var(--space-4);
+  border: var(--outline-w) solid var(--color-outline);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-1);
+}
+
+.clear-stars { display: flex; gap: var(--space-2); justify-content: center; font-size: 32px; }
+.clear-stars .hud-star { font-size: 32px; transition: transform 180ms var(--ease-spring); }
+.clear-stars .hud-star.is-lit { transform: scale(1.15); }
+
+/* ---------- level map ---------- */
+
+.levelmap__scroll { max-height: 56vh; overflow-y: auto; padding: var(--space-2); }
+.levelmap__chapter + .levelmap__chapter { margin-top: var(--space-5); }
+.levelmap__chapter-title {
+  margin: 0 0 var(--space-2);
+  font: var(--weight-strong) var(--text-md) / 1.2 var(--font-display);
+  color: var(--color-text-muted);
+}
+.levelmap__grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-2); }
+.level-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: var(--space-1) 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+.level-tile[disabled] { cursor: default; }
+.level-tile canvas { display: block; }
+.level-tile__num {
+  font: var(--weight-strong) 11px/1 var(--font-display);
+  color: var(--color-text-muted);
+}
+.level-tile.is-current .level-tile__num { color: var(--color-accent-deep); }
+.level-tile__stars { font-size: 10px; letter-spacing: 1px; }
+
+/* ---------- dead-end explained panel ---------- */
+
+.deadend-helpers { display: flex; justify-content: center; gap: var(--space-4); }
+.deadend-loop-badge { margin: var(--space-2) auto 0; }
+.deadend-loop-badge:not([hidden]) {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border: var(--outline-w) solid var(--color-outline);
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: var(--shadow-1);
+}
+.deadend-loop-badge svg { width: 24px; height: 24px; fill: none; stroke: var(--color-outline); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+/* the sheet foot's 1fr-auto-1fr grid is built for prev/dots/next; a single button just needs full width (THE-126) */
+.uk-sheet__foot--full { display: block; }
+.uk-sheet__foot--full .uk-btn { width: 100%; }
+
+/* ---------- short landscape (phone on its side, ~844x390): title + clear cards go two-column ---------- */
+/* Stacked, both cards are taller than the viewport and their buttons fall off the bottom (THE-124). Here the
+   Glub + heading sit on the left and the buttons on the right; the panel scrolls as a backstop. */
+@media (max-height: 500px) and (min-aspect-ratio: 6/5) {
+  #start, #clear { padding-block: var(--space-3); }
+  #start .uk-panel, #clear .uk-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 16rem);
+    grid-auto-flow: row dense;
+    align-items: center;
+    justify-items: center;
+    gap: var(--space-2) var(--space-6);
+    width: min(100%, 600px);
+    max-height: calc(100vh - 2 * var(--space-3));
+    padding: var(--space-4) var(--space-5);
+    overflow-y: auto;
+  }
+  #start .uk-panel > *, #clear .uk-panel > * { grid-column: 1; }
+  #start .uk-actions, #clear .uk-actions { grid-column: 2; grid-row: 1 / span 5; width: 100%; }
+  #start #showme-btn { grid-column: 2; grid-row: 6; width: 100%; }
+  .title-glub, .panel-glub { width: 64px; height: 64px; }
+  .pp-lockup { font-size: calc(var(--text-2xl) * 0.6); }
+  .uk-dedication { margin-top: 0; }
+}

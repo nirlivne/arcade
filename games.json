@@ -26,5 +26,12 @@
     "date": "2026-09-28",
     "status": "released",
     "description": "Tap an arrow to send it sliding off the board along its lane. Blocked? It bumps back and costs a heart. Clear every arrow to win."
+  },
+  {
+    "slug": "potion-pour",
+    "title": "Potion Pour",
+    "date": "2026-09-28",
+    "status": "released",
+    "description": "Tap a vial to lift it, tap another to pour: sort every shelf of potions into pure colours. Limited undos and one extra vial keep every dead end explained, never unfair."
   }
 ]
