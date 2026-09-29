@@ -26,6 +26,11 @@ Pause (top corner; it also happens automatically if you switch tabs), restart, a
 
 Open `index.html` in a browser, or serve the folder (for example `python -m http.server`) and open it. It works offline once loaded and can be installed as an app.
 
+## What's new in v1.2: bigger late levels
+
+- Levels 31 to 60 were rebuilt on larger pictures, so they hold many more arrows (up to about 138 on one board, over 3,700 across the whole game).
+- Your progress is kept: the level you've reached and your stars stay as they were.
+
 ## What's new in v1.1: the neon maze
 
 - Every level is now a picture: the arrows are packed inside a shape (a heart, a cat, an umbrella, letters and more), drawn as thin neon lines so a full board looks like a maze.

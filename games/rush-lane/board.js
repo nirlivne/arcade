@@ -483,7 +483,11 @@
   // is an optional predicate for a target difficulty band (the board is passed too, for checks metrics
   // doesn't carry, e.g. per-row coverage against a mask); without it, any solvable board is returned. Keeps
   // retrying (drawing further from the same `rand` stream) until `accept` passes or `maxAttempts` is spent,
-  // in which case it falls back to the first solvable board found so a level never fails to generate.
+  // in which case it falls back to the *best-fill* solvable board seen (highest `metrics.fillDensity`, first
+  // attempt wins ties) rather than just the first one, so a level never fails to generate but also doesn't
+  // settle for an early, sparser pack when a later attempt (still within maxAttempts) filled more of the
+  // mask. Deterministic: `rand` is only ever advanced by the attempt loop, so the same seed always walks the
+  // same attempt sequence and picks the same best-fill board (THE-147).
   // `opts.mask` packs the board inside a silhouette instead of the full w*h rectangle (see `tile`).
   // `opts.paletteSize`, when set, colours the returned board's arrows via `assignColors`.
   function generate(opts) {
@@ -503,7 +507,9 @@
     const playableCells = mask ? mask.size : w * h;
 
     let fallback = null;
+    let attemptsMade = 0;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      attemptsMade = attempt + 1;
       // A mask means a large, dense, irregular board is likely -- exactly the case plain `tile` reject-
       // sampling stops converging on (see `tilePacked`'s comment), so build those by construction instead.
       const board = mask
@@ -511,14 +517,15 @@
         : tile(w, h, rand, minLen, maxLen, bendProbability, density);
       const metrics = analyze(board, playableCells);
       if (!metrics.solvable) continue;
-      if (!fallback) fallback = { board, metrics, attempts: attempt + 1 };
+      if (!fallback || metrics.fillDensity > fallback.metrics.fillDensity) fallback = { board, metrics };
       if (!accept || accept(metrics, board)) {
         const finalBoard = paletteSize ? assignColors(board, paletteSize, neverAdjacent) : board;
-        return { board: finalBoard, metrics, attempts: attempt + 1 };
+        return { board: finalBoard, metrics, attempts: attemptsMade };
       }
     }
-    if (fallback && paletteSize) fallback.board = assignColors(fallback.board, paletteSize, neverAdjacent);
-    return fallback;
+    if (!fallback) return null;
+    const finalBoard = paletteSize ? assignColors(fallback.board, paletteSize, neverAdjacent) : fallback.board;
+    return { board: finalBoard, metrics: fallback.metrics, attempts: attemptsMade };
   }
 
   return {
