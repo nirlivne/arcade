@@ -353,14 +353,27 @@
     noise.start(t0);
     noise.stop(t0 + duration + 0.02);
   }
-  // THE-197's original 6-note clear motif (DESIGN.md §12): each exit in a row steps one further into the
-  // C-major pentatonic C5 D5 E5 G5 A5 C6, so a clean streak sounds like it's climbing. A blocked tap doesn't
-  // advance it (sndBump resets state.exitStreak instead of calling this), and a new level/restart resets it
-  // too (resetRunFx). Short (0.1s) triangle envelopes so rapid-fire clears don't clip or pile up.
-  const EXIT_NOTES = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5]; // C5 D5 E5 G5 A5 C6
+  // Beethoven, "Ode to Joy" (Sym. 9, Op. 125, IV), bars 1-8 of the theme, transposed to C major (v1.4, THE-209
+  // under THE-208, board-approved in THE-207; DESIGN.md §16.5; replaces THE-197's original pentatonic motif).
+  // Each exit in a row plays the next note of the theme's first 8-bar period (both phrases, 30 notes), so a
+  // clean streak plays the tune at the player's own pace. A blocked tap doesn't advance it (sndBump resets
+  // state.exitStreak instead of calling this), and a new level/restart resets it too (resetRunFx). Short
+  // (0.1s x duration multiplier) triangle envelopes so rapid-fire clears don't clip or pile up. Repeated notes
+  // (E E, G G, C C, D D) are deliberate -- they are what makes the tune read; do not merge them. After note 30
+  // (the tonic), wrap to note 1 (state.exitStreak % 30) -- a natural restart, as the theme repeats.
+  const E5 = 659.25, F5 = 698.46, G5 = 783.99, D5 = 587.33, C5 = 523.25;
+  const EXIT_NOTES = [
+    E5, E5, F5, G5, G5, F5, E5, D5, C5, C5, D5, E5, E5, D5, D5,
+    E5, E5, F5, G5, G5, F5, E5, D5, C5, C5, D5, E5, D5, C5, C5,
+  ];
+  const EXIT_DUR = [
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.5, 1, 1.8,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.5, 1, 1.8,
+  ];
   function sndExit() {
     noiseSweep(400, 2000, 0.16);
-    tone(EXIT_NOTES[state.exitStreak % EXIT_NOTES.length], 0.1, { type: "triangle", volume: 0.16 });
+    const i = state.exitStreak % EXIT_NOTES.length;
+    tone(EXIT_NOTES[i], 0.1 * EXIT_DUR[i], { type: "triangle", volume: 0.16 });
     state.exitStreak++;
   }
   function sndBump() {
@@ -403,7 +416,7 @@
                         // pointerup commits nothing (THE-136: a pinch must not cost a heart or move an arrow)
     flash: new Map(), // arrowId -> flash start time (ms)
     shake: null, // { start, dir: [dx, dy] }
-    exitStreak: 0, // consecutive clean exits, for the rising pentatonic "zip" (DESIGN.md §12); resets on a bump
+    exitStreak: 0, // consecutive clean exits, steps through the "Ode to Joy" clear melody (DESIGN.md §16.5); resets on a bump
     tapPuffs: [], // { at: [px,py], start } -- the pointerdown tap puff ring
     bumpBursts: [], // { at: [px,py], start } -- the white bonk burst at a bump's contact point
     heartBreak: null, // { index, start, until } -- the lost heart's "breaking" crack, before its socket empties
@@ -1910,6 +1923,8 @@
         paused: state.paused,
         progress: loadProgress(),
         dailyBest: loadDailyBest(),
+        exitStreak: state.exitStreak,
+        exitMelodyIndex: state.exitStreak % EXIT_NOTES.length, // next note to play, 0-29 (DESIGN.md §16.5)
       };
     },
     tap(id) {

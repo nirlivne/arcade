@@ -26,6 +26,11 @@ Pause (top corner; it also happens automatically if you switch tabs), restart, a
 
 Open `index.html` in a browser, or serve the folder (for example `python -m http.server`) and open it. It works offline once loaded and can be installed as an app.
 
+## What's new in v1.4: a real tune
+
+- The little clear tune is now "Ode to Joy" from Beethoven's Symphony No. 9 (he died in 1827; it's public domain) — our own synth transcription, no samples or recordings. Clear arrows in a row to hear it play through.
+- Your progress is kept: the level you've reached and your stars stay as they were.
+
 ## What's new in v1.3: think before you tap
 
 - Levels are more of a puzzle: most arrows now start blocked by another arrow, so you have to work out which ones to clear first. Each board has a few ways in, and clearing them opens up the rest.
@@ -53,6 +58,8 @@ Open `index.html` in a browser, or serve the folder (for example `python -m http
 Created by The Game Company. Original art and code, drawn in code and shapes, no copied art.
 
 The heading font is Fredoka, Copyright 2020 The Fredoka Project Authors (github.com/googlefonts/fredoka), used under the SIL Open Font License 1.1 (see `licenses/Fredoka-OFL.txt`).
+
+Clear melody: "Ode to Joy" from Symphony No. 9, Op. 125 by Ludwig van Beethoven (1770-1827), public domain. Our own transcription of the bare melody, synthesized in WebAudio. No samples, recordings or arrangements used.
 
 Adapted from the classic sliding-arrow puzzle idea; Rush Lane's board, art, code and title are all our own.
 
