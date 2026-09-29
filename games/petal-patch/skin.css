@@ -166,7 +166,6 @@ button { touch-action: manipulation; }
 /* ---------- the board: hedge-line garden plan ---------- */
 .board-wrap { grid-area: board; position: relative; width: var(--board); }
 .board {
-  --x-w: 1.6px;
   position: relative; display: grid; width: var(--board); aspect-ratio: 1;
   grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); grid-template-rows: repeat(var(--n, 5), minmax(0, 1fr));
   background: var(--color-hedge); touch-action: none; user-select: none; -webkit-user-select: none;
@@ -175,7 +174,7 @@ button { touch-action: manipulation; }
   content: ""; position: absolute; inset: 0; z-index: 4; pointer-events: none;
   border: var(--frame-w) solid var(--color-hedge);
 }
-.board[data-size="8"], .board[data-size="9"] { --x-w: 1.4px; }
+.board[data-size="8"], .board[data-size="9"] { --x-w: var(--x-w-dense); }
 .cell {
   position: relative; display: block; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0;
   appearance: none; -webkit-appearance: none; cursor: pointer; color: var(--ink-x-player);
@@ -200,17 +199,20 @@ button { touch-action: manipulation; }
 .cell[data-h*="r"]::after { border-right-width: calc(var(--hedge-w) / 2); }
 .cell[data-h*="b"]::after { border-bottom-width: calc(var(--hedge-w) / 2); }
 .cell[data-h*="l"]::after { border-left-width: calc(var(--hedge-w) / 2); }
-/* × marks: player 70 % ink, auto 40 % ink, mistake = ladybug red and heavier */
+/* × marks: player 86 % ink, auto 50 % ink, mistake = ladybug red and heavier; each on a paper keyline (THE-218) */
 .cell::before {
-  content: none; position: absolute; inset: 31%; z-index: 2; pointer-events: none;
+  --x-hw: calc(var(--x-w) / 2 + var(--x-halo-w));
+  content: none; position: absolute; inset: var(--x-inset); z-index: 2; pointer-events: none;
   background:
     linear-gradient(45deg, transparent calc(50% - var(--x-w) / 2), currentColor 0, currentColor calc(50% + var(--x-w) / 2), transparent 0),
-    linear-gradient(-45deg, transparent calc(50% - var(--x-w) / 2), currentColor 0, currentColor calc(50% + var(--x-w) / 2), transparent 0);
+    linear-gradient(-45deg, transparent calc(50% - var(--x-w) / 2), currentColor 0, currentColor calc(50% + var(--x-w) / 2), transparent 0),
+    linear-gradient(45deg, transparent calc(50% - var(--x-hw)), var(--x-halo) 0, var(--x-halo) calc(50% + var(--x-hw)), transparent 0),
+    linear-gradient(-45deg, transparent calc(50% - var(--x-hw)), var(--x-halo) 0, var(--x-halo) calc(50% + var(--x-hw)), transparent 0);
 }
 .cell[data-mark="x"]::before, .cell[data-mark="auto"]::before, .cell[data-mark="red"]::before { content: ""; }
 .cell[data-mark="auto"] { color: var(--ink-x-auto); }
-.cell[data-mark="red"] { --x-w: 3px; color: var(--color-danger); }
-.cell[data-mark="red"]::before { inset: 27%; }
+.cell[data-mark="red"] { --x-w: var(--x-w-red); color: var(--color-danger); }
+.cell[data-mark="red"]::before { inset: var(--x-inset-red); }
 .cell.is-new-x::before { animation: k-x-in var(--dur-med) var(--ease-out) both; animation-delay: calc(var(--ring, 0) * var(--dur-ring)); }
 @keyframes k-x-in { from { opacity: 0; transform: scale(.3); } }
 .cell[data-mark="red"]::before { animation: k-red var(--dur-slow) var(--ease-out) both; }

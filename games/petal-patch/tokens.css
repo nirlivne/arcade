@@ -27,8 +27,17 @@
   --color-butter: #FFE88F;        /* the flower's centre */
   --ink-hair: rgba(22, 32, 26, 0.18);   /* cell hairlines */
   --ink-tex: rgba(22, 32, 26, 0.42);    /* bed textures (baked into art/tex-*.svg) */
-  --ink-x-player: rgba(22, 32, 26, 0.70);
-  --ink-x-auto: rgba(22, 32, 26, 0.40);
+  /* × marks (v1.1, THE-218): strokes heavier than the 2.6 px texture dots, on a paper keyline that
+     knocks the texture out behind them, like a label halo on a printed plan */
+  --ink-x-player: rgba(22, 32, 26, 0.86);
+  --ink-x-auto: rgba(22, 32, 26, 0.50);
+  --x-w: 2.8px;           /* player and auto stroke, 5x5 to 7x7 */
+  --x-w-dense: 2.4px;     /* 8x8 and 9x9 */
+  --x-w-red: 3.8px;       /* mistake */
+  --x-halo: rgba(255, 255, 255, 0.62);
+  --x-halo-w: 1.4px;      /* keyline on each side of the stroke */
+  --x-inset: 29%;         /* arm length: the × spans 42 % of the cell */
+  --x-inset-red: 26%;
   --shadow-contact: rgba(22, 32, 26, 0.22);
 
   /* beds: colour + texture pairs (cvd-check.mjs: texture first, hedge second, colour third) */
