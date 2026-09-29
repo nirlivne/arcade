@@ -33,5 +33,12 @@
     "date": "2026-09-28",
     "status": "released",
     "description": "Tap a vial to lift it, tap another to pour: sort every shelf of potions into pure colours. Limited undos and one extra vial keep every dead end explained, never unfair."
+  },
+  {
+    "slug": "petal-patch",
+    "title": "Petal Patch",
+    "date": "2026-09-29",
+    "status": "released",
+    "description": "A logic garden: place one ladybug in every row, column and flower bed, never touching. A wrong guess costs a petal. Endless run from 4x4 to 9x9, plus one shared daily garden."
   }
 ]

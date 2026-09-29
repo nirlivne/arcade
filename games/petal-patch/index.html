@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en" data-motion="full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Petal Patch</title>
+<meta name="description" content="A logic garden: one ladybug to every bed. A daily puzzle and an endless run.">
+<meta name="theme-color" content="#F7F8F4">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="skin.css">
+<script src="theme.js"></script>
+<script src="ui-kit.js"></script>
+<script src="art/art.js"></script>
+<script src="levels.js"></script>
+</head>
+<body data-state="start">
+
+<!-- ===== start screen (DESIGN.md §1.3) ===== -->
+<section class="screen" data-screen="start">
+  <div class="start-a">
+    <header class="masthead">
+      <p class="dateline"><span class="dateline-date" id="masthead-date"></span><span class="dateline-no" id="masthead-no"></span></p>
+      <h1 class="title" data-theme-text="title">Petal Patch</h1>
+      <p class="dek" data-theme-text="dek">One ladybug to every bed.</p>
+    </header>
+    <div class="hero" id="hero"></div>
+  </div>
+  <div class="start-b">
+    <div class="entry" data-entry="daily">
+      <p class="entry-meta"><span class="entry-label">Today's garden</span><span class="entry-note" id="daily-note"></span></p>
+      <button class="btn btn--ink btn--wide" id="btn-daily" type="button">
+        <span id="daily-label">Play today's garden</span><span class="btn-arrow" aria-hidden="true">→</span>
+      </button>
+    </div>
+    <div class="entry" data-entry="run">
+      <p class="entry-meta"><span class="entry-label">Endless run</span><span class="entry-note" id="run-note"></span></p>
+      <button class="btn btn--line btn--wide" id="btn-run" type="button"><span id="run-label">Start a run</span></button>
+    </div>
+    <footer class="footer">
+      <button class="link" id="btn-howto" type="button">How to play</button>
+      <button class="link" id="btn-settings" type="button">Settings</button>
+      <button class="link" id="btn-about" type="button">About</button>
+      <span class="dedication" data-theme-text="dedication"></span>
+    </footer>
+  </div>
+</section>
+
+<!-- ===== play screen (DESIGN.md §1.4) ===== -->
+<section class="screen" data-screen="play" data-mode="" hidden>
+  <header class="strip">
+    <button class="link back" id="btn-menu" type="button">‹ Menu</button>
+    <p class="strip-title" id="strip-title"><span id="strip-title-text"></span><span class="tag" data-tag="practice" id="strip-tag" hidden>practice</span></p>
+    <button class="icon-btn pause-btn" id="btn-pause" type="button" aria-label="Pause"></button>
+    <span class="flower" id="flower" data-petals="3" role="img" aria-label="3 petals"></span>
+  </header>
+  <ul class="chips" id="chips">
+    <li class="chip" data-rule="row"><span class="vh">row</span></li>
+    <li class="chip" data-rule="col"><span class="vh">col</span></li>
+    <li class="chip" data-rule="bed"><span class="vh">bed</span></li>
+    <li class="chip" data-rule="touch"><span class="vh">touch</span></li>
+  </ul>
+  <div class="board-wrap" id="board-wrap">
+    <div class="board" id="board" data-size="9" style="--n:9"></div>
+  </div>
+  <div class="timebar">
+    <span class="clock" id="clock">0:00</span>
+    <span class="stars" id="star-targets"><span class="star"></span><span class="star"></span><span class="star"></span></span>
+    <span class="par" id="par"></span>
+  </div>
+  <nav class="toolbar">
+    <button class="tool" data-tool="undo" id="btn-undo" type="button"><span class="tool-label">Undo</span></button>
+    <button class="tool" data-tool="hint" id="btn-hint" type="button"><span class="tool-label">Hint</span><span class="tool-count" id="hint-count">3</span></button>
+    <button class="tool" data-tool="clear" id="btn-clearx" type="button"><span class="tool-label">Clear ×</span></button>
+  </nav>
+  <div class="result" id="result" role="status" hidden>
+    <p class="result-head" id="result-head"></p>
+    <p class="result-meta"><span class="stars" id="result-stars"><span class="star"></span><span class="star"></span><span class="star"></span></span><span class="par" id="result-par"></span></p>
+    <button class="btn btn--ink btn--wide" id="btn-next" type="button"><span id="btn-next-label">Next board</span> <span class="btn-arrow" aria-hidden="true">→</span></button>
+  </div>
+  <div class="runover" id="runover" role="alertdialog" hidden>
+    <h2 class="headline" id="runover-headline">The patch wilted.</h2>
+    <p class="meta" id="runover-meta"></p>
+    <button class="btn btn--ink btn--wide" id="btn-newrun" type="button">New run <span class="btn-arrow" aria-hidden="true">→</span></button>
+    <button class="btn btn--line btn--wide" id="btn-runover-share" type="button">Share run</button>
+    <button class="link" id="btn-runover-menu" type="button">Menu</button>
+  </div>
+</section>
+
+<!-- ===== daily clipping screen (DESIGN.md §1.6) ===== -->
+<section class="screen" data-screen="clipping" hidden>
+  <p class="dateline"><span id="clip-date"></span><span class="dateline-no" id="clip-no"></span></p>
+  <h2 class="headline" id="clip-headline"></h2>
+  <figure class="clipping">
+    <pre class="clipping-text" id="clip-text"></pre>
+    <figcaption class="dedication" data-theme-text="dedication"></figcaption>
+  </figure>
+  <div class="actions">
+    <button class="btn btn--ink" id="btn-share" type="button">Share result</button>
+    <button class="btn btn--line" id="btn-copy" type="button">Copy</button>
+  </div>
+  <textarea class="share-fallback" id="share-fallback" hidden readonly></textarea>
+  <p class="countdown"><span class="label">Next garden in</span><span class="clock" id="clip-countdown"></span></p>
+  <p class="meta" id="clip-meta"></p>
+  <button class="link" id="btn-clipping-menu" type="button">Menu</button>
+</section>
+
+<!-- ===== sheets (DESIGN.md §1.7) ===== -->
+<dialog class="sheet" data-sheet="pause" id="pause-dialog">
+  <header class="sheet-head"><h2 class="sheet-title">Paused</h2></header>
+  <div class="actions">
+    <button class="btn btn--ink btn--wide" id="btn-resume" type="button">Resume <span class="btn-arrow" aria-hidden="true">→</span></button>
+    <button class="btn btn--line btn--wide" id="btn-pause-howto" type="button">How to play</button>
+    <button class="btn btn--line btn--wide" id="btn-pause-settings" type="button">Settings</button>
+    <button class="link" id="btn-pause-menu" type="button">Menu</button>
+  </div>
+</dialog>
+
+<dialog class="sheet" data-sheet="howto" id="howto-dialog">
+  <header class="sheet-head"><h2 class="sheet-title">How to play</h2><button class="icon-btn sheet-close" id="btn-howto-close" type="button" aria-label="Close"></button></header>
+  <ol class="howto" id="howto-list"></ol>
+</dialog>
+
+<dialog class="sheet" data-sheet="settings" id="settings-dialog">
+  <header class="sheet-head"><h2 class="sheet-title">Settings</h2><button class="icon-btn sheet-close" id="btn-settings-close" type="button" aria-label="Close"></button></header>
+  <div class="setting" id="setting-sound" hidden><label class="setting-label" for="toggle-sound">Sound</label><input id="toggle-sound" class="switch" type="checkbox" role="switch"></div>
+  <div class="setting"><label class="setting-label" for="toggle-autox">Auto-× around ladybugs</label><input id="toggle-autox" class="switch" type="checkbox" role="switch"></div>
+  <fieldset class="seg">
+    <legend class="setting-label">Motion</legend>
+    <label class="seg-opt"><input type="radio" name="motion" value="os"><span>Match device</span></label>
+    <label class="seg-opt"><input type="radio" name="motion" value="reduce"><span>Reduce</span></label>
+    <label class="seg-opt"><input type="radio" name="motion" value="full"><span>Full</span></label>
+  </fieldset>
+</dialog>
+
+<dialog class="sheet" data-sheet="about" id="about-dialog">
+  <header class="sheet-head"><h2 class="sheet-title">About</h2><button class="icon-btn sheet-close" id="btn-about-close" type="button" aria-label="Close"></button></header>
+  <div class="prose">
+    <p data-theme-text="title">Petal Patch</p>
+    <p>Made by The Game Company. Every board has one answer you can reach by thinking alone.</p>
+  </div>
+  <p class="dedication" data-theme-text="dedication"></p>
+</dialog>
+
+<dialog class="sheet" data-sheet="confirm" id="confirm-dialog">
+  <header class="sheet-head"><h2 class="sheet-title">End this run?</h2></header>
+  <p class="sheet-text" id="confirm-text">It counts as over.</p>
+  <div class="actions">
+    <button class="btn btn--ink" id="btn-confirm-end" type="button">End run</button>
+    <button class="btn btn--line" id="btn-confirm-cancel" type="button">Keep playing</button>
+  </div>
+</dialog>
+
+<script src="register-sw.js"></script>
+<script type="module" src="game.js"></script>
+</body>
+</html>

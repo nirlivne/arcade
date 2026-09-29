@@ -1,0 +1,122 @@
+/* Petal Patch design tokens (THE-171 brief, THE-177). The single source of truth for colour, type, space, shape and
+   motion. Designer-owned: the developer reads these and never hard-codes a palette value. No font files: system
+   stacks only. Beds: --bed-k is the colour, --tex-k the 12 px ink texture tile; theme.js may override both. */
+
+:root {
+  /* color: surfaces */
+  --color-bg: #F7F8F4;            /* page: cool chalk white, deliberately not cream */
+  --color-bg-2: #EEF0E9;          /* hover wash, inactive chip */
+  --color-surface: #FFFFFF;       /* paper: sheets, the clipping, the ladybug halo */
+  --color-outline: #16201A;       /* the 1.5 px button outline, rules under datelines */
+
+  /* color: text */
+  --color-text: #16201A;          /* ink */
+  --color-text-muted: #4A544C;    /* ink 2: datelines, meta lines */
+
+  /* color: actions and signals */
+  --color-primary: #16201A;       /* primary button fill = ink */
+  --color-primary-text: #FFFFFF;
+  --color-accent: #2E5A3C;        /* hedge: bed borders, board frame, stems, focus ring */
+  --color-danger: #D7263D;        /* ladybug red: the only saturated accent (bugs, mistake ×, petal-loss flash) */
+
+  /* color: game */
+  --color-hedge: #2E5A3C;
+  --color-bug: #D7263D;
+  --color-wilt: #9A8458;          /* dried stem, run-over tint */
+  --color-rule: #D5D9CF;          /* section hairlines */
+  --color-butter: #FFE88F;        /* the flower's centre */
+  --ink-hair: rgba(22, 32, 26, 0.18);   /* cell hairlines */
+  --ink-tex: rgba(22, 32, 26, 0.42);    /* bed textures (baked into art/tex-*.svg) */
+  --ink-x-player: rgba(22, 32, 26, 0.70);
+  --ink-x-auto: rgba(22, 32, 26, 0.40);
+  --shadow-contact: rgba(22, 32, 26, 0.22);
+
+  /* beds: colour + texture pairs (cvd-check.mjs: texture first, hedge second, colour third) */
+  --bed-0: #B0CC8E;  --tex-0: none;                      /* sage: plain lawn */
+  --bed-1: #FFE88F;  --tex-1: url(art/tex-dots.svg);     /* butter: seed dots */
+  --bed-2: #80B4E1;  --tex-2: url(art/tex-furrows.svg);  /* borage: horizontal furrows */
+  --bed-3: #A58DD0;  --tex-3: url(art/tex-stripes.svg);  /* lavender: diagonal stripes */
+  --bed-4: #E1916C;  --tex-4: url(art/tex-brick.svg);    /* clay: brick courses */
+  --bed-5: #AFEED9;  --tex-5: url(art/tex-sprouts.svg);  /* mint: sprout ticks */
+  --bed-6: #F09FB8;  --tex-6: url(art/tex-rings.svg);    /* rose: rings */
+  --bed-7: #938B7F;  --tex-7: url(art/tex-gravel.svg);   /* gravel: speckle */
+  --bed-8: #708842;  --tex-8: url(art/tex-rows.svg);     /* moss: vertical rows */
+  --tex-size: 12px;
+
+  /* type: system stacks only (no webfont ships) */
+  --font-display: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --text-xs: 11px;    /* caps labels, +14 % tracking */
+  --text-sm: 13px;    /* meta lines, footer links */
+  --text-md: 16px;    /* body, buttons */
+  --text-lg: 20px;    /* dek, sheet titles */
+  --text-xl: 28px;    /* headlines, the HUD clock on wide screens */
+  --text-2xl: 44px;   /* masthead on phones */
+  --text-3xl: 64px;   /* masthead on wide screens */
+  --weight-body: 400;
+  --weight-ui: 600;
+  --weight-strong: 700;
+  --track-caps: 0.14em;
+  --track-display: -0.02em;
+  --text-min: 16px; /* smallest text read during play (labels are captions, never needed to play) */
+
+  /* space (4 px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* shape: square, no pills */
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-pill: 2px;
+  --outline-w: 1.5px;   /* button outline, glyph stroke */
+  --hedge-w: 3px;       /* bed border */
+  --frame-w: 4px;       /* board frame */
+  --hair-w: 1px;        /* cell hairline (at 18 % ink) */
+  --hit-min: 44px;      /* minimum touch target (cells: >= 40 px at 9x9, spec DoD) */
+
+  /* light: flat page, no drop shadows on UI */
+  --shadow-1: none;
+  --shadow-2: none;
+  --glow: none;
+  --scrim: rgba(247, 248, 244, 0.97); /* sheet backdrop: the board is never readable behind it */
+
+  /* motion: one family, out-quart with no overshoot */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.2, 0, 0, 1); /* kit name kept; no spring in this game */
+  --dur-fast: 90ms;     /* press, nudge */
+  --dur-med: 180ms;     /* sheet, strip, chip light */
+  --dur-slow: 320ms;    /* page turn, fly-off, result strip */
+  --dur-land: 120ms;    /* ladybug 115 -> 100 % */
+  --dur-ring: 18ms;     /* auto-× delay per ring */
+  --dur-bloom: 60ms;    /* bloom delay per bed */
+  --dur-wilt: 400ms;    /* stem droop, board greyscale */
+  --dur-petal: 600ms;   /* petal drift + fade, practice regrow */
+  --slide: 24px;        /* page-turn distance */
+}
+
+/* contrast: --color-text on --color-bg >= 4.5 */
+/* contrast: --color-text-muted on --color-bg >= 4.5 */
+/* contrast: --color-text on --color-surface >= 4.5 */
+/* contrast: --color-text-muted on --color-surface >= 4.5 */
+/* contrast: --color-primary-text on --color-primary >= 4.5 */
+/* contrast: --color-accent on --color-bg >= 4.5 */
+/* contrast: --color-danger on --color-bg >= 4.5 */
+/* contrast: --color-danger on --color-surface >= 4.5 */
+/* contrast: --color-hedge on --color-bg >= 3 */
+/* contrast: --color-wilt on --color-bg >= 3 */
+/* contrast: --color-text on --bed-0 >= 4.5 */
+/* contrast: --color-text on --bed-1 >= 4.5 */
+/* contrast: --color-text on --bed-2 >= 4.5 */
+/* contrast: --color-text on --bed-3 >= 4.5 */
+/* contrast: --color-text on --bed-4 >= 4.5 */
+/* contrast: --color-text on --bed-5 >= 4.5 */
+/* contrast: --color-text on --bed-6 >= 4.5 */
+/* contrast: --color-text on --bed-7 >= 4.5 */
+/* contrast: --color-text on --bed-8 >= 3 */
+/* contrast: --color-danger on --color-text >= 3 */
