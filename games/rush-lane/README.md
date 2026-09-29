@@ -26,6 +26,15 @@ Pause (top corner; it also happens automatically if you switch tabs), restart, a
 
 Open `index.html` in a browser, or serve the folder (for example `python -m http.server`) and open it. It works offline once loaded and can be installed as an app.
 
+## What's new in v1.3: think before you tap
+
+- Levels are more of a puzzle: most arrows now start blocked by another arrow, so you have to work out which ones to clear first. Each board has a few ways in, and clearing them opens up the rest.
+- Pressing an arrow now lights up just that arrow; the rest of the board stays bright.
+- A cleared arrow no longer leaves a mark behind.
+- Each arrow you clear plays the next note of a little tune, and finishing a level completes it.
+- The daily board is built the same new way.
+- Your progress is kept: the level you've reached and your stars stay as they were. The daily board for the day of this update changes once.
+
 ## What's new in v1.2: bigger late levels
 
 - Levels 31 to 60 were rebuilt on larger pictures, so they hold many more arrows (up to about 138 on one board, over 3,700 across the whole game).

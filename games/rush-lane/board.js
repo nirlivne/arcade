@@ -110,7 +110,8 @@
   // boards outside a level's target band: dependency depth (solve layers), mean free-arrow ratio per step,
   // trap count (arrows unlocked one layer in, whose sole blocker was free from the very first layer -- they
   // look one tap away the whole time but need that other arrow gone first), arrow count, fill density and
-  // shortest/longest arrow length (so the generator can reject 1-cell stubs and check its snake lengths).
+  // shortest/longest arrow length (so the generator can reject 1-cell stubs and check its snake lengths), and
+  // openCount -- how many arrows can leave at the very start (THE-195's "most arrows start blocked").
   // `playableCells` overrides the fill-density denominator: a mask-packed board's real playable area is the
   // mask's cell count, not its w*h bounding box (most of the bbox is silhouette background).
   function analyze(board, playableCells) {
@@ -140,7 +141,7 @@
       if (blockerId !== null && layerOfId.get(blockerId) === 0) trapCount++;
     }
 
-    return { solvable: true, arrowCount, fillDensity, depth, meanFreeRatio, trapCount, minArrowLen, maxArrowLen };
+    return { solvable: true, arrowCount, fillDensity, depth, openCount: layers[0].length, meanFreeRatio, trapCount, minArrowLen, maxArrowLen };
   }
 
   // ---------- generator ----------
@@ -404,6 +405,172 @@
     return board;
   }
 
+  // Weights for tileConstrained's candidate score, tuned on the L10-L60 masks (THE-195): a permanent door costs
+  // more than a plain open lane gains, and 16 is where fill on the xl masks recovers to v1.2 levels (0.86-0.94).
+  const DOOR_PENALTY = 3;
+  const DEFAULT_DEPTH_PRESSURE = 16;
+
+  // THE-195 (board item 4): a mask packer that makes *most* arrows start blocked. tilePacked only accepts an
+  // arrow whose lane is already clear, and packs the rim last, so almost every rim arrow ends up pointing out
+  // of the silhouette -- a lane nothing can ever block -- and ~45-60% of each board is open at the start
+  // (99% of those are rim arrows pointing out, per THE-194). Here an arrow may be placed blocked, as long as
+  // the "A waits for every arrow in its lane" graph stays acyclic, which is all solvability needs (see
+  // `solve`): with no cycle, some arrow is always free, and removing it never blocks another, so no dead end
+  // is reachable. Each starting cell grows `tries` candidates and keeps the best by `scoreOf` -- blocked
+  // beats open, blocking an arrow that is still open scores, a lane that leaves the mask without crossing a
+  // single mask cell (a permanent "door") costs, and so does pushing the deepest affected arrow toward the
+  // cap (`depthPressure`: without it, the blocked-first preference builds long chains that hit the cap early
+  // and strand the cells behind them as gaps, costing ~10 points of fill on the xl masks) -- subject to two
+  // hard limits: no cycle, and no arrow deeper than `depthCap - 1` solve layers (layer = 0 when the lane is
+  // clear, else 1 + the deepest arrow in the lane, exactly `solve`'s rounds, so depth <= depthCap).
+  // The rest (cell order, growth, gap-fill sweep) mirrors tilePacked, but cells go in random order: nothing
+  // here needs the interior packed first.
+  function tileConstrained(w, h, rand, minLen, maxLen, bendProbability, density, mask, triesPerArrow, gapFillMaxLen, depthCap, depthPressure) {
+    const tries = triesPerArrow || 15;
+    const cap = depthCap;
+    const pressure = depthPressure === undefined ? DEFAULT_DEPTH_PRESSURE : depthPressure;
+    const bodyOccupied = new Set();
+    const order = [];
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (mask.has(cellKey(x, y))) order.push([x, y]);
+        else bodyOccupied.add(cellKey(x, y));
+      }
+    }
+    const cells = shuffle(order, rand);
+    const targetCells = Math.round(mask.size * density);
+
+    const arrowAt = new Map(); // cell -> id
+    const laneCross = new Map(); // cell -> ids of placed arrows whose lane crosses it
+    const waitsOn = new Map(); // id -> Set of ids in its lane
+    const waitedBy = new Map(); // id -> Set of ids whose lane it sits in
+    const layer = new Map();
+    const arrows = [];
+    let nextId = 1;
+    let filled = 0;
+
+    function laneCells(arrow) {
+      const probe = { w, h, arrows: new Map([[arrow.id, arrow]]) };
+      return laneOf(probe, arrow.id);
+    }
+
+    // Everything placing `arrow` would change, or null if it would self-block, close a cycle or push some
+    // arrow past the depth cap. `raised` maps each existing arrow whose layer would go up to its new layer.
+    function evaluate(arrow) {
+      const lane = laneCells(arrow);
+      const own = new Set(arrow.cells.map(([x, y]) => cellKey(x, y)));
+      const inLane = new Set();
+      let emptyMaskInLane = 0;
+      for (const [x, y] of lane) {
+        const key = cellKey(x, y);
+        if (own.has(key)) return null; // its own body is in the way: could never leave
+        const hit = arrowAt.get(key);
+        if (hit !== undefined) inLane.add(hit);
+        else if (mask.has(key)) emptyMaskInLane++;
+      }
+      const waiters = new Set();
+      for (const key of own) {
+        const ids = laneCross.get(key);
+        if (ids) for (const id of ids) waiters.add(id);
+      }
+      let myLayer = 0;
+      for (const id of inLane) myLayer = Math.max(myLayer, layer.get(id) + 1);
+      if (myLayer >= cap) return null;
+      // Raise every arrow that (transitively) waits on the new one; reaching one it waits on is a cycle.
+      const raised = new Map();
+      const stack = [];
+      for (const id of waiters) {
+        if (inLane.has(id)) return null;
+        stack.push([id, myLayer + 1]);
+      }
+      while (stack.length) {
+        const [id, need] = stack.pop();
+        if ((raised.has(id) ? raised.get(id) : layer.get(id)) >= need) continue;
+        if (need >= cap) return null;
+        raised.set(id, need);
+        for (const up of waitedBy.get(id)) {
+          if (inLane.has(up)) return null;
+          stack.push([up, need + 1]);
+        }
+      }
+      // Cycles can also run through arrows whose layer didn't need raising: check reachability outright.
+      if (inLane.size && waiters.size) {
+        const seen = new Set();
+        const walk = [...waiters];
+        while (walk.length) {
+          const id = walk.pop();
+          if (seen.has(id)) continue;
+          seen.add(id);
+          if (inLane.has(id)) return null;
+          for (const up of waitedBy.get(id)) walk.push(up);
+        }
+      }
+      return { arrow, lane, inLane, waiters, myLayer, raised, door: inLane.size === 0 && emptyMaskInLane === 0 };
+    }
+
+    function scoreOf(ev) {
+      let openBlocked = 0;
+      for (const id of ev.waiters) if (waitsOn.get(id).size === 0) openBlocked++;
+      let peak = ev.myLayer;
+      for (const l of ev.raised.values()) peak = Math.max(peak, l);
+      return (ev.inLane.size > 0 ? 2 : 0) + openBlocked - (ev.door ? DOOR_PENALTY : 0) - (pressure * peak) / cap;
+    }
+
+    function place(ev) {
+      const { arrow } = ev;
+      arrows.push(arrow);
+      for (const [x, y] of arrow.cells) {
+        bodyOccupied.add(cellKey(x, y));
+        arrowAt.set(cellKey(x, y), arrow.id);
+      }
+      for (const [x, y] of ev.lane) {
+        const key = cellKey(x, y);
+        if (!laneCross.has(key)) laneCross.set(key, []);
+        laneCross.get(key).push(arrow.id);
+      }
+      waitsOn.set(arrow.id, new Set(ev.inLane));
+      waitedBy.set(arrow.id, new Set(ev.waiters));
+      for (const id of ev.inLane) waitedBy.get(id).add(arrow.id);
+      for (const id of ev.waiters) waitsOn.get(id).add(arrow.id);
+      layer.set(arrow.id, ev.myLayer);
+      for (const [id, l] of ev.raised) layer.set(id, l);
+      filled += arrow.cells.length;
+      nextId++;
+    }
+
+    function pickArrow(x, y, lo, hi) {
+      let best = null;
+      let bestScore = -Infinity;
+      for (let t = 0; t < tries; t++) {
+        const candidate = growArrow(x, y, bodyOccupied, rand, lo, hi, bendProbability, nextId, w, h);
+        if (candidate.cells.length < lo) continue; // boxed in: leave a gap rather than bake a stub
+        const ev = evaluate(candidate);
+        if (!ev) continue;
+        const score = scoreOf(ev);
+        if (score > bestScore) {
+          best = ev;
+          bestScore = score;
+        }
+      }
+      return best;
+    }
+
+    for (const [x, y] of cells) {
+      if (filled >= targetCells) break;
+      if (bodyOccupied.has(cellKey(x, y))) continue;
+      const best = pickArrow(x, y, minLen, maxLen);
+      if (best) place(best);
+    }
+    if (gapFillMaxLen) {
+      for (const [x, y] of cells) {
+        if (bodyOccupied.has(cellKey(x, y))) continue;
+        const best = pickArrow(x, y, 2, gapFillMaxLen);
+        if (best) place(best);
+      }
+    }
+    return createBoard(w, h, arrows);
+  }
+
   // The "arrow A touches arrow B" graph: two arrows are neighbours when any of A's cells is 4-adjacent to
   // one of B's. Used only for colour assignment below.
   function neighborArrows(board) {
@@ -490,6 +657,9 @@
   // same attempt sequence and picks the same best-fill board (THE-147).
   // `opts.mask` packs the board inside a silhouette instead of the full w*h rectangle (see `tile`).
   // `opts.paletteSize`, when set, colours the returned board's arrows via `assignColors`.
+  // `opts.depthCap` (with a mask) switches packing to `tileConstrained` -- most arrows blocked at the start,
+  // solve depth <= depthCap -- and `opts.depthPressure` overrides its depth weight. `opts.rank(metrics, board)`
+  // replaces fill density as the fallback's "best" measure when no attempt passes `accept` (higher wins).
   function generate(opts) {
     const w = opts.w;
     const h = opts.h;
@@ -505,6 +675,7 @@
     const neverAdjacent = opts.neverAdjacent;
     const gapFillMaxLen = opts.gapFillMaxLen;
     const playableCells = mask ? mask.size : w * h;
+    const rank = opts.rank || ((m) => m.fillDensity);
 
     let fallback = null;
     let attemptsMade = 0;
@@ -512,12 +683,15 @@
       attemptsMade = attempt + 1;
       // A mask means a large, dense, irregular board is likely -- exactly the case plain `tile` reject-
       // sampling stops converging on (see `tilePacked`'s comment), so build those by construction instead.
-      const board = mask
+      const board = mask && opts.depthCap
+        ? tileConstrained(w, h, rand, minLen, maxLen, bendProbability, density, mask, opts.triesPerArrow, gapFillMaxLen, opts.depthCap, opts.depthPressure)
+        : mask
         ? tilePacked(w, h, rand, minLen, maxLen, bendProbability, density, mask, opts.triesPerArrow, gapFillMaxLen)
         : tile(w, h, rand, minLen, maxLen, bendProbability, density);
       const metrics = analyze(board, playableCells);
       if (!metrics.solvable) continue;
-      if (!fallback || metrics.fillDensity > fallback.metrics.fillDensity) fallback = { board, metrics };
+      const score = rank(metrics, board);
+      if (!fallback || score > fallback.score) fallback = { board, metrics, score };
       if (!accept || accept(metrics, board)) {
         const finalBoard = paletteSize ? assignColors(board, paletteSize, neverAdjacent) : board;
         return { board: finalBoard, metrics, attempts: attemptsMade };
@@ -544,6 +718,7 @@
     neighborArrows,
     assignColors,
     tilePacked,
+    tileConstrained,
     generate,
     rng,
   };

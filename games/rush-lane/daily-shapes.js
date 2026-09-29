@@ -13,6 +13,16 @@
       10
     ],
     "fill": 0.9,
+    "depthCap": 8,
+    "open": [
+      0.18,
+      0.28
+    ],
+    "minOpen": 3,
+    "depth": [
+      5,
+      8
+    ],
     "shapes": [
       {
         "name": "apple",

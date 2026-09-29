@@ -94,7 +94,6 @@
   --color-grid-dot: #2A3552;   /* faint dot on every silhouette cell, under the lines; shows the shape as it empties */
   --color-line-danger: #FF3B30;/* bump flash on both arrows + the "tried" ring */
   --color-line-hint: #FAC878;  /* hint: the free arrow's lane glows gold (same as --color-lane-hint) */
-  --color-line-trail: #FFFFFF; /* vacated-path glow after an exit, drawn at --trail-alpha */
 
   /* line colours, one per arrow, chosen by the generator's greedy colouring (DESIGN.md §15.2).
      Never-adjacent pairs (min OKLab distance < 12 under protan,
@@ -119,7 +118,13 @@
   /* line geometry, fractions of one cell unless marked px */
   --line-w: 0.18;          /* stroke width: 2.8 px at a 15.6 px cell */
   --line-w-min: 2;         /* px floor, so a 14 px cell still gets a 2 px line */
-  --line-w-press: 1.35;    /* x line width while pressed / selected */
+  --line-w-press: 1.5;     /* x line width while pressed / selected (v1.3: was 1.35) */
+  --press-glow-w: 3.4;     /* v1.3: pressed arrow's own-colour glow underlay, x its line width (DESIGN.md 16.2) */
+  --press-glow-alpha: 0.45; /* v1.3: that glow's alpha */
+  --press-glow-blur: 0.6;  /* v1.3: that glow's shadowBlur, in cells, same colour */
+  --press-core-w: 0.35;    /* v1.3: white core down the pressed line, x its line width */
+  --press-core-alpha: 0.9; /* v1.3: that core's alpha */
+  --press-head: 1.15;      /* v1.3: pressed arrow's head scale (width and length) */
   --line-w-bump: 1.6;      /* x line width during the bump flash */
   --line-cap: round;       /* tail cap (canvas lineCap) */
   --line-join: round;      /* bends: sharp 90-degree polyline corners with a round join, no arcs (maze look) */
@@ -128,8 +133,6 @@
   --head-tip: 0.46;        /* tip distance ahead of the head cell centre (< 0.5: the tip stays inside its cell) */
   --grid-dot-r: 0.07;      /* silhouette dot radius */
   --grid-dot-min: 1;       /* px floor for the dot radius */
-  --dim-others: 0.45;      /* share of their own colour the other arrows keep (opaque blend toward the board, not alpha) while one is pressed (the pressed one reads through the finger) */
-  --trail-alpha: 0.35;     /* vacated-path glow, fades over --trail-life */
   --cell-min-maze: 14px;   /* smallest cell on a 360 px phone; the generator caps masks at 24 x 32 cells */
   --cell-max-maze: 30px;   /* cap on tablets/desktop so lines don't turn chunky again */
   --tap-radius: 0.8;       /* nearest arrow within max(0.8 cell, --tap-radius-min) of the finger */
@@ -143,7 +146,6 @@
   --snake-fade: 3;          /* cells past the silhouette's bounding box over which the leaving snake fades out */
   --snake-retract: 1.5;     /* x speed on the way back after a bump */
   --snake-bump-min: 0.3;    /* cells of push when the blocker is directly in front (no gap) */
-  --trail-life: 320ms;
   --deal-total: 900ms;      /* whole-board deal-in; per-arrow stagger = min(20 ms, deal-total / arrows) */
 
   /* light */
@@ -174,7 +176,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   :root { --dur-fast: 0ms; --dur-med: 0ms; --dur-slow: 0ms; --bump-flash: 520ms; --shake-px: 0; --deal-stagger: 0ms;
-    --deal-total: 0ms; --trail-life: 0ms; } /* snakes: see DESIGN.md §15.4 "Reduced motion" (fade in place, no travel) */
+    --deal-total: 0ms; } /* snakes: see DESIGN.md §15.4 "Reduced motion" (fade in place, no travel) */
 }
 
 /* contrast: --color-text on --color-bg >= 4.5 */

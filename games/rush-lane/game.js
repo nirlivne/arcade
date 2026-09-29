@@ -66,10 +66,15 @@
       colorGridDot: t("--color-grid-dot"),
       colorLineDanger: t("--color-line-danger") || t("--color-danger"),
       colorLineHint: t("--color-line-hint") || t("--color-accent"),
-      colorLineTrail: t("--color-line-trail") || "#FFFFFF",
       lineW: num("--line-w") || 0.18,
       lineWMin: num("--line-w-min") || 2,
-      lineWPress: num("--line-w-press") || 1.35,
+      lineWPress: num("--line-w-press") || 1.5,
+      pressGlowW: num("--press-glow-w") || 3.4,
+      pressGlowAlpha: num("--press-glow-alpha") || 0.45,
+      pressGlowBlur: num("--press-glow-blur") || 0.6,
+      pressCoreW: num("--press-core-w") || 0.35,
+      pressCoreAlpha: num("--press-core-alpha") || 0.9,
+      pressHead: num("--press-head") || 1.15,
       lineWBump: num("--line-w-bump") || 1.6,
       lineCap: t("--line-cap") || "round",
       lineJoin: t("--line-join") || "round",
@@ -78,7 +83,6 @@
       headTip: num("--head-tip") || 0.46,
       gridDotR: num("--grid-dot-r") || 0.07,
       gridDotMin: num("--grid-dot-min") || 1,
-      dimOthers: num("--dim-others") || 0.45,
       cellMinMaze: num("--cell-min-maze") || 14,
       cellMaxMaze: num("--cell-max-maze") || 30,
       tapRadius: num("--tap-radius") || 0.8,
@@ -90,8 +94,6 @@
       snakeFade: num("--snake-fade") || 3,
       snakeRetract: num("--snake-retract") || 1.5,
       snakeBumpMin: num("--snake-bump-min") || 0.3,
-      trailAlpha: num("--trail-alpha") || 0.35,
-      trailLife: num("--trail-life") || 320,
       dealTotal: num("--deal-total") || 900,
       dealStagger: num("--deal-stagger") || 45,
     };
@@ -119,14 +121,6 @@
     return css.getPropertyValue(name).trim() || TOK.primary;
   }
 
-  // Opaque blend toward the board colour (DESIGN.md 15.2: "an opaque blend, not alpha -- alpha shows seams
-  // where head and line overlap, and the dots through the line"). `keep` is the fraction of `hex` kept.
-  function mixToward(hex, towardHex, keep) {
-    const parse = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-    const a = parse(hex), b = parse(towardHex);
-    return "rgb(" + a.map((v, i) => Math.round(v * keep + b[i] * (1 - keep))).join(",") + ")";
-  }
-
   // Pip's face photo, if the theme supplies one (theme.js images.hero); null keeps the drawn default.
   let heroImg = null;
 
@@ -141,26 +135,6 @@
     const c = canvas.getContext("2d");
     c.setTransform(d, 0, 0, d, 0, 0);
     return c;
-  }
-
-  // The v1.1 form of the rush streaks (DESIGN.md 15.4): the exact path an exiting snake travelled, glowing
-  // in its own colour, fading out over --trail-life. `points` are track points in cell units (see buildTrack).
-  function drawTrail(c, points, color, life) {
-    if (points.length < 2) return;
-    c.save();
-    c.globalAlpha = TOK.trailAlpha * life;
-    c.strokeStyle = color;
-    c.lineWidth = Math.max(1, geo.cell * TOK.lineW * 0.6);
-    c.lineCap = TOK.lineCap;
-    c.lineJoin = TOK.lineJoin;
-    c.beginPath();
-    points.forEach(([x, y], i) => {
-      const px = geo.originX + x * geo.cell, py = geo.originY + y * geo.cell;
-      if (i === 0) c.moveTo(px, py);
-      else c.lineTo(px, py);
-    });
-    c.stroke();
-    c.restore();
   }
 
   // Heart: candy fill, ink keyline, hard shadow. state: "full" | "empty" | "breaking". Ported from
@@ -379,8 +353,10 @@
     noise.start(t0);
     noise.stop(t0 + duration + 0.02);
   }
-  // Each exit in a row plays the next note of the C-major pentatonic (DESIGN.md §12), so a clean streak
-  // sounds like it's climbing; reset on a bump or a new level (state.exitStreak).
+  // THE-197's original 6-note clear motif (DESIGN.md §12): each exit in a row steps one further into the
+  // C-major pentatonic C5 D5 E5 G5 A5 C6, so a clean streak sounds like it's climbing. A blocked tap doesn't
+  // advance it (sndBump resets state.exitStreak instead of calling this), and a new level/restart resets it
+  // too (resetRunFx). Short (0.1s) triangle envelopes so rapid-fire clears don't clip or pile up.
   const EXIT_NOTES = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5]; // C5 D5 E5 G5 A5 C6
   function sndExit() {
     noiseSweep(400, 2000, 0.16);
@@ -391,13 +367,16 @@
     tone(160, 0.09, { type: "square", volume: 0.16 });
     setTimeout(() => tone(260, 0.08, { type: "sine", sweepTo: 380, volume: 0.1 }), 90);
   }
+  // Level clear: the motif's resolving cadence, C5 E5 G5 C6 -- the same phrase lands back on the tonic (an
+  // octave up), so a level win always resolves cleanly rather than trailing off mid-phrase.
   function sndWin() {
-    [523, 659, 784].forEach((f, i) => setTimeout(() => tone(f, 0.16, { type: "triangle", volume: 0.14 }), i * 90));
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => setTimeout(() => tone(f, 0.14, { type: "triangle", volume: 0.14 }), i * 60));
   }
-  // Level clear, each star socket popping in: a rising ding at G5, B5, D6 (DESIGN.md §12).
-  const STAR_DING_FREQS = [784, 988, 1175];
+  // Level clear, each star socket popping in: a rising ding at E6, G6, C7 -- C-major chord tones so the stars
+  // sparkle above sndWin's resolved cadence instead of clashing with it (THE-206).
+  const STAR_DING_FREQS = [1318.51, 1567.98, 2093.0];
   function sndStarDing(i) {
-    tone(STAR_DING_FREQS[i] || STAR_DING_FREQS[STAR_DING_FREQS.length - 1], 0.14, { type: "triangle", volume: 0.15 });
+    tone(STAR_DING_FREQS[i] || STAR_DING_FREQS[STAR_DING_FREQS.length - 1], 0.14, { type: "triangle", volume: 0.12 });
   }
   // Out of hearts: a gentle "wah-wah" slide A4 -> F4 (DESIGN.md §12), never a sad sting.
   function sndLose() {
@@ -424,7 +403,6 @@
                         // pointerup commits nothing (THE-136: a pinch must not cost a heart or move an arrow)
     flash: new Map(), // arrowId -> flash start time (ms)
     shake: null, // { start, dir: [dx, dy] }
-    trails: [], // the vacated path of an exiting snake, fading out: { points: [[x,y],...], color, start }
     exitStreak: 0, // consecutive clean exits, for the rising pentatonic "zip" (DESIGN.md §12); resets on a bump
     tapPuffs: [], // { at: [px,py], start } -- the pointerdown tap puff ring
     bumpBursts: [], // { at: [px,py], start } -- the white bonk burst at a bump's contact point
@@ -642,9 +620,10 @@
     const [dx, dy] = dir;
     const pts = trackToPx(windowPoints);
     const lineW = Math.max(TOK.lineWMin, geo.cell * TOK.lineW * (o.pressed ? TOK.lineWPress : o.flashAlpha > 0 ? TOK.lineWBump : 1));
-    const headLen = geo.cell * TOK.headLen;
-    const headTip = geo.cell * TOK.headTip;
-    const half = geo.cell * TOK.headW * 0.5;
+    const headScale = o.pressed ? TOK.pressHead : 1;
+    const headLen = geo.cell * TOK.headLen * headScale;
+    const headTip = geo.cell * TOK.headTip * headScale;
+    const half = geo.cell * TOK.headW * 0.5 * headScale;
     const head = pts[pts.length - 1];
     const baseSet = headLen - headTip;
     const base = { px: head.px - dx * baseSet, py: head.py - dy * baseSet };
@@ -653,6 +632,24 @@
     ctx.save();
     ctx.lineCap = TOK.lineCap;
     ctx.lineJoin = TOK.lineJoin;
+
+    // Pressed arrow only (DESIGN.md 16.2): a blurred own-colour glow underlay, run on to the head tip, drawn
+    // before the line so the crisp line and head sit on top of it.
+    if (o.pressed) {
+      ctx.save();
+      ctx.globalAlpha = TOK.pressGlowAlpha;
+      ctx.strokeStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = TOK.pressGlowBlur * geo.cell;
+      ctx.lineWidth = lineW * TOK.pressGlowW;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].px, pts[0].py);
+      for (let i = 1; i < pts.length - 1; i++) ctx.lineTo(pts[i].px, pts[i].py);
+      ctx.lineTo(tip.px, tip.py);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.lineWidth = lineW;
@@ -671,6 +668,19 @@
     ctx.lineWidth = lineW * 0.5;
     ctx.fill();
     ctx.stroke();
+
+    // Pressed arrow only: a white core down the line (not the head), on top of the fill.
+    if (o.pressed) {
+      ctx.globalAlpha = TOK.pressCoreAlpha;
+      ctx.strokeStyle = "#FFFFFF";
+      ctx.lineWidth = lineW * TOK.pressCoreW;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].px, pts[0].py);
+      for (let i = 1; i < pts.length - 1; i++) ctx.lineTo(pts[i].px, pts[i].py);
+      ctx.lineTo(base.px, base.py);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
 
     if (o.flashAlpha > 0) {
       ctx.globalAlpha = o.flashAlpha;
@@ -798,22 +808,33 @@
       const pressedId = anyPress ? [...state.presses.values()][0].id : null;
       const kbdIds = state.kbdActive ? kbdArrowIds() : [];
       const focusedId = kbdIds.length ? kbdIds[state.kbdIndex % kbdIds.length] : null;
+      // The pressed arrow is drawn last (DESIGN.md 16.2): its glow then sits over its neighbours' edges, and
+      // every other arrow keeps its full colour -- there's no whole-board dim in v1.3.
+      let pressedDraw = null;
       for (const arrow of state.board.arrows.values()) {
         if (state.anims.has(arrow.id)) continue;
         const flashStart = state.flash.get(arrow.id);
         const flashAlpha = flashStart !== undefined ? Math.max(0, 1 - (now - flashStart) / TOK.bumpFlash) : 0;
         if (flashStart !== undefined && flashAlpha <= 0) state.flash.delete(arrow.id);
         const pressed = arrow.id === pressedId;
-        const baseColor = lineColorFor(arrow.color);
-        const color = anyPress && !pressed ? mixToward(baseColor, TOK.colorBoard, TOK.dimOthers) : baseColor;
+        const color = lineColorFor(arrow.color);
         const corners = cornerCells(arrow.cells).map(([x, y]) => [x + 0.5, y + 0.5]);
-        drawMazeArrow(corners, B.DIRS[arrow.dir], color, {
+        const opts = {
           flashAlpha,
           pressed,
           hint: arrow.id === state.hintId && now < state.hintUntil,
           focused: arrow.id === focusedId,
-        });
-        if (arrow.id === state.hintId && now < state.hintUntil) drawHintLane(arrow);
+        };
+        if (pressed) {
+          pressedDraw = { arrow, corners, color, opts };
+          continue;
+        }
+        drawMazeArrow(corners, B.DIRS[arrow.dir], color, opts);
+        if (opts.hint) drawHintLane(arrow);
+      }
+      if (pressedDraw) {
+        drawMazeArrow(pressedDraw.corners, B.DIRS[pressedDraw.arrow.dir], pressedDraw.color, pressedDraw.opts);
+        if (pressedDraw.opts.hint) drawHintLane(pressedDraw.arrow);
       }
       // Animations run concurrently (one per arrow id), so tapping another arrow while one slides out or
       // bumps doesn't have to wait; only the animating arrow itself ignores new taps (see onArrowTap).
@@ -864,17 +885,6 @@
       }
       for (const a of finishedSlides) finishSlide(a);
       for (const a of finishedBumps) finishBump(a);
-      if (!reduceMotion) {
-        for (let i = state.trails.length - 1; i >= 0; i--) {
-          const tr = state.trails[i];
-          const life = 1 - (now - tr.start) / TOK.trailLife;
-          if (life <= 0) {
-            state.trails.splice(i, 1);
-            continue;
-          }
-          drawTrail(ctx, tr.points, tr.color, life);
-        }
-      }
       for (let i = state.bumpBursts.length - 1; i >= 0; i--) {
         const b = state.bumpBursts[i];
         const t = (now - b.start) / TOK.durMed;
@@ -1200,9 +1210,6 @@
 
   function finishSlide(anim) {
     state.anims.delete(anim.arrow.id);
-    if (!K.reduceMotion()) {
-      state.trails.push({ points: windowOnTrack(anim.track, 0, anim.edgeArc), color: lineColorFor(anim.arrow.color), start: performance.now() });
-    }
     if (state.isDemo) {
       if (state.board.arrows.size === 0) finishDemo();
       return;
@@ -1336,8 +1343,8 @@
         setTimeout(() => {
           span.classList.remove("star--pending");
           span.classList.add("uk-pop");
-          sndStarDing(i);
-        }, i * 180);
+          if (i < filled) sndStarDing(i);
+        }, 240 + i * 180);
       });
     }
   }
@@ -1445,7 +1452,6 @@
     state.multiTouch = false;
     state.flash.clear();
     state.shake = null;
-    state.trails.length = 0;
     state.exitStreak = 0;
     state.tapPuffs.length = 0;
     state.bumpBursts.length = 0;
@@ -1495,8 +1501,23 @@
 
   // DESIGN.md 15.3 daily rule: pick one of daily-shapes.js's "m"-size masks by the date seed (same shape for
   // everyone on the same day), pack it at the rule's own len/fill band, and verify solvable before showing --
-  // tilePacked already guarantees this by construction (see board.js), but the check stays as a belt-and-
+  // tileConstrained already guarantees this by construction (see board.js), but the check stays as a belt-and-
   // braces since a truly empty/degenerate mask should never silently show an unplayable board.
+  // THE-195: packed like a mid-band ladder level (DESIGN.md §16): most arrows blocked at the start, a few
+  // attempts to land the open share and depth near the band, else the closest attempt. The daily is built on
+  // the player's device, so the cap and tolerance keep it at v1.2's generation time (THE-200: 8 exact-band
+  // attempts ran ~4x slower, p95 ~200 ms on desktop); a miss of 1.5 is e.g. 7.5 points off the open share.
+  const DAILY_ATTEMPTS = 4;
+  const DAILY_MISS_OK = 1.5;
+  function dailyMiss(m) {
+    const share = m.openCount / m.arrowCount;
+    return (
+      Math.max(0, DAILY_SHAPES.open[0] - share, share - DAILY_SHAPES.open[1]) * 20 +
+      Math.max(0, DAILY_SHAPES.minOpen - m.openCount) +
+      Math.max(0, DAILY_SHAPES.depth[0] - m.depth)
+    );
+  }
+
   function generateDailyBoard(date) {
     const seed = K.dailySeed(date, "rush-lane");
     const shape = DAILY_SHAPES.shapes[seed % DAILY_SHAPES.shapes.length];
@@ -1513,6 +1534,10 @@
       bendProbability: 0.4,
       paletteSize: LINE_COLOR_COUNT,
       neverAdjacent: DAILY_NEVER_ADJACENT,
+      depthCap: DAILY_SHAPES.depthCap,
+      maxAttempts: DAILY_ATTEMPTS,
+      accept: (m) => dailyMiss(m) <= DAILY_MISS_OK,
+      rank: (m) => -dailyMiss(m),
     });
     if (!result || !result.metrics.solvable) throw new Error(`daily board (${shape.name}) failed to generate solvably`);
     return { board: result.board, mask: shape.mask };
