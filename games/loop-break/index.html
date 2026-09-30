@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en" data-skin="blued" data-motion="full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Loop Break</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<meta name="theme-color" content="#141a24">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="ui-kit.css">
+<link rel="stylesheet" href="skin.css">
+</head>
+<body class="lb">
+<div id="lb-app" class="lb-app">
+
+  <section class="lb-screen" id="lb-title">
+    <div class="lb-dateline"><span id="dateline-text"></span> <span class="lb-streak" id="streak-pips"></span></div>
+    <div class="lb-stage">
+      <canvas class="lb-medallion" id="title-medallion"></canvas>
+      <svg class="lb-arc-title" viewBox="0 0 100 100" aria-label="Loop Break">
+        <defs><path id="lb-arc" d="M 13.4 6.3 A 57 57 0 0 1 86.6 6.3"/></defs>
+        <text class="lb-arc-title__shade"><textPath href="#lb-arc" startOffset="50%" text-anchor="middle" id="arc-title-shade">Loop Break</textPath></text>
+        <text class="lb-arc-title__fill"><textPath href="#lb-arc" startOffset="50%" text-anchor="middle" id="arc-title-fill">Loop Break</textPath></text>
+      </svg>
+    </div>
+    <p class="lb-tagline" id="tagline"></p>
+    <div class="lb-plates">
+      <button class="lb-plate lb-plate--primary" id="btn-play"><span class="lb-plate__label">Play</span></button>
+      <button class="lb-plate lb-plate--secondary" id="btn-daily"><span class="lb-plate__label">Daily</span><span class="lb-plate__note" id="daily-note"></span></button>
+    </div>
+    <nav class="lb-footer"><button class="lb-link" id="btn-howto-title">How to play</button><button class="lb-link" id="btn-settings-title">Settings</button></nav>
+  </section>
+
+  <section class="lb-screen" id="lb-map">
+    <div class="lb-top"><button class="lb-back" aria-label="Back" id="btn-map-back"></button><span class="lb-top__title" id="map-title">Levels</span></div>
+    <div class="lb-packs" id="packs"></div>
+  </section>
+
+  <section class="lb-screen" id="lb-play">
+    <div class="lb-top">
+      <button class="lb-back" aria-label="Pause" id="btn-pause"></button><span class="lb-top__title" id="play-title">Level</span>
+      <div class="lb-moves"><span class="lb-label">Moves left</span><output class="lb-window" id="moves-window"><span class="lb-window__num" id="moves-num">0</span></output></div>
+    </div>
+    <div class="lb-stage" id="stage"><canvas id="lb-medallion" class="lb-medallion"></canvas>
+      <div class="lb-ghost" id="ghost" hidden></div>
+      <button class="lb-link lb-skip" id="btn-skip-demo" hidden>Skip</button>
+    </div>
+    <div class="lb-side" id="side">
+      <div class="lb-crowns" role="group" aria-label="Crowns" id="crowns"></div>
+      <div class="lb-plates lb-plates--pair">
+        <button class="lb-plate lb-plate--secondary" id="lb-undo"><span class="lb-plate__label">Take back</span><i class="lb-pip"></i></button>
+        <button class="lb-plate lb-plate--secondary" id="lb-restart"><span class="lb-plate__label">Restart</span></button>
+      </div>
+      <p class="lb-keyhint">1–6 pick a ring · ← → turn · Z take back · R restart</p>
+    </div>
+  </section>
+</div>
+
+<div class="lb-overlay" id="ov-result">
+  <div class="lb-caseback lb-caseback--result"><div class="lb-caseback__body">
+    <p class="lb-kicker">Opened in</p><strong class="lb-big" id="result-big">0</strong><p class="lb-sub" id="result-sub"></p>
+    <div class="lb-stars lb-stars--lg" id="result-stars"><i class="lb-star"></i><i class="lb-star"></i><i class="lb-star"></i></div>
+  </div></div>
+  <div class="lb-after">
+    <output class="lb-sharebox" id="result-sharebox" hidden></output>
+    <div class="lb-plates" id="result-plates"></div>
+    <nav class="lb-footer"><button class="lb-link" id="btn-result-levels">Levels</button></nav>
+  </div>
+</div>
+
+<div class="lb-overlay" id="ov-fail">
+  <div class="lb-caseback lb-caseback--fail"><div class="lb-caseback__body">
+    <p class="lb-kicker">Can't open in<br>the moves left</p><strong class="lb-big" id="fail-big">0</strong><p class="lb-sub" id="fail-sub"></p>
+  </div></div>
+  <div class="lb-after"><div class="lb-plates" id="fail-plates"></div>
+    <nav class="lb-footer"><button class="lb-link" id="btn-fail-levels">Levels</button></nav></div>
+</div>
+
+<div class="lb-overlay" id="ov-pause">
+  <div class="lb-caseback lb-caseback--pause"><div class="lb-caseback__body">
+    <h2 class="lb-kicker">Paused</h2>
+    <div class="lb-plates"><button class="lb-plate lb-plate--primary" id="btn-resume"><span class="lb-plate__label">Resume</span></button>
+      <button class="lb-plate lb-plate--secondary" id="btn-pause-restart"><span class="lb-plate__label">Restart</span></button>
+      <button class="lb-plate lb-plate--secondary" id="btn-pause-levels"><span class="lb-plate__label">Levels</span></button></div>
+    <nav class="lb-footer"><button class="lb-link" id="btn-pause-howto">How to play</button><button class="lb-link" id="btn-pause-settings">Settings</button></nav>
+  </div></div>
+</div>
+
+<div class="lb-overlay" id="ov-settings">
+  <div class="lb-caseback lb-caseback--sheet"><div class="lb-caseback__body">
+    <h2 class="lb-kicker">Settings</h2>
+    <label class="lb-setting"><span class="lb-setting__label">Sound</span><span class="uk-toggle"><input type="checkbox" id="setting-sound"><span class="uk-toggle__track"></span></span></label>
+    <label class="lb-setting"><span class="lb-setting__label">Haptics</span><span class="uk-toggle"><input type="checkbox" id="setting-haptics"><span class="uk-toggle__track"></span></span></label>
+    <label class="lb-setting"><span class="lb-setting__label">Shake on open</span><span class="uk-toggle"><input type="checkbox" id="setting-shake"><span class="uk-toggle__track"></span></span></label>
+    <label class="lb-setting"><span class="lb-setting__label">Reduce motion</span><span class="uk-toggle"><input type="checkbox" id="setting-motion"><span class="uk-toggle__track"></span></span></label>
+    <div class="lb-skins" id="skin-picker">
+      <button class="lb-skin" data-skin="blued"><i class="lb-skin__chip"></i><span>Blued</span></button>
+      <button class="lb-skin" data-skin="gunmetal"><i class="lb-skin__chip"></i><span>Gunmetal</span></button>
+    </div>
+  </div></div>
+  <div class="lb-after"><div class="lb-plates"><button class="lb-plate lb-plate--secondary" id="btn-settings-done"><span class="lb-plate__label">Done</span></button></div>
+    <p class="lb-kicker lb-credit" id="settings-credit">Made by The Game Company</p></div>
+</div>
+
+<div class="lb-overlay" id="ov-howto">
+  <div class="lb-caseback lb-caseback--sheet"><div class="lb-caseback__body">
+    <div class="lb-steps" id="howto-steps"></div>
+    <div class="lb-dots" id="howto-dots"></div>
+  </div></div>
+  <div class="lb-after"><div class="lb-plates lb-plates--pair"><button class="lb-plate lb-plate--secondary" id="btn-howto-back"><span class="lb-plate__label">Back</span></button>
+    <button class="lb-plate lb-plate--primary" id="btn-howto-next"><span class="lb-plate__label">Next</span></button></div>
+    <nav class="lb-footer"><button class="lb-link" id="btn-watch-demo">Watch the demo</button></nav></div>
+</div>
+<div class="lb-iris"></div>
+
+<script src="theme.js"></script>
+<script src="ui-kit.js"></script>
+<script src="levels.js"></script>
+<script src="medallion.js"></script>
+<script type="module" src="game.js"></script>
+<script src="register-sw.js"></script>
+</body>
+</html>

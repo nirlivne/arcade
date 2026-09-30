@@ -1,0 +1,195 @@
+/* Loop Break design tokens (THE-225 brief, THE-231). Designer-owned: the single source of truth for colour, type,
+   space, shape and motion. The developer reads these (CSS via var(), the canvas via
+   getComputedStyle(document.documentElement)) and never hard-codes a palette value. No font files: system stacks only.
+   Ramps: tools/design/palette.mjs (steel 262/0.12, gun 250/0.022, dead 240/0.008, bench 75/0.012, lume 165/0.13,
+   ruby 18/0.17). Skin 1 "Blued steel" = :root. Skin 2 "Gunmetal + white enamel" = :root[data-skin="gunmetal"] at the
+   bottom; it only swaps object finishes, never a text or UI colour, so every contrast pair holds in both skins. */
+
+:root {
+  /* color: the bench (page) */
+  --color-bg: #121110;            /* lamp-black bench, oklch(0.17 0.004 75): warm neutral, not navy */
+  --color-bg-2: #1C1A18;          /* pool edge */
+  --lb-bench-pool: #3A352F;       /* the lamp pool at the top left (bench-800 warm) */
+  --lb-lamp: #F4EFE6;             /* the lamp light: warm white, never gold */
+
+  /* color: text (all near-white on near-black, or ink on enamel / rhodium) */
+  --color-text: #E6E4E0;
+  --color-text-muted: #A39E97;    /* labels, datelines (bench-400) */
+  --color-text-faint: #8A857F;    /* footer links on the bench (bench-500), >= 4.5 on the bench */
+  --lb-ink: #16191D;              /* print on enamel and rhodium */
+  --lb-engrave-hi: #E9ECEF;       /* enamel-filled engraving (arc title, caseback numerals) */
+
+  /* kit plumbing names (toggle, toast, sheet internals); skin.css restyles the shapes */
+  --color-surface: #1A1917;       /* dark plate face */
+  --color-surface-2: #242220;
+  --color-outline: #5E6670;       /* steel rim on dark plates */
+  --color-primary: #C9CDD2;       /* rhodium plate */
+  --color-primary-text: #16191D;
+  --color-accent: #9AE3C3;        /* lume: the one accent (focus ring, active crown, lit stars) */
+  --color-danger: #AD444D;        /* ruby ink: the last-baton digit on enamel */
+  --scrim: rgba(12, 11, 10, 0.95);  /* the play UI must not read through a caseback */
+
+  /* color: blued steel (rings, crowns, screws, claw). Ring conic stops read these by role. */
+  --steel-100: #DCE9FF;
+  --steel-200: #B9D2FF;
+  --steel-300: #96B8F5;
+  --steel-400: #789EE3;
+  --steel-500: #6085CB;
+  --steel-600: #4C6BA4;
+  --steel-700: #3A527F;
+  --steel-800: #263857;
+  --steel-900: #141F33;
+
+  /* canvas: grabbable ring finish (skin 2 swaps these) */
+  --lb-ring-spec: #B9D2FF;        /* the two brushing lobes' peak */
+  --lb-ring-hi: #96B8F5;
+  --lb-ring-light: #789EE3;
+  --lb-ring-lift: #6085CB;
+  --lb-ring-base: #4C6BA4;        /* the ring's body colour; blued steel */
+  --lb-ring-mid: #3A527F;
+  --lb-ring-deep: #263857;
+  --lb-ring-shade: #141F33;       /* the troughs between lobes */
+  --lb-ring-inlay: #F2F3F1;       /* enamel chapter track (skin 2 only: width 0 here) */
+  --lb-inlay-w: 0;                /* px at a 343 px medallion; scale with R */
+  --lb-tick: rgba(200, 215, 255, 0.45);   /* engraved detent ticks */
+  --lb-bevel: rgba(210, 225, 255, 0.55);  /* gap-end bevels, inner edge light */
+  --lb-brush-a: 0.07;             /* max alpha of one brushing hairline */
+
+  /* canvas: drive-only ring (un-blued, bead-blasted: lighter and flatter than a live ring, no ticks) */
+  --lb-dead-spec: #CED1D4;
+  --lb-dead-light: #B4B8BB;
+  --lb-dead-mid: #9A9FA3;
+  --lb-dead-deep: #82878A;
+  --lb-dead-shade: #696C6F;
+
+  /* canvas: fittings that keep their finish in both skins */
+  --lb-blue-hi: #C9DBFF;          /* screw head highlight */
+  --lb-blue: #6085CB;
+  --lb-blue-deep: #141F33;
+  --lb-rhodium-hi: #EEF1F4;       /* bezel, pinion, primary plate */
+  --lb-rhodium: #C9CDD2;
+  --lb-rhodium-lo: #8E949B;
+  --lb-rhodium-shade: #4A4F55;
+  --lb-enamel-hi: #FFFFFF;
+  --lb-enamel: #F2F3F1;           /* hub, index, batons, date window */
+  --lb-enamel-shade: #C9CBC8;
+  --lb-lume: #9AE3C3;             /* aligned gaps, lume channel, selection, stars */
+  --lb-lume-glow: #46B68C;
+  --lb-lume-deep: #0A422F;
+  --lb-lume-off: #0E1714;         /* an unlit gap: the dark lume channel */
+  --lb-ruby-hi: #FFD3D6;
+  --lb-ruby: #D65560;             /* jewels */
+  --lb-ruby-deep: #86333A;
+  --lb-plate: #0C0E10;            /* movement plate seen through the gaps */
+  --lb-perlage: rgba(160, 170, 185, 0.07);
+  --lb-slot: rgba(20, 20, 22, 0.9);       /* a spent baton */
+  --lb-keyway: #1A1C1E;
+  --lb-shadow: rgba(0, 0, 0, 0.55);       /* ring and fitting drop shadows */
+  --lb-contact: rgba(0, 0, 0, 0.75);      /* the medallion's contact shadow on the bench */
+
+  /* type: system stacks only */
+  --font-display: "Avenir Next", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-numeral: ui-serif, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --text-xs: 11px;      /* engraved labels, uppercase +16 % */
+  --text-sm: 13px;      /* plate labels, footer links */
+  --text-md: 15px;      /* body (how-to, settings) */
+  --text-lg: 18px;
+  --text-xl: 24px;      /* date-window numeral */
+  --text-2xl: 34px;     /* flat title line (cover, wide screens) */
+  --text-big: 64px;     /* caseback result numeral */
+  --weight-body: 400;
+  --weight-ui: 500;
+  --weight-strong: 700;
+  --track-label: 0.16em;
+  --track-plate: 0.2em;
+  --track-display: 0.3em;
+  --text-min: 15px;
+
+  /* space (4 px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* shape: circles and arcs; the only straight edges are machined chamfers */
+  --radius-sm: 3px;
+  --radius-md: 5px;     /* crown caps */
+  --radius-lg: 50%;
+  --radius-pill: 5px;   /* kit name kept; no pills in this game */
+  --chamfer: 10px;      /* 45 degree plate corners */
+  --outline-w: 1.5px;   /* dark plate steel rim */
+  --hit-min: 44px;
+  --plate-h: 52px;
+  --crown-w: 48px;
+  --crown-h: 56px;
+  --crown-gap: 8px;
+  --window-w: 48px;
+  --window-h: 36px;
+  --caseback-d: min(92vw, 88dvh, 400px);
+
+  /* light: one lamp, top left; long soft shadow to the bottom right */
+  --shadow-1: 0 6px 10px rgba(0, 0, 0, 0.55);
+  --shadow-2: 18px 24px 32px rgba(0, 0, 0, 0.6);
+  --glow: 0 0 18px rgba(70, 182, 140, 0.55);
+
+  /* motion: mechanical detents */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.3, 1.4, 0.5, 1);  /* the detent: ~2 degrees of overshoot on a 45 degree notch */
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+  --dur-fast: 60ms;     /* plate press, crown light */
+  --dur-med: 140ms;     /* detent ease, lume fade-in */
+  --dur-slow: 300ms;    /* iris */
+  --dur-nudge: 90ms;    /* drive-only "locked" nudge */
+  --dur-hold: 120ms;    /* win beat 1 */
+  --dur-lume-ring: 40ms;/* win beat 2, per ring */
+  --dur-lid: 600ms;     /* win beat 4 */
+  --dur-fail: 400ms;    /* lume fades out, rings slump */
+  --dur-glint: 300ms;   /* driver screw glint */
+  --dur-idle: 4000ms;   /* start-screen demo ring */
+}
+
+/* Skin 2: "Gunmetal + white enamel". Same geometry: dark gunmetal rings with a white enamel chapter track and enamel
+   ticks. The drive-only ring goes pale bead-blasted titanium, so it still reads as "not like the others" in greyscale
+   (L 0.70-0.86 against the rings' 0.24-0.53). Screws and the claw stay heat-blued: a classic accent on gunmetal. */
+:root[data-skin="gunmetal"] {
+  --lb-ring-spec: #CAD2DA;
+  --lb-ring-hi: #AFB8C2;
+  --lb-ring-light: #7D8793;
+  --lb-ring-lift: #646D76;
+  --lb-ring-base: #4D535A;
+  --lb-ring-mid: #34383E;
+  --lb-ring-deep: #1D2023;
+  --lb-ring-shade: #111315;
+  --lb-inlay-w: 2;
+  --lb-tick: rgba(242, 243, 241, 0.92);
+  --lb-bevel: rgba(226, 233, 240, 0.5);
+  --lb-brush-a: 0.05;
+  --lb-dead-spec: #F3F5F7;
+  --lb-dead-light: #E5E8EA;
+  --lb-dead-mid: #CED1D4;
+  --lb-dead-deep: #B4B8BB;
+  --lb-dead-shade: #9A9FA3;
+}
+
+/* contrast: --color-text on --color-bg >= 4.5 */
+/* contrast: --color-text on --lb-bench-pool >= 4.5 */
+/* contrast: --color-text-muted on --color-bg >= 4.5 */
+/* contrast: --color-text-muted on --lb-bench-pool >= 3 */
+/* contrast: --color-text-faint on --color-bg >= 4.5 */
+/* contrast: --color-text on --color-surface >= 4.5 */
+/* contrast: --color-text-muted on --color-surface >= 4.5 */
+/* contrast: --steel-200 on --color-surface >= 4.5 */
+/* contrast: --color-primary-text on --color-primary >= 4.5 */
+/* contrast: --lb-ink on --lb-enamel >= 4.5 */
+/* contrast: --lb-ink on --lb-rhodium >= 4.5 */
+/* contrast: --color-danger on --lb-enamel >= 4.5 */
+/* contrast: --color-accent on --color-bg >= 4.5 */
+/* contrast: --color-accent on --color-surface >= 4.5 */
+/* contrast: --lb-engrave-hi on --steel-900 >= 4.5 */
+/* contrast: --lb-lume on --lb-lume-off >= 3 */
+/* contrast: --lb-lume on --steel-900 >= 3 */
+/* contrast: --lb-enamel on --lb-rhodium-shade >= 3 */
