@@ -1,0 +1,496 @@
+/* Captain Fold skin (THE-263). Designer-owned, built from the style tile (design/captain-fold/styletile.html).
+   Loaded after tokens.css and ui-kit.css. Styles the class contract posted on THE-263/THE-264; the world, the plane,
+   the Captain and every obstacle are canvas (DESIGN.md §6). Shape language: flat cut paper, 4 px radius or straight
+   cuts, a soft 1.6 px lift shadow, dog-eared tabs. The kit's .uk-btn/.uk-panel are overridden below, never used as-is. */
+
+/* ---------------------------------------------------------------- page: the sky diorama */
+html { background: var(--cf-haze); }
+body.cf {
+  margin: 0; min-height: 100dvh; color: var(--color-text);
+  font: var(--weight-body) var(--text-md)/1.4 var(--font-body);
+  background:
+    radial-gradient(70% 45% at 84% 88%, rgba(255, 233, 176, 0.85), rgba(255, 233, 176, 0) 70%),
+    linear-gradient(180deg, var(--cf-sky-700) 0%, var(--cf-sky-600) 45%, var(--cf-sky-400) 75%, var(--cf-sky-200) 100%);
+  background-attachment: fixed;
+  -webkit-tap-highlight-color: transparent; overflow: hidden; overscroll-behavior: none;
+}
+body.cf::after { /* paper grain over everything, 6 % */
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 50; mix-blend-mode: multiply; opacity: .55;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .28  0 0 0 0 .25  0 0 0 .09 0'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+}
+:where(.cf) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.cf :focus-visible { outline: 3px solid var(--cf-marigold); outline-offset: 3px; border-radius: var(--radius-md); }
+
+.cf-app { position: relative; height: 100dvh; width: 100%; max-width: 1280px; margin: 0 auto; overflow: hidden; }
+.cf-world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+/* ---------------------------------------------------------------- screens + the cf-fold transition */
+.cf-screen {
+  position: absolute; inset: 0; box-sizing: border-box; display: none;
+  padding: max(var(--space-4), env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right))
+    max(var(--space-4), env(safe-area-inset-bottom)) max(var(--space-4), env(safe-area-inset-left));
+  background: var(--scrim);
+}
+/* THE-301: #cf-play sits above the canvas and swallowed the ledge pull as a browser pan gesture on touch -
+   only .cf-world (below it) had touch-action: none. Both clear screens (play + the idle demo) need it too. */
+.cf-screen--clear { background: transparent; touch-action: none; }
+.cf-screen.is-active { display: grid; animation: cf-fold var(--dur-slow) var(--ease-spring) both; }
+.cf-screen[hidden] { display: none; }
+/* A sheet of paper unfolds from the top-left corner along the diagonal: the clip grows along x+y, and the page settles
+   from a slight skew as the fold opens (out-back 480 ms). */
+@keyframes cf-fold {
+  0%   { clip-path: polygon(0 0, 0 0, 0 0); transform: translate(-10px, -10px) skewY(-2deg); }
+  60%  { clip-path: polygon(0 0, 190% 0, 0 190%); }
+  100% { clip-path: polygon(0 0, 300% 0, 0 300%); transform: none; }
+}
+@keyframes cf-fade { from { opacity: 0; } to { opacity: 1; } }
+:root[data-reduce-motion="true"] .cf-screen.is-active { animation: cf-fade var(--dur-med) linear both; }
+@media (prefers-reduced-motion: reduce) { .cf-screen.is-active { animation: cf-fade 220ms linear both; } }
+
+/* ---------------------------------------------------------------- tabs (every button): dog-eared paper
+   The face lives on ::before and is masked to cut the corner; the drop-shadow filter on the tab itself then follows
+   that cut shape. ::after is the folded-over flap. Press = the paper flattens onto the sky. */
+.cf-tab[hidden] { display: none; } /* [hidden] and .cf-tab are equal specificity; without this a hidden tab
+  (e.g. #cf-btn-next on a crash) still renders - game.js only ever toggles the attribute, never a class */
+.cf-tab {
+  --tab-face: var(--cf-paper);
+  --tab-flap: #FFFFFF;
+  --dog: var(--dogear);
+  position: relative; isolation: isolate; box-sizing: border-box;
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  min-width: var(--hit-min); min-height: var(--tab-h); width: 100%; padding: 0 var(--space-5);
+  color: var(--cf-ink); font: var(--weight-strong) var(--text-lg)/1.05 var(--font-body); letter-spacing: var(--track-tab);
+  filter: drop-shadow(0 1.6px 1px rgba(30, 42, 51, .3)) drop-shadow(0 6px 7px rgba(30, 42, 51, .16));
+  transition: transform var(--dur-fast) var(--ease-out), filter var(--dur-fast) var(--ease-out);
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+.cf-tab::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: var(--radius-md);
+  background: var(--tab-face);
+  box-shadow: inset 0 -3px 0 rgba(30, 42, 51, .12);
+  -webkit-mask: linear-gradient(225deg, transparent calc(var(--dog) * .7071), #000 calc(var(--dog) * .7071 + .6px));
+  mask: linear-gradient(225deg, transparent calc(var(--dog) * .7071), #000 calc(var(--dog) * .7071 + .6px));
+}
+.cf-tab::after {
+  content: ""; position: absolute; top: 0; right: 0; width: var(--dog); height: var(--dog);
+  background: linear-gradient(45deg, var(--tab-flap) 50%, transparent 50%);
+  border-bottom-left-radius: 2px;
+  filter: drop-shadow(-1px 1.2px .6px rgba(30, 42, 51, .28));
+}
+.cf-tab__label { position: relative; }
+.cf-tab__note { position: relative; font: var(--weight-ui) var(--text-sm)/1.2 var(--font-body); letter-spacing: .04em; color: var(--cf-ink-2); }
+.cf-tab.primary { --tab-face: linear-gradient(180deg, #FFC24A, var(--cf-marigold) 55%); --tab-flap: #FFDFA0; }
+.cf-tab.primary .cf-tab__note { color: var(--cf-marigold-ink); }
+.cf-tab.secondary {
+  --tab-face: linear-gradient(90deg, transparent 22px, var(--cf-tomato) 22px 23.5px, transparent 23.5px),
+    repeating-linear-gradient(180deg, transparent 0 15px, rgba(157, 189, 227, .75) 15px 16px), var(--cf-paper);
+}
+.cf-tab--lg { min-height: var(--tab-lg-h); font-size: 24px; letter-spacing: .04em; }
+.cf-tab--icon { --dog: 12px; width: var(--hit-min); height: var(--hit-min); min-height: var(--hit-min); padding: 0; }
+.cf-tab--icon.secondary { --tab-face: var(--cf-paper); }
+.cf-tab--icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.cf-tab:hover { transform: translateY(-1px); }
+.cf-tab:active, .cf-tab.is-pressed {
+  transform: translateY(3px);
+  filter: drop-shadow(0 0 0 rgba(30, 42, 51, 0)) drop-shadow(0 1px 1px rgba(30, 42, 51, .18));
+}
+.cf-tab:active::after, .cf-tab.is-pressed::after { filter: none; }
+.cf-tab[disabled] { opacity: .55; filter: grayscale(.6) drop-shadow(0 1px 1px rgba(30, 42, 51, .2)); cursor: default; transform: none; }
+.cf-tab:focus-visible { outline: none; }
+.cf-tab:focus-visible::before { box-shadow: inset 0 -3px 0 rgba(30, 42, 51, .12), 0 0 0 3px var(--cf-ink); }
+
+.cf-tabs { display: grid; gap: var(--space-3); width: min(100%, 340px); justify-self: center; }
+.cf-tabs--pair { grid-template-columns: 1fr 1fr; }
+.cf-tabs--pair .cf-tab { font-size: 17px; padding: 0 var(--space-3); }
+
+.cf-links { display: flex; justify-content: center; gap: 2px; justify-self: center; }
+.cf-link {
+  min-height: var(--hit-min); padding: 0 var(--space-3); display: inline-flex; align-items: center;
+  font: var(--weight-strong) 12px/1 var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--cf-ink);
+}
+.cf-links { background: rgba(255, 253, 247, .92); border-radius: var(--radius-md); box-shadow: var(--shadow-lift); padding: 0 var(--space-1); }
+.cf-links .cf-link + .cf-link::before { content: "·"; margin-right: var(--space-3); color: var(--cf-ink-2); }
+
+/* ---------------------------------------------------------------- title */
+#cf-title {
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto; row-gap: var(--space-2);
+  padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+}
+.cf-dateline {
+  margin: var(--space-4) 0 0 var(--space-2); font: var(--weight-strong) 12px/1 var(--font-body); letter-spacing: .2em;
+  text-transform: uppercase; color: var(--cf-sky-200);
+}
+.cf-streak { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: 1px; }
+.cf-pip { width: 8px; height: 8px; transform: rotate(45deg); background: rgba(255, 253, 247, .35); }
+.cf-pip.is-lit { background: var(--cf-marigold); box-shadow: var(--shadow-lift); }
+.cf-wordmark {
+  margin: 0 0 0 var(--space-2); display: grid; justify-items: start;
+  font: 400 clamp(48px, 17vw, 76px)/.9 var(--font-display); letter-spacing: .01em; color: var(--color-on-sky);
+  text-shadow: 0 2px 2.5px rgba(30, 42, 51, .3); text-transform: uppercase;
+}
+.cf-subline { margin: var(--space-2) 0 0 var(--space-2); font: 600 15px/1.2 var(--font-body); color: var(--color-on-sky); text-shadow: 0 1px 2px rgba(30, 42, 51, .35); }
+.cf-hero { position: relative; min-height: 0; pointer-events: none; }
+.cf-hero__canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#cf-title .cf-tabs { margin-bottom: var(--space-3); }
+
+/* ---------------------------------------------------------------- HUD */
+.cf-hud {
+  position: absolute; inset: 0; pointer-events: none; box-sizing: border-box;
+  padding: max(var(--space-3), env(safe-area-inset-top)) max(var(--space-3), env(safe-area-inset-right)) 0 max(var(--space-3), env(safe-area-inset-left));
+  display: grid; grid-template-columns: var(--cf-porthole) minmax(0, 1fr) auto; align-items: start; column-gap: var(--space-3);
+}
+.cf-hud > * { pointer-events: auto; }
+.cf-hud .cf-tape { justify-self: center; margin-top: 8px; }
+.cf-hud__right { display: grid; justify-items: end; gap: var(--space-2); margin-top: 8px; }
+
+/* porthole: the paper ring (with the 20 s grace clock and 8 brads) around the game-drawn face canvas */
+.cf-porthole {
+  --grace: 0;
+  position: relative; width: var(--cf-porthole); height: var(--cf-porthole); border-radius: 50%;
+  background: conic-gradient(var(--cf-paper-shade) 0 calc(var(--grace) * 1turn), var(--cf-paper) 0);
+  box-shadow: 0 1.6px 1.8px rgba(30, 42, 51, .3), 0 6px 10px rgba(30, 42, 51, .14);
+  transition: background-color var(--dur-med) var(--ease-out);
+}
+.cf-porthole::after { /* brad rivets on r = 45.5 % and the ring's inner cut edge */
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='%238C969F'><circle cx='92.0' cy='67.4' r='1.9'/><circle cx='67.4' cy='92.0' r='1.9'/><circle cx='32.6' cy='92.0' r='1.9'/><circle cx='8.0' cy='67.4' r='1.9'/><circle cx='8.0' cy='32.6' r='1.9'/><circle cx='32.6' cy='8.0' r='1.9'/><circle cx='67.4' cy='8.0' r='1.9'/><circle cx='92.0' cy='32.6' r='1.9'/></g><circle cx='50' cy='50' r='40' fill='none' stroke='%23DCE5F0' stroke-width='2'/></svg>") center/100% 100% no-repeat;
+}
+.cf-porthole__face {
+  position: absolute; inset: 10%; width: 80%; height: 80%; border-radius: 50%; display: block;
+  background: var(--cf-lens-a); box-shadow: inset 0 1.5px 2px rgba(30, 42, 51, .35);
+}
+.cf-porthole.is-spent { background: var(--cf-ink); }
+.cf-porthole.is-spent::after { filter: brightness(2.2); }
+.cf-porthole.is-swap .cf-porthole__face { animation: cf-squash var(--dur-fast) var(--ease-out); }
+@keyframes cf-squash { 0% { transform: scale(1.1, .88); } 100% { transform: none; } }
+.cf-porthole--stub { --cf-porthole: 84px; background: var(--cf-paper); flex: none; }
+
+/* tape measure: marigold strip, ink ticks every metre (9.8 px) and 5 m (49 px); set --tape-m on the element */
+.cf-tape {
+  --tape-m: 0;
+  position: relative; overflow: hidden; width: min(var(--cf-tape-w), 100%); height: var(--cf-tape-h);
+  border-radius: var(--radius-sm); background: var(--cf-marigold); color: var(--cf-ink);
+  box-shadow: 0 1.6px 1.8px rgba(30, 42, 51, .3), inset 0 -2px 0 var(--cf-marigold-deep);
+}
+.cf-tape::before, .cf-tape::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; pointer-events: none;
+  background-position-x: calc(var(--tape-m) * -9.8px);
+}
+.cf-tape::before { height: 11px; opacity: .7; background-image: repeating-linear-gradient(90deg, var(--cf-ink) 0 1.5px, transparent 1.5px 9.8px); }
+.cf-tape::after { height: 18px; opacity: .85; background-image: repeating-linear-gradient(90deg, var(--cf-ink) 0 2px, transparent 2px 49px); }
+.cf-tape__num {
+  position: absolute; left: 0; right: 0; bottom: 3px; text-align: center;
+  font: var(--weight-strong) var(--text-xl)/1 var(--font-numeral); font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+}
+.cf-tape__unit { position: absolute; right: 10px; bottom: 5px; font: var(--weight-ui) 14px/1 var(--font-body); }
+
+/* star luggage tag: paper tag with a punched hole and a string, an origami star, the count */
+.cf-tag {
+  position: relative; display: inline-flex; align-items: center; gap: 4px; height: var(--cf-tag-h); box-sizing: border-box;
+  padding: 0 var(--space-3) 0 30px; background: var(--cf-paper); color: var(--cf-ink);
+  border-radius: 12px var(--radius-md) var(--radius-md) 12px / 50% var(--radius-md) var(--radius-md) 50%;
+  font: var(--weight-strong) 20px/1 var(--font-numeral); font-variant-numeric: tabular-nums;
+  box-shadow: 0 1.6px 1.8px rgba(30, 42, 51, .3), inset 0 -2px 0 var(--cf-paper-shade);
+}
+.cf-tag::after { /* the punched hole with its reinforcement ring */
+  content: ""; position: absolute; left: 5px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%;
+  background: var(--cf-sky-700); box-shadow: 0 0 0 2px var(--cf-kraft-light), inset 0 1px 1px rgba(30, 42, 51, .4);
+}
+.cf-tag::before {
+  content: ""; position: absolute; left: 13px; top: 50%; width: 20px; height: 20px; transform: translateY(-50%) rotate(-8deg);
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-12 -12 24 24'><path d='M0,-10 L3,-3 L10,-3 L4.5,1.5 L6.5,9 L0,4.5 L-6.5,9 L-4.5,1.5 L-10,-3 L-3,-3 Z' fill='%23FFB627' stroke='%231E2A33' stroke-width='1.6' stroke-linejoin='round'/><path d='M0,-10 L0,4.5 M-10,-3 L4.5,1.5' stroke='%23E08F10' stroke-width='1'/></svg>") center/contain no-repeat;
+}
+.cf-tag__num { margin-left: 8px; min-width: 2ch; }
+.cf-tag.is-pop { animation: cf-pop var(--dur-med) var(--ease-spring); }
+@keyframes cf-pop { 0% { transform: scale(1); } 40% { transform: scale(1.18) rotate(-3deg); } 100% { transform: none; } }
+
+/* hint plate (first flight only), countdown */
+.cf-hint {
+  position: absolute; left: 50%; bottom: calc(60px + 72px + env(safe-area-inset-bottom)); transform: translateX(-50%) rotate(-1deg);
+  margin: 0; padding: 7px 12px; white-space: nowrap; pointer-events: none;
+  background: var(--cf-paper); color: var(--cf-ink); border-radius: var(--radius-md); box-shadow: var(--shadow-lift);
+  font: var(--weight-strong) 13px/1.2 var(--font-body); letter-spacing: .1em; text-transform: uppercase;
+}
+.cf-countdown[hidden] { display: none; } /* the [hidden] attribute and .cf-countdown have equal specificity; without
+  this, game.js's countdown.hidden = true left the "3-2-1" grid showing throughout every flight (M4 screenshot bug) */
+.cf-countdown {
+  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none;
+  font: 400 120px/1 var(--font-display); color: var(--color-on-sky); text-shadow: 0 3px 4px rgba(30, 42, 51, .35);
+  animation: cf-pop 300ms var(--ease-spring);
+}
+
+/* shake (NEW BEST stamp only), switchable */
+.cf-app.is-shake { animation: cf-shake var(--dur-shake) linear; }
+@keyframes cf-shake {
+  0%, 100% { transform: none; } 20% { transform: translate(var(--shake-px), -2px); }
+  45% { transform: translate(calc(var(--shake-px) * -.75), 2px); } 70% { transform: translate(2px, 1px); }
+}
+:root[data-shake="off"] .cf-app.is-shake, :root[data-reduce-motion="true"] .cf-app.is-shake { animation: none; }
+
+/* ---------------------------------------------------------------- result: the boarding pass */
+#cf-result {
+  grid-template-rows: auto auto 1fr; justify-items: center; align-content: start; row-gap: var(--space-4);
+  padding-bottom: max(72px, calc(60px + env(safe-area-inset-bottom)));
+}
+.cf-headline {
+  margin: var(--space-3) 0 0; text-align: center; font: 400 28px/1 var(--font-display); letter-spacing: .02em;
+  color: var(--color-on-sky); text-shadow: 0 2px 2.5px rgba(30, 42, 51, .3);
+}
+.cf-pass {
+  --stub-h: 118px;
+  position: relative; box-sizing: border-box; width: var(--cf-pass-w);
+  display: grid; grid-template-rows: auto auto auto var(--stub-h);
+  background: var(--cf-paper); color: var(--cf-ink); border-radius: var(--radius-lg);
+  filter: drop-shadow(0 3px 2px rgba(30, 42, 51, .22)) drop-shadow(0 14px 16px rgba(30, 42, 51, .22));
+  animation: cf-pass-in var(--dur-slow) var(--ease-spring) both;
+}
+.cf-pass::before { /* the paper body, masked with the two punched notches at the tear line */
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--cf-paper);
+  -webkit-mask:
+    radial-gradient(circle var(--notch-r) at 0 calc(100% - var(--stub-h)), transparent calc(var(--notch-r) - .5px), #000 var(--notch-r)) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch-r) at 100% calc(100% - var(--stub-h)), transparent calc(var(--notch-r) - .5px), #000 var(--notch-r)) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle var(--notch-r) at 0 calc(100% - var(--stub-h)), transparent calc(var(--notch-r) - .5px), #000 var(--notch-r)) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch-r) at 100% calc(100% - var(--stub-h)), transparent calc(var(--notch-r) - .5px), #000 var(--notch-r)) right / 51% 100% no-repeat;
+}
+.cf-pass { background: none; isolation: isolate; }
+@keyframes cf-pass-in { from { transform: translateY(40px) rotate(2deg); opacity: 0; } to { transform: none; opacity: 1; } }
+:root[data-reduce-motion="true"] .cf-pass { animation: cf-fade var(--dur-med) linear both; }
+.cf-pass__band {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); height: 46px; padding: 0 var(--space-4);
+  background: var(--cf-sky-700); color: var(--cf-paper); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  font: var(--weight-strong) var(--text-xs)/1 var(--font-body); letter-spacing: var(--track-label); text-transform: uppercase;
+}
+.cf-pass__name { font: 400 21px/1 var(--font-display); letter-spacing: .04em; text-transform: none; }
+.cf-pass__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; padding: 14px var(--space-4) 12px; }
+.cf-field { display: grid; gap: 2px; min-width: 0; }
+.cf-field__label { font: var(--weight-ui) 10px/1.2 var(--font-body); letter-spacing: var(--track-label); text-transform: uppercase; color: var(--cf-ink-2); }
+.cf-field__value { font: var(--weight-ui) 17px/1.15 var(--font-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cf-field--big { grid-column: 1 / -1; }
+.cf-field--big .cf-field__value { font: var(--weight-strong) var(--text-big)/.95 var(--font-numeral); letter-spacing: -.02em; }
+.cf-field--big .cf-field__value small { font-size: 24px; font-weight: var(--weight-ui); margin-left: 4px; letter-spacing: 0; }
+.cf-stars { grid-column: 1 / -1; display: flex; gap: 8px; }
+.cf-star {
+  width: 30px; height: 30px; display: block;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-12 -12 24 24'><path d='M0,-10 L3,-3 L10,-3 L4.5,1.5 L6.5,9 L0,4.5 L-6.5,9 L-4.5,1.5 L-10,-3 L-3,-3 Z' fill='%23DCE5F0' stroke='%234A5A66' stroke-width='1.2' stroke-linejoin='round' stroke-dasharray='2 1.6'/></svg>") center/contain no-repeat;
+}
+.cf-star.is-lit {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-12 -12 24 24'><path d='M0,-10 L3,-3 L10,-3 L4.5,1.5 L6.5,9 L0,4.5 L-6.5,9 L-4.5,1.5 L-10,-3 L-3,-3 Z' fill='%23FFB627' stroke='%231E2A33' stroke-width='1.5' stroke-linejoin='round'/><path d='M0,-10 L0,4.5 M-10,-3 L4.5,1.5' stroke='%23E08F10' stroke-width='1'/></svg>");
+  animation: cf-star-in 250ms var(--ease-spring);
+}
+@keyframes cf-star-in { from { transform: scale(1.7) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.cf-perf { margin: 0 var(--space-4); border-top: 2.5px dashed var(--cf-paper-shade); align-self: end; }
+.cf-stub { /* the fold pattern shows here */
+  display: flex; align-items: center; gap: var(--space-3); padding: 0 var(--space-4); margin-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--cf-fold-css, none), var(--cf-fold-paper);
+  -webkit-mask: radial-gradient(circle var(--notch-r) at 0 0, transparent calc(var(--notch-r) - .5px), #000 var(--notch-r)) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch-r) at 100% 0, transparent calc(var(--notch-r) - .5px), #000 var(--notch-r)) right / 51% 100% no-repeat;
+  mask: radial-gradient(circle var(--notch-r) at 0 0, transparent calc(var(--notch-r) - .5px), #000 var(--notch-r)) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch-r) at 100% 0, transparent calc(var(--notch-r) - .5px), #000 var(--notch-r)) right / 51% 100% no-repeat;
+}
+.cf-stub__next {
+  margin: 0; padding: 6px 10px; border-radius: var(--radius-md); background: var(--cf-paper); box-shadow: var(--shadow-lift);
+  font: var(--weight-ui) 14px/1.25 var(--font-body);
+}
+.cf-stub__next b, .cf-stub__next strong { display: block; font-weight: var(--weight-strong); font-size: 16px; }
+.cf-stamp {
+  position: absolute; right: 14px; top: 132px; padding: 6px 10px 4px; opacity: 0; pointer-events: none;
+  font: 400 30px/1 var(--font-display); letter-spacing: .02em; color: var(--cf-tomato-deep);
+  border: 3px solid var(--cf-tomato-deep); border-radius: 6px; mix-blend-mode: multiply;
+  transform: rotate(-12deg);
+}
+.cf-stamp.is-in { animation: cf-stamp var(--dur-stamp) var(--ease-in) both; }
+@keyframes cf-stamp {
+  0% { opacity: 0; transform: rotate(-4deg) scale(1.9); }
+  75% { opacity: .92; transform: rotate(-12deg) scale(.96); }
+  100% { opacity: .9; transform: rotate(-12deg) scale(1); }
+}
+:root[data-reduce-motion="true"] .cf-stamp.is-in { animation: cf-fade 1ms both; opacity: .9; }
+#cf-result .cf-tabs { align-self: end; }
+
+/* ---------------------------------------------------------------- hangar */
+#cf-hangar { background: var(--scrim); overflow-y: auto; align-content: start; row-gap: var(--space-4); }
+.cf-bar { display: flex; align-items: center; gap: var(--space-3); }
+.cf-bar .cf-tab--icon { width: var(--hit-min); flex: none; }
+.cf-h2 { margin: 0; font: 400 28px/1 var(--font-display); color: var(--color-on-sky); text-shadow: 0 2px 2.5px rgba(30, 42, 51, .3); }
+.cf-chapter { display: grid; gap: var(--space-2); }
+.cf-chapter__title { margin: 0; font: var(--weight-strong) 12px/1 var(--font-body); letter-spacing: .2em; text-transform: uppercase; color: var(--cf-paper); }
+.cf-courses { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); }
+.cf-course { /* a paper luggage tag, hole at the top */
+  position: relative; display: grid; justify-items: center; gap: 1px; min-height: 68px; padding: 14px 4px 6px; box-sizing: border-box;
+  background: var(--cf-paper); color: var(--cf-ink); border-radius: var(--radius-md);
+  clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%, 0 12px);
+  -webkit-mask: radial-gradient(circle 3.5px at 50% 7px, transparent 3px, #000 3.6px);
+  mask: radial-gradient(circle 3.5px at 50% 7px, transparent 3px, #000 3.6px);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.cf-courses { filter: drop-shadow(0 1.6px 1px rgba(30, 42, 51, .3)); }
+.cf-course:active { transform: translateY(2px); }
+.cf-course__id { font: var(--weight-strong) 17px/1 var(--font-numeral); font-variant-numeric: tabular-nums; }
+.cf-course__stars { font-size: 12px; letter-spacing: 1px; color: var(--cf-marigold-deep); -webkit-text-stroke: .4px var(--cf-ink); }
+.cf-course__best { font: var(--weight-ui) 11px/1 var(--font-body); color: var(--cf-ink-2); font-variant-numeric: tabular-nums; }
+.cf-course.is-current { background: var(--cf-marigold); }
+.cf-course.is-current .cf-course__best { color: var(--cf-marigold-ink); }
+.cf-course.is-locked { background: var(--cf-paper-shade); color: var(--cf-ink-2); cursor: default; }
+.cf-course.is-locked .cf-course__stars { visibility: hidden; }
+.cf-patterns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+.cf-pattern {
+  position: relative; display: grid; justify-items: center; gap: 4px; padding: var(--space-2) var(--space-1) var(--space-2);
+  background: var(--cf-paper); color: var(--cf-ink); border-radius: var(--radius-md); box-shadow: var(--shadow-lift);
+}
+.cf-pattern__swatch { /* a scrap of the pattern's paper with a folded corner */
+  width: 100%; height: 46px; border-radius: var(--radius-sm); background: var(--cf-fold-css, none), var(--cf-fold-paper);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+  box-shadow: inset 0 0 0 1px rgba(30, 42, 51, .12);
+}
+.cf-pattern__name { font: var(--weight-strong) 13px/1.1 var(--font-body); text-align: center; }
+.cf-pattern__how { font: var(--weight-body) 11px/1.2 var(--font-body); color: var(--cf-ink-2); text-align: center; }
+.cf-pattern.is-equipped { box-shadow: var(--shadow-lift), inset 0 0 0 2.5px var(--cf-marigold-deep); }
+.cf-pattern.is-pop { animation: cf-pop var(--dur-med) var(--ease-spring); } /* the Hangar's one-shot equip feedback */
+.cf-pattern.is-equipped::after {
+  content: "ON"; position: absolute; top: -6px; right: -4px; padding: 2px 5px; transform: rotate(8deg);
+  background: var(--cf-marigold); color: var(--cf-ink); border-radius: 2px; font: var(--weight-strong) 10px/1 var(--font-body); letter-spacing: .1em;
+}
+.cf-pattern.is-locked .cf-pattern__swatch { filter: grayscale(.9) opacity(.5); }
+.cf-pattern.is-locked .cf-pattern__swatch::after { content: ""; }
+.cf-pattern.is-locked::before { /* a paper-clip lock badge */
+  content: "LOCKED"; position: absolute; top: 20px; left: 50%; transform: translateX(-50%) rotate(-4deg); z-index: 1;
+  padding: 2px 6px; background: var(--cf-paper); color: var(--cf-ink-2); border-radius: 2px; box-shadow: var(--shadow-lift);
+  font: var(--weight-strong) 10px/1.2 var(--font-body); letter-spacing: .12em;
+}
+.cf-pattern.is-locked .cf-pattern__name { color: var(--cf-ink-2); }
+
+/* the pattern painters (the canvas mirrors these in DESIGN.md §6.2); the colours resolve on the [data-fold] element */
+[data-fold="notebook"], :root { --cf-fold-css:
+  linear-gradient(90deg, transparent 14%, var(--cf-fold-margin) 14% calc(14% + 1.5px), transparent calc(14% + 1.5px)),
+  repeating-linear-gradient(180deg, transparent 0 7px, var(--cf-fold-rule) 7px 8px); }
+[data-fold="graph"] { --cf-fold-css:
+  repeating-linear-gradient(90deg, transparent 0 7px, var(--cf-fold-rule) 7px 8px),
+  repeating-linear-gradient(180deg, transparent 0 7px, var(--cf-fold-rule) 7px 8px); }
+[data-fold="newspaper"] { --cf-fold-css:
+  linear-gradient(180deg, var(--cf-fold-margin) 0 5px, transparent 5px),
+  repeating-linear-gradient(90deg, transparent 0 22px, var(--cf-fold-paper) 22px 26px),
+  repeating-linear-gradient(180deg, transparent 0 3px, var(--cf-fold-rule) 3px 4.5px); }
+[data-fold="map"] { --cf-fold-css:
+  radial-gradient(60% 50% at 30% 60%, transparent 40%, var(--cf-fold-rule) 41% 43%, transparent 44% 58%, var(--cf-fold-rule) 59% 61%, transparent 62%),
+  linear-gradient(115deg, transparent 46%, var(--cf-fold-margin) 46% 49%, transparent 49%); }
+[data-fold="origami"] { --cf-fold-css:
+  linear-gradient(135deg, transparent 49.5%, var(--cf-fold-rule) 49.5% 50.5%, transparent 50.5%),
+  linear-gradient(45deg, transparent 49.5%, var(--cf-fold-shade) 49.5% 50.5%, transparent 50.5%); }
+[data-fold="gold"] { --cf-fold-css:
+  radial-gradient(circle 2.2px, var(--cf-fold-margin) 98%, transparent) 0 0 / 14px 14px,
+  radial-gradient(circle 1.4px, var(--cf-fold-rule) 98%, transparent) 7px 7px / 14px 14px; }
+
+/* ---------------------------------------------------------------- the kit, restyled as paper */
+.uk-sheet, .cf-sheet {
+  width: min(92vw, 420px); padding: 0; border: 0; border-radius: var(--radius-lg);
+  background: repeating-linear-gradient(180deg, transparent 0 27px, rgba(157, 189, 227, .45) 27px 28px) 0 64px / 100% calc(100% - 64px) no-repeat,
+    var(--cf-paper);
+  color: var(--cf-ink); box-shadow: var(--shadow-2);
+}
+.uk-sheet::backdrop { background: var(--scrim); }
+.uk-sheet[open] { animation: cf-pass-in var(--dur-slow) var(--ease-spring); }
+.uk-sheet__head { padding: var(--space-4) var(--space-4) var(--space-2) var(--space-5); }
+.uk-sheet__title { font: 400 24px/1 var(--font-display); letter-spacing: .02em; }
+.uk-sheet__body { font-size: var(--text-md); }
+.uk-setting__label { font-weight: var(--weight-ui); }
+.uk-setting__hint { color: var(--cf-ink-2); }
+.uk-setting + .uk-setting { border-top: 1.5px dashed var(--cf-paper-shade); }
+.uk-toggle__track { border: 0; border-radius: var(--radius-sm); background: var(--cf-paper-shade); box-shadow: inset 0 1.5px 2px rgba(30, 42, 51, .25); }
+.uk-toggle__track::after { border-radius: 2px; background: var(--cf-paper); box-shadow: var(--shadow-lift); }
+.uk-toggle input:checked + .uk-toggle__track { background: var(--cf-marigold); }
+.uk-toggle input:checked + .uk-toggle__track::after { background: var(--cf-paper); }
+.uk-step__art { background: linear-gradient(180deg, var(--cf-sky-600), var(--cf-sky-200)); border-radius: var(--radius-md); }
+/* THE-310 (skin half): the build's sheets use bare children (h2, ol, label.cf-setting, .cf-tabs) rather than the
+   kit's __head/__body parts, so they get their own inner padding and the stencil heading. The heading block fills
+   the 64 px band above the ruled lines. A sheet that uses the kit parts keeps the .uk-sheet__* padding instead. */
+.cf-sheet { box-sizing: border-box; max-height: calc(100dvh - 2 * var(--space-4)); overflow-y: auto; }
+.cf-sheet:not(:has(> .uk-sheet__head)) { padding: var(--space-4) var(--space-5) var(--space-5); }
+.cf-sheet > h2, .uk-sheet__title {
+  margin: 0 0 var(--space-4); min-height: 32px; font: 400 26px/32px var(--font-display); letter-spacing: .02em;
+  text-transform: uppercase; color: var(--cf-ink);
+}
+.cf-sheet > .cf-steps { margin: 0 0 var(--space-4); padding-left: 1.4em; font: var(--weight-body) var(--text-md)/28px var(--font-body); }
+.cf-sheet > .cf-tabs { margin-top: var(--space-3); }
+.cf-sheet > .cf-tab { width: 100%; margin-top: var(--space-4); }
+.cf-credit { margin: var(--space-3) 0 0; font: var(--weight-body) 13px/1.3 var(--font-body); color: var(--cf-ink-2); }
+/* THE-303: one full-width row per setting, >= 44 px, label left and a paper toggle right (the input is restyled
+   in place, so no markup change is needed: the label wraps the input, so the whole row is the hit area). */
+.cf-setting {
+  display: flex; flex-direction: row-reverse; align-items: center; justify-content: space-between; gap: var(--space-4);
+  min-height: var(--hit-min); padding: var(--space-2) 0; cursor: pointer;
+  font: var(--weight-ui) var(--text-md)/1.2 var(--font-body); color: var(--cf-ink);
+}
+.cf-setting + .cf-setting { border-top: 1.5px dashed var(--cf-paper-shade); }
+.cf-setting input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; flex: none; width: 56px; height: 32px; margin: 0; cursor: pointer;
+  border-radius: var(--radius-sm); background: linear-gradient(var(--cf-paper), var(--cf-paper)) 4px 50% / 24px 24px no-repeat var(--cf-paper-shade);
+  box-shadow: inset 0 1.5px 2px rgba(30, 42, 51, .25); transition: background-position var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.cf-setting input[type="checkbox"]:checked { background-position: calc(100% - 4px) 50%; background-color: var(--cf-marigold); }
+.cf-setting input[type="checkbox"]:focus-visible { outline: 3px solid var(--cf-ink); outline-offset: 2px; }
+:root[data-reduce-motion="true"] .cf-setting input[type="checkbox"] { transition: none; }
+.uk-dot { border-radius: 1px; background: var(--cf-ink-2); }
+.uk-dot.is-current { background: var(--cf-marigold); }
+/* .uk-btn anywhere the kit emits one (how-to prev/next): a paper tab, not the kit's pill */
+.uk-btn {
+  position: relative; border: 0; border-radius: var(--radius-md); min-height: var(--hit-min); padding: 0 var(--space-5);
+  background: var(--cf-paper); color: var(--cf-ink); font: var(--weight-strong) var(--text-md)/1 var(--font-body);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+}
+.uk-btn, .uk-btn--secondary, .uk-btn--ghost { box-shadow: inset 0 0 0 1.5px var(--cf-paper-shade), inset 0 -3px 0 rgba(30, 42, 51, .12); }
+.uk-btn:not(.uk-btn--secondary):not(.uk-btn--ghost) { background: var(--cf-marigold); }
+.uk-btn:active { transform: translateY(2px); box-shadow: inset 0 0 0 1.5px var(--cf-paper-shade); }
+.uk-btn--ghost { background: transparent; }
+.uk-panel { border: 0; border-radius: var(--radius-lg); background: var(--cf-paper); color: var(--cf-ink); box-shadow: var(--shadow-2); }
+.uk-toast {
+  border: 0; border-radius: var(--radius-sm); background: var(--cf-paper); color: var(--cf-ink); box-shadow: var(--shadow-1);
+  font: var(--weight-strong) 14px/1.2 var(--font-body); letter-spacing: .06em; rotate: -1.5deg;
+}
+
+/* ---------------------------------------------------------------- demo (first run) */
+.cf-demo { position: absolute; inset: 0; pointer-events: auto; }
+.cf-ghost {
+  position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 253, 247, .95) 0 38%, rgba(255, 253, 247, .35) 40% 100%);
+  box-shadow: 0 0 0 2px rgba(255, 253, 247, .8); transition: transform var(--dur-fast) var(--ease-out);
+}
+.cf-ghost.is-down { transform: scale(.78); box-shadow: 0 0 0 6px rgba(255, 182, 39, .6); }
+.cf-demo__label {
+  position: absolute; left: 50%; bottom: calc(60px + 88px + env(safe-area-inset-bottom)); transform: translateX(-50%) rotate(-1deg);
+  margin: 0; padding: 8px 14px; background: var(--cf-paper); color: var(--cf-ink); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+  font: var(--weight-strong) 15px/1.2 var(--font-body); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
+}
+.cf-demo .cf-link { position: absolute; right: max(var(--space-3), env(safe-area-inset-right)); bottom: calc(60px + var(--space-3) + env(safe-area-inset-bottom)); }
+
+/* ---------------------------------------------------------------- landscape phones and wide screens */
+@media (orientation: landscape) and (max-height: 520px) {
+  :root { --cf-tape-h: 28px; --tab-h: 46px; --tab-lg-h: 52px; }
+  .cf-tape__num { font-size: 18px; bottom: 2px; }
+  .cf-tape::after { height: 12px; } .cf-tape::before { height: 7px; }
+  #cf-title { grid-template-columns: 1fr minmax(260px, 340px); grid-template-rows: auto auto 1fr auto; column-gap: var(--space-5); }
+  #cf-title .cf-hero { grid-column: 1; grid-row: 3 / 5; }
+  #cf-title .cf-tabs { grid-column: 2; grid-row: 1 / 4; align-self: end; }
+  #cf-title .cf-links { grid-column: 2; grid-row: 4; }
+  .cf-wordmark { font-size: 52px; }
+  #cf-result { grid-template-columns: auto minmax(220px, 300px); grid-template-rows: auto 1fr; column-gap: var(--space-5); align-content: center; padding-bottom: var(--space-4); }
+  #cf-result .cf-headline { grid-column: 1 / -1; }
+  #cf-result .cf-tabs { align-self: center; }
+  .cf-hint { bottom: auto; top: calc(max(var(--space-3), env(safe-area-inset-top)) + 44px); }
+  #cf-result .cf-headline { display: none; } /* the band, the stars and the stamp carry it; the pass needs the height */
+  .cf-pass { --stub-h: 80px; width: min(58vw, 440px); }
+  .cf-pass__band { height: 38px; }
+  .cf-pass__fields { grid-template-columns: 1fr 1fr 1fr; padding: 8px var(--space-4) 8px; gap: 4px 12px; }
+  .cf-field--big { grid-column: 1 / 3; grid-row: 2 / 4; align-self: center; }
+  .cf-field--big .cf-field__value { font-size: 46px; }
+  .cf-stars { grid-column: 3; }
+  .cf-star { width: 24px; height: 24px; }
+  .cf-stamp { top: 104px; right: auto; left: 36%; font-size: 20px; }
+  .cf-porthole--stub { --cf-porthole: 68px; }
+}
+@media (min-width: 900px) and (min-height: 600px) {
+  .cf-wordmark { font-size: 84px; }
+  .cf-pass { --cf-pass-w: 400px; }
+  .cf-porthole--stub { --cf-porthole: 96px; }
+}

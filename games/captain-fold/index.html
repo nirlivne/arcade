@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Captain Fold</title>
+<meta name="theme-color" content="#2F68B5">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="ui-kit.css">
+<link rel="stylesheet" href="skin.css">
+</head>
+<body class="cf">
+<div class="cf-app" id="cf-app">
+
+  <canvas class="cf-world" id="cf-world"></canvas>
+
+  <section class="cf-screen cf-screen--clear" id="cf-title">
+    <p class="cf-dateline"><span id="cf-dateline-text"></span></p>
+    <h1 class="cf-wordmark" id="cf-title-text">CAPTAIN FOLD</h1>
+    <p class="cf-subline" id="cf-hint-first" data-theme-text="text.hintFirst" hidden>Hold to climb &middot; let go to dive.</p>
+    <div class="cf-hero"><canvas class="cf-hero__canvas" id="cf-hero-canvas"></canvas></div>
+    <div class="cf-tabs">
+      <button class="cf-tab primary cf-tab--lg" id="cf-btn-throw"><span class="cf-tab__label" id="cf-btn-throw-label">THROW!</span><span class="cf-tab__note" id="cf-btn-throw-note"></span></button>
+      <button class="cf-tab secondary" id="cf-btn-daily"><span class="cf-tab__label" id="cf-btn-daily-label">Daily flight</span><span class="cf-tab__note" id="cf-daily-note"></span></button>
+    </div>
+    <nav class="cf-links">
+      <button class="cf-link" id="cf-btn-hangar">Hangar</button>
+      <button class="cf-link" id="cf-btn-howto">How to fly</button>
+      <button class="cf-link" id="cf-btn-settings">Settings</button>
+    </nav>
+  </section>
+
+  <section class="cf-screen cf-screen--clear cf-demo" id="cf-demo">
+    <div class="cf-ghost" id="cf-ghost"></div>
+    <p class="cf-demo__label" id="cf-demo-caption"></p>
+    <button class="cf-link" id="cf-btn-demo-skip">Skip</button>
+  </section>
+
+  <section class="cf-screen cf-screen--clear" id="cf-play">
+    <div class="cf-hud">
+      <div class="cf-porthole" id="cf-porthole" data-reaction="neutral">
+        <canvas class="cf-porthole__face" id="cf-porthole-face"></canvas>
+      </div>
+      <div class="cf-tape" id="cf-tape" style="--tape-m: 0;">
+        <span class="cf-tape__num">0</span><span class="cf-tape__unit">m</span>
+      </div>
+      <div class="cf-hud__right">
+        <button class="cf-tab secondary cf-tab--icon" id="cf-btn-pause" aria-label="Pause" data-hud-control>
+          <svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>
+        </button>
+        <div class="cf-tag" id="cf-tag"><span class="cf-tag__num">0</span></div>
+      </div>
+    </div>
+    <p class="cf-hint" id="cf-hint-flight" data-theme-text="text.hintFlight" hidden>hold to climb &middot; let go to dive</p>
+    <div class="cf-countdown" id="cf-countdown" data-n="3" hidden>3</div>
+  </section>
+
+  <section class="cf-screen" id="cf-result">
+    <h2 class="cf-headline" id="cf-result-headline">What a landing!</h2>
+    <div class="cf-pass" id="cf-result-pass" data-fold="notebook">
+      <p class="cf-stamp" id="cf-stamp">NEW BEST</p>
+      <div class="cf-pass__band">
+        <span id="cf-result-course">Course 1-1</span>
+        <span class="cf-pass__name" id="cf-result-name">THE CAPTAIN</span>
+      </div>
+      <div class="cf-pass__fields">
+        <p class="cf-field cf-field--big">
+          <span class="cf-field__label" id="cf-result-metric-label">Distance</span>
+          <span class="cf-field__value" id="cf-result-value">0<small>m</small></span>
+        </p>
+        <div class="cf-stars" id="cf-result-stars">
+          <span class="cf-star"></span><span class="cf-star"></span><span class="cf-star"></span>
+        </div>
+        <p class="cf-field">
+          <span class="cf-field__label">Lucky stars</span>
+          <span class="cf-field__value" id="cf-result-lucky">0</span>
+        </p>
+        <p class="cf-field">
+          <span class="cf-field__label">Best</span>
+          <span class="cf-field__value" id="cf-result-best">0</span>
+        </p>
+      </div>
+      <hr class="cf-perf">
+      <div class="cf-stub" id="cf-result-stub">
+        <div class="cf-porthole cf-porthole--stub">
+          <canvas class="cf-porthole__face" id="cf-result-face"></canvas>
+        </div>
+        <p class="cf-stub__next" id="cf-result-next-note"><strong>Fly again?</strong></p>
+      </div>
+    </div>
+    <div class="cf-tabs">
+      <button class="cf-tab primary cf-tab--lg" id="cf-btn-again"><span class="cf-tab__label">FLY AGAIN</span></button>
+      <div class="cf-tabs cf-tabs--pair">
+        <button class="cf-tab secondary" id="cf-btn-next" hidden><span class="cf-tab__label">Next course</span></button>
+        <button class="cf-tab secondary" id="cf-btn-home"><span class="cf-tab__label">Home</span></button>
+        <button class="cf-tab secondary" id="cf-btn-share"><span class="cf-tab__label">Share</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="cf-screen" id="cf-hangar">
+    <header class="cf-bar">
+      <button class="cf-tab secondary cf-tab--icon" id="cf-btn-hangar-back" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <h2 class="cf-h2">Hangar</h2>
+    </header>
+    <div id="cf-chapters"></div>
+    <h3 class="cf-h2">Folds</h3>
+    <div class="cf-patterns" id="cf-patterns"></div>
+  </section>
+
+  <dialog class="cf-sheet" id="cf-howto">
+    <div class="uk-sheet__head"><h2 class="uk-sheet__title" data-theme-text="text.howToTitle">How to fly</h2></div>
+    <div class="uk-sheet__body">
+      <div class="uk-steps">
+        <div class="uk-step">
+          <div class="uk-step__art"><canvas id="cf-howto-art-1" width="380" height="238"></canvas></div>
+          <p class="uk-step__text" data-theme-text="text.howToStep1">Pull back the plane and let go to throw it.</p>
+        </div>
+        <div class="uk-step">
+          <div class="uk-step__art"><canvas id="cf-howto-art-2" width="380" height="238"></canvas></div>
+          <p class="uk-step__text" data-theme-text="text.howToStep2">Hold anywhere to climb. Let go to dive.</p>
+        </div>
+        <div class="uk-step">
+          <div class="uk-step__art"><canvas id="cf-howto-art-3" width="380" height="238"></canvas></div>
+          <p class="uk-step__text" data-theme-text="text.howToStep3">Land on the blanket. After the clock runs out, a bump crumples the plane.</p>
+        </div>
+      </div>
+    </div>
+    <div class="uk-sheet__foot">
+      <button class="uk-btn uk-btn--secondary" data-howto="prev">Back</button>
+      <div class="uk-dots"></div>
+      <button class="uk-btn" data-howto="next">Next</button>
+    </div>
+  </dialog>
+
+  <dialog class="cf-sheet" id="cf-settings">
+    <h2>Settings</h2>
+    <label class="cf-setting"><input type="checkbox" id="cf-setting-sound"> Sound</label>
+    <label class="cf-setting"><input type="checkbox" id="cf-setting-arc"> Throw-arc guide</label>
+    <label class="cf-setting"><input type="checkbox" id="cf-setting-motion"> Reduce motion</label>
+    <p class="cf-credit" id="cf-credit"></p>
+    <p class="cf-credit">Fonts: Saira and Saira Stencil One, SIL Open Font License 1.1.</p>
+    <button class="cf-tab primary" id="cf-btn-settings-close">Done</button>
+  </dialog>
+
+  <dialog class="cf-sheet" id="cf-pause">
+    <h2>Paused</h2>
+    <div class="cf-tabs">
+      <button class="cf-tab primary cf-tab--lg" id="cf-btn-resume">Resume</button>
+      <button class="cf-tab secondary" id="cf-btn-pause-howto">How to fly</button>
+      <button class="cf-tab secondary" id="cf-btn-restart">Restart</button>
+      <button class="cf-tab secondary" id="cf-btn-pause-hangar">Hangar</button>
+    </div>
+  </dialog>
+
+</div>
+<!-- theme.js and ui-kit.js are classic scripts (the UI-kit starter contract), loaded before game.js's module. -->
+<script src="theme.js"></script>
+<script src="ui-kit.js"></script>
+<script type="module" src="game.js"></script>
+<script src="register-sw.js"></script>
+</body>
+</html>

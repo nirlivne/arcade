@@ -47,5 +47,12 @@
     "date": "2026-09-30",
     "status": "released",
     "description": "A watchmaker's puzzle: turn one ring and every ring linked to it turns too. Line up all the gaps before your moves run out and the lock springs open. 24 levels plus a daily medallion."
+  },
+  {
+    "slug": "captain-fold",
+    "title": "Captain Fold",
+    "date": "2026-10-02",
+    "status": "released",
+    "description": "Throw a paper plane and glide it home: hold to climb, let go to dive, ride the mint updrafts and land on the picnic blanket. 24 courses plus a daily flight, with the Captain waving from the cockpit fold."
   }
 ]

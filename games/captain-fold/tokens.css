@@ -1,0 +1,263 @@
+/* Captain Fold design tokens (THE-259 brief, THE-263). Designer-owned: the single source of truth for colour, type,
+   space, shape and motion. The developer reads these (CSS via var(), the canvas via
+   getComputedStyle(document.documentElement)) and never hard-codes a palette value.
+   World: a cut-paper sky diorama in afternoon light. Sky dominates, marigold is the one accent, tomato stays small,
+   ink outlines only the obstacles. Fold patterns (the cosmetic collection) swap only the --cf-fold-* tokens via
+   <html data-fold="...">, never a text or UI colour, so every contrast pair holds under every pattern. */
+
+@font-face {
+  font-family: "Saira Stencil One";
+  src: url("fonts/SairaStencilOne.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Saira";
+  src: url("fonts/Saira-var.woff2") format("woff2");
+  font-weight: 100 900; font-style: normal; font-display: swap;
+}
+
+:root {
+  /* color: the sky (the dominant ground of every screen). Gradient top -> horizon. */
+  --cf-sky-900: #1F4E8C;          /* deepest: pass band text shade, pressed states */
+  --cf-sky-700: #2F68B5;          /* top of the sky; the boarding-pass band */
+  --cf-sky-600: #4A86D6;          /* the cornflower dominant (45 %) */
+  --cf-sky-400: #8FC0EC;          /* (75 %) */
+  --cf-sky-200: #D3ECF3;          /* the horizon haze (100 %) */
+  --cf-sun: #FFE9B0;              /* the low-right sun glow, radial, 85 % -> 0 alpha */
+  --cf-cloud: #FFFFFF;            /* cloud face */
+  --cf-cloud-back: #9CC1E6;       /* the cut layer 4 px under each cloud */
+  --cf-cloud-edge: #E3EEF8;       /* the base fold line on a cloud */
+  --cf-haze: #EEF3F8;             /* page behind the app on wide screens */
+
+  /* color: paper and ink (UI surfaces) */
+  --cf-paper: #FFFDF7;            /* notebook paper: tabs, pass, porthole ring, hint plate */
+  --cf-paper-rule: #9DBDE3;       /* the blue rules on paper UI */
+  --cf-paper-shade: #DCE5F0;      /* perforation, pressed paper, far wing */
+  --cf-ink: #1E2A33;              /* text, THE obstacle outline, the pencil-dash flight line */
+  --cf-ink-2: #4A5A66;            /* field labels on paper */
+  --cf-marigold: #FFB627;         /* THE accent: lucky stars, primary tab, tape measure */
+  --cf-marigold-deep: #E08F10;    /* star facet, tab bottom edge */
+  --cf-marigold-ink: #6B4300;     /* the one text colour allowed on marigold when ink is too heavy (small notes) */
+  --cf-tomato: #E5534B;           /* scarf, margin line, stamp, crash accents */
+  --cf-tomato-deep: #BE3D37;      /* stamp ink, scarf shade */
+
+  /* color: ground (three cut-paper layers + the picket fence) */
+  --cf-lawn-far: #BFD9B8;         /* back hill (the one parallax layer, 0.35x) */
+  --cf-lawn-mid: #8CBF84;         /* middle hill (static band) */
+  --cf-lawn: #5E9F59;             /* the lawn you land on */
+  --cf-lawn-deep: #447E43;        /* lawn shadow, grass tufts */
+  --cf-fence: #FFFDF7;            /* picket fence: paper */
+
+  /* color: obstacles (warm paper, and the only things with the ink outline) */
+  --cf-kraft: #C49A6C;            /* obstacle paper */
+  --cf-kraft-deep: #8E6A45;       /* poles, pegs, shed roof shade */
+  --cf-kraft-light: #DDBB93;      /* a lit face on kraft */
+  --cf-laundry-a: #E5534B;        /* laundry colours: tomato, paper, marigold (no new hues) */
+  --cf-laundry-b: #FFFDF7;
+  --cf-laundry-c: #FFB627;
+  --cf-pigeon: #C8CFD6;           /* the bobbing paper pigeon */
+  --cf-pigeon-deep: #8C969F;
+
+  /* color: air (readable columns; direction reads by chevrons, never by hue alone) */
+  --cf-updraft: #BFE8D6;          /* mint tissue column */
+  --cf-updraft-edge: #8FD3B6;     /* the column's cut edge (2 px), readable from 56 m */
+  --cf-fan: #FFFDF7;              /* fan / window-draft ribbons */
+  --cf-fan-edge: #9DBDE3;
+  --cf-down: #A9BDB5;             /* downdraft: grey-mint */
+  --cf-down-edge: #7E948B;
+  --cf-chevron: #FFFDF7;          /* chevrons and dandelion seeds in every current */
+
+  /* color: pickups and markers */
+  --cf-star: #FFB627;
+  --cf-star-facet: #E08F10;
+  --cf-flag: #FFFDF7;             /* best-distance pennant */
+  --cf-flag-pole: #8E6A45;
+  --cf-blanket-a: #E5534B;        /* picnic-blanket check: tomato x paper */
+  --cf-blanket-b: #FFFDF7;
+  --cf-bull: #FFB627;             /* the 3-star bullseye disc */
+  --cf-wall: #F4E6D0;             /* the house wall at the end of the course */
+  --cf-wall-trim: #C49A6C;
+
+  /* color: the Captain (him only; pilot.js reads these roles, theme.js may override them) */
+  --cf-skin: #F1C4A5;
+  --cf-skin-shade: #DDA283;
+  --cf-skin-light: #FBE2CF;
+  --cf-stubble: #D8C9AA;
+  --cf-frames: #1B1C1F;
+  --cf-rivet: #C9CDD2;
+  --cf-tee: #B4CFEE;
+  --cf-tee-shade: #93B3DC;
+  --cf-scarf: #E5534B;
+  --cf-scarf-shade: #BE3D37;
+  --cf-goggle-rim: #8C969F;
+  --cf-lens-a: #DDF1F7;
+  --cf-lens-b: #86B8EA;
+
+  /* fold pattern (the plane + the pass body). notebook = default; data-fold swaps these below. */
+  --cf-fold-paper: #FFFDF7;
+  --cf-fold-rule: #9DBDE3;
+  --cf-fold-margin: #E5534B;
+  --cf-fold-shade: #DCE5F0;
+  --cf-fold-far: #EAF0F7;
+  --cf-fold-kind: lines;          /* lines | grid | print | map | solid | stars: the canvas picks the pattern painter */
+
+  /* kit plumbing names (sheets, toggles, toast); skin.css restyles the shapes */
+  --color-bg: #4A86D6;
+  --color-bg-2: #2F68B5;
+  --color-text: #1E2A33;
+  --color-text-muted: #4A5A66;
+  --color-surface: #FFFDF7;
+  --color-surface-2: #F3F6FA;
+  --color-outline: #1E2A33;
+  --color-primary: #FFB627;
+  --color-primary-text: #1E2A33;
+  --color-accent: #FFB627;
+  --color-danger: #BE3D37;
+  --color-success: #447E43;
+  --color-on-sky: #FFFDF7;        /* wordmark, datelines, headlines on the sky */
+  --scrim: rgba(31, 78, 140, 0.55);
+
+  /* type: bundled OFL fonts (files + licences in design/captain-fold/fonts/, shipped in games/captain-fold/fonts/) */
+  --font-display: "Saira Stencil One", "Saira", system-ui, sans-serif;  /* >= 20 px only, never body */
+  --font-body: "Saira", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-numeral: "Saira", system-ui, sans-serif;                      /* 800 + tabular-nums */
+  --text-xs: 11px;      /* field labels, uppercase +16 % tracking */
+  --text-sm: 13px;      /* links, notes */
+  --text-md: 16px;      /* body, hint plate */
+  --text-lg: 20px;      /* tab labels */
+  --text-xl: 26px;      /* tape number, secondary headline */
+  --text-2xl: 34px;     /* stamp, pass name on wide */
+  --text-title: 66px;   /* wordmark, two lines (portrait); clamp in skin.css */
+  --text-big: 64px;     /* pass distance */
+  --weight-body: 500;
+  --weight-ui: 700;
+  --weight-strong: 800;
+  --track-label: 0.16em;
+  --track-tab: 0.02em;
+  --text-min: 15px;
+
+  /* space (4 px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* shape: cut paper. 4 px radius or straight cuts; tabs have a dog-eared top-right corner */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 10px;    /* the boarding pass */
+  --radius-pill: 4px;   /* kit name kept; no pills in this game */
+  --dogear: 16px;       /* the folded corner on every tab (12 px on the 44 px icon tab) */
+  --notch-r: 13px;      /* the pass's punched side notches */
+  --outline-w: 1.5px;   /* UI hairlines (the flag, the tag string) */
+  --cf-outline-w: 2.5px;/* canvas: the obstacle ink outline, CSS px at any camera scale */
+  --cf-line-w: 2.4px;   /* canvas: the pencil-dash flight line */
+  --cf-line-dash: 7px;  /* dash = gap = 7 px, at 50 % alpha */
+  --hit-min: 44px;
+  --tab-h: 52px;
+  --tab-lg-h: 64px;
+  --cf-porthole: 84px;
+  --cf-tape-w: 196px;
+  --cf-tape-h: 46px;
+  --cf-tag-h: 46px;
+  --cf-pass-w: min(92vw, 360px);
+
+  /* light: one sun, low right; paper lifts off paper with a soft short shadow */
+  --shadow-lift: 0 1.6px 1.8px rgba(30, 42, 51, 0.28);          /* every cut layer (the pilot.js "lift") */
+  --shadow-1: 0 2px 3px rgba(30, 42, 51, 0.22), 0 6px 12px rgba(30, 42, 51, 0.12);  /* tabs at rest */
+  --shadow-2: 0 3px 4px rgba(30, 42, 51, 0.2), 0 16px 30px rgba(30, 42, 51, 0.25);  /* the pass */
+  --glow: 0 0 0 3px rgba(255, 182, 39, 0.55);
+
+  /* motion: paper flutter. Soft out-back for arrivals, quick out for presses. */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);   /* the brief's out-back */
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+  --dur-fast: 90ms;     /* tab flatten, porthole squash */
+  --dur-med: 220ms;     /* tag pop, sheet in, star stamp-in step 250 ms */
+  --dur-slow: 480ms;    /* the cf-fold screen transition, pass slide-up */
+  --dur-stamp: 260ms;   /* NEW BEST thunk (+ 200 ms shake) */
+  --dur-shake: 200ms;
+  --shake-px: 4px;
+  --cf-bank-max: 18deg; /* the plane banks with vertical speed, 120 ms lag */
+  --cf-bob-px: 2px;     /* idle paper bob on the title plane, 1.6 s sine */
+}
+
+/* Fold collection (spec §8). Only the plane's and the pass stub's paper changes. Unlock: DESIGN.md §10.
+   Scoped to any [data-fold] element, not just <html>, so a Hangar swatch shows its own pattern from the same tokens. */
+[data-fold="notebook"] {    /* default */
+  --cf-fold-paper: #FFFDF7;
+  --cf-fold-rule: #9DBDE3;
+  --cf-fold-margin: #E5534B;
+  --cf-fold-shade: #DCE5F0;
+  --cf-fold-far: #EAF0F7;
+  --cf-fold-kind: lines;
+}
+[data-fold="graph"] {       /* first landing */
+  --cf-fold-paper: #F8FCF6;
+  --cf-fold-rule: #A9D3A2;
+  --cf-fold-margin: #A9D3A2;
+  --cf-fold-shade: #D8E7D4;
+  --cf-fold-far: #E8F1E5;
+  --cf-fold-kind: grid;
+}
+[data-fold="newspaper"] {   /* 50 lucky stars */
+  --cf-fold-paper: #EDE8DC;
+  --cf-fold-rule: #9A968C;
+  --cf-fold-margin: #1E2A33;
+  --cf-fold-shade: #D2CBBA;
+  --cf-fold-far: #E1DBCD;
+  --cf-fold-kind: print;
+}
+[data-fold="map"] {         /* finish Chapter 1 */
+  --cf-fold-paper: #F4E9CF;
+  --cf-fold-rule: #7FB3C9;
+  --cf-fold-margin: #C98A4B;
+  --cf-fold-shade: #DCCEAC;
+  --cf-fold-far: #EADFC2;
+  --cf-fold-kind: map;
+}
+[data-fold="origami"] {     /* 10 courses at 3 stars */
+  --cf-fold-paper: #E5534B;
+  --cf-fold-rule: #EF8177;
+  --cf-fold-margin: #FFFDF7;
+  --cf-fold-shade: #BE3D37;
+  --cf-fold-far: #CC463F;
+  --cf-fold-kind: solid;
+}
+[data-fold="gold"] {        /* finish Chapter 3: the Captain's gold-star paper (flat paper, never metallic) */
+  --cf-fold-paper: #FFE7A3;
+  --cf-fold-rule: #FFB627;
+  --cf-fold-margin: #E08F10;
+  --cf-fold-shade: #EFCB6E;
+  --cf-fold-far: #F7DA8B;
+  --cf-fold-kind: stars;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-slow: 0ms; --dur-shake: 0ms; --shake-px: 0px; --cf-bob-px: 0px; }
+}
+
+/* contrast: --cf-ink on --cf-paper >= 4.5 */
+/* contrast: --cf-ink-2 on --cf-paper >= 4.5 */
+/* contrast: --cf-ink on --cf-marigold >= 4.5 */
+/* contrast: --cf-marigold-ink on --cf-marigold >= 4.5 */
+/* contrast: --cf-ink on --color-surface-2 >= 4.5 */
+/* contrast: --cf-ink on --cf-sky-200 >= 4.5 */
+/* contrast: --cf-ink on --cf-updraft >= 4.5 */
+/* contrast: --cf-paper on --cf-sky-700 >= 4.5 */
+/* contrast: --cf-paper on --cf-sky-900 >= 4.5 */
+/* contrast: --color-on-sky on --cf-sky-600 >= 3 */
+/* contrast: --cf-tomato-deep on --cf-paper >= 4.5 */
+/* contrast: --color-danger on --color-surface >= 4.5 */
+/* contrast: --color-text on --color-surface >= 4.5 */
+/* contrast: --color-primary-text on --color-primary >= 4.5 */
+/* contrast: --cf-ink on --cf-sky-400 >= 4.5 */
+/* contrast: --cf-ink on --cf-sky-600 >= 3 */
+/* contrast: --cf-ink on --cf-lawn >= 3 */
+/* contrast: --cf-ink on --cf-kraft >= 3 */
+/* contrast: --cf-ink on --cf-lawn-far >= 4.5 */
+/* contrast: --cf-ink on --cf-sky-600 >= 3.9 */
+/* contrast: --cf-ink on --cf-cloud >= 4.5 */
