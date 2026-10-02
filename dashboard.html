@@ -15,6 +15,8 @@ body { margin:0; min-height:100vh; background:radial-gradient(1200px 600px at 50
 .wrap { max-width:900px; margin:0 auto; padding:24px 16px 48px; display:grid; gap:14px; }
 a { color:var(--accent); }
 h1 { margin:0; font-size:clamp(1.6rem,6vw,2.4rem); letter-spacing:-0.02em; }
+h3 { margin:12px 0 4px; font-size:.85rem; color:var(--muted); font-weight:600; }
+.next { margin:0; }
 h2 { margin:0 0 10px; font-size:1rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
 .muted { color:var(--muted); margin:4px 0 0; }
 .kicker { margin:0; color:var(--accent); font-weight:600; font-size:.85rem; text-transform:uppercase; letter-spacing:.08em; }
@@ -53,14 +55,14 @@ footer { color:var(--muted); font-size:.8rem; text-align:center; }
 <section class="card head">
   <div><p class="kicker">In development</p><h1>Captain Fold</h1>
   <p class="muted">Stage: <b>sign-off</b> · last activity 2 Oct, 09:05</p></div>
-  <div class="light red"><i></i>Stalled: needs attention</div>
+  <div class="light green"><i></i>On track</div>
 </section>
 <section class="card"><h2>Progress</h2>
   <div class="bar"><span style="width:67%"></span></div>
   <ol class="tracker"><li class="stage done">pitch</li><li class="stage done">spec</li><li class="stage done">design</li><li class="stage done">implementation</li><li class="stage done">code review</li><li class="stage done">QA</li><li class="stage now">sign-off</li><li class="stage todo">release package</li><li class="stage todo">published</li></ol>
 </section>
 <section class="tiles">
-  <div class="tile "><b>0</b><span>agents running now</span></div>
+  <div class="tile "><b>1</b><span>agents running now</span></div>
   <div class="tile "><b>4</b><span>open tasks</span></div>
   <div class="tile "><b>2</b><span>in progress / review</span></div>
   <div class="tile "><b>2</b><span>blocked (waiting on earlier steps)</span></div>
@@ -69,20 +71,26 @@ footer { color:var(--muted); font-size:.8rem; text-align:center; }
   <div class="tile "><b>0</b><span>watchdog recoveries active</span></div>
   <div class="tile bad"><b>2</b><span>bugs / fixes open (2 blocking)</span></div>
 </section>
+<section class="card"><h2>Next expected activity</h2>
+  <p class="next">1 agent running now: see Running now.</p>
+  <h3>Scheduled work</h3><ul class="rows"><li><b>2 Oct, 14:05 (11:05 UTC)</b> Scheduled: do the ~11:00 UTC Captain Fold sign-off merge (THE-307/308 + branch 3241daf)</li></ul>
+  <h3>Waiting on a scheduled step (not stalled)</h3><ul class="rows"><li><span class="id">THE-308</span> <span class="st st-in_progress">in progress</span> Design: the canvas ignores Reduce motion (air, parallax, wobble keep animating) <span class="tag">wakes 11:05 UTC</span></li><li><span class="id">THE-307</span> <span class="st st-in_progress">in progress</span> Design: equipping a fold in the Hangar never changes the plane <span class="tag">wakes 11:05 UTC</span></li></ul>
+  <h3>Housekeeping</h3><ul class="rows"><li><b>2 Oct, 12:05 (09:05 UTC)</b> Usage-limit resume sweep and stall watchdog (every 2 h)</li><li><b>2 Oct, 12:20 (09:20 UTC)</b> Build-status dashboard snapshot (hourly, arcade/dashboard.html)</li></ul>
+</section>
 <section class="card"><h2>Running now</h2>
-  <p class="muted">No agent is running at this moment.</p>
+  <ul class="rows"><li><b>CTO</b> on <span class="id">THE-320</span> Dashboard: show next expected wakeup + 2 other accuracy fixes</li></ul>
 </section>
 <section class="card"><h2>Bugs and pending fixes</h2>
   <ul class="rows"><li><span class="id">THE-308</span> <span class="st st-in_progress">in progress</span> Design: the canvas ignores Reduce motion (air, parallax, wobble keep animating) <span class="tag bad">D2 · blocking</span></li><li><span class="id">THE-307</span> <span class="st st-in_progress">in progress</span> Design: equipping a fold in the Hangar never changes the plane <span class="tag bad">D2 · blocking</span></li></ul>
 </section>
 <section class="card"><h2>Needs attention</h2>
-  <ul class="rows"><li><span class="id">THE-308</span> <span class="st st-in_progress">in progress</span> Design: the canvas ignores Reduce motion (air, parallax, wobble keep animating) <span class="tag bad">no progress for 3 h+</span></li><li><span class="id">THE-307</span> <span class="st st-in_progress">in progress</span> Design: equipping a fold in the Hangar never changes the plane <span class="tag bad">no progress for 3 h+</span></li></ul>
+  <p class="muted">Nothing: no errors, stalls or recoveries.</p>
 </section>
 <section class="card"><h2>Open tasks</h2>
   <ul class="rows"><li><span class="id">THE-308</span> <span class="st st-in_progress">in progress</span> Design: the canvas ignores Reduce motion (air, parallax, wobble keep animating)</li><li><span class="id">THE-307</span> <span class="st st-in_progress">in progress</span> Design: equipping a fold in the Hangar never changes the plane</li><li><span class="id">THE-268</span> <span class="st st-blocked">blocked</span> Captain Fold: build review and sign-off (game-ux-review + THE-157 visual-identity gate)</li><li><span class="id">THE-269</span> <span class="st st-blocked">blocked</span> Captain Fold: release checklist + release package (&quot;ready to publish&quot;)</li></ul>
 </section>
 <section class="card"><h2>Shipped games</h2><ul class="rows"><li><a href="games/bloop-stack/">Bloop Stack</a> <span class="muted">2026-09-25</span></li><li><a href="games/tidy-tiles/">Tidy Tiles</a> <span class="muted">2026-09-27</span></li><li><a href="games/tray-disaster/">Tray Disaster</a> <span class="muted">2026-09-27</span></li><li><a href="games/rush-lane/">Rush Lane</a> <span class="muted">2026-09-28</span></li><li><a href="games/potion-pour/">Potion Pour</a> <span class="muted">2026-09-28</span></li><li><a href="games/petal-patch/">Petal Patch</a> <span class="muted">2026-09-29</span></li><li><a href="games/loop-break/">Loop Break</a> <span class="muted">2026-09-30</span></li></ul></section>
-<footer>Snapshot of the studio's task board, 2 Oct, 10:51 (Israel time). Refreshed on status changes and at least hourly while a game is in development. <a href="./">Back to the arcade</a></footer>
+<footer>Snapshot of the studio's task board, <time class="stamp">2 Oct, 11:54 Israel time (08:54 UTC)</time>. Republished whenever anything on it changes, checked hourly. <a href="./">Back to the arcade</a></footer>
 </main>
 </body>
 </html>
