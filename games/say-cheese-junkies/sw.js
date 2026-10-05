@@ -1,9 +1,11 @@
 // Hand-written service worker: precache the game's own files, serve cache-first.
 // Bump CACHE_VERSION whenever any shipped file changes.
-var CACHE_VERSION = 'junkies-v1';
+var CACHE_VERSION = 'junkies-v2';
 var FILES = [
   './', 'index.html', 'register-sw.js', 'favicon-32.png',
-  'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'
+  'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',
+  'licenses/Fredoka-OFL.txt', 'licenses/Karantina-OFL.txt', 'licenses/PatrickHand-OFL.txt',
+  'licenses/PermanentMarker-Apache-2.0.txt', 'licenses/RubikDoodleShadow-OFL.txt'
 ];
 
 self.addEventListener('install', function (e) {

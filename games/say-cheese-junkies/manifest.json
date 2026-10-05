@@ -1,7 +1,9 @@
 {
   "name": "ג׳אנקיס",
   "short_name": "ג׳אנקיס",
-  "description": "Poker night with the Junkies: drop the chips, match two to merge, and deal everyone back into the picture.",
+  "description": "ערב פוקר עם הג׳אנקיס: מפילים פרצופים, שניים זהים מתאחדים, ומכניסים את כולם בחזרה לשולחן.",
+  "lang": "he",
+  "dir": "rtl",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
