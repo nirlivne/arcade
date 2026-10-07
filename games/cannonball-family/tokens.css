@@ -1,0 +1,217 @@
+/* Cannonball Family design tokens (THE-436 brief, THE-447). Designer-owned: the single source of truth for colour,
+   type, space, shape and motion. The developer reads these (CSS via var(), the canvas via
+   getComputedStyle(document.documentElement), see design/cannonball-family/troupe.js -> CBF.tokens()) and never
+   hard-codes a palette value.
+   World: a felt circus under a striped big top. Big-top rust dominates, cannon navy is the one accent, cream thread
+   carries every stitch, the six seat colours appear ONLY on the troupe (helmets, suits, rail rings), the target dyes
+   ONLY on tins and jars. No plum anywhere (THE-407 lineup lesson). Text on sawdust, canvas or cream is always walnut
+   ink; cream text only on rust, navy or wood (large). */
+
+@font-face {
+  font-family: "Alfa Slab One";
+  src: url("fonts/AlfaSlabOne.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("fonts/AtkinsonHyperlegible-400.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  src: url("fonts/AtkinsonHyperlegible-700.woff2") format("woff2");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+
+:root {
+  /* color: the big top (dominant ground of every screen) */
+  --cbf-tent: #8A3324;            /* rust stripes, drapes, title ink, primary-button ink */
+  --cbf-tent-deep: #5A1E16;       /* the tent wall, button backing, pelmet */
+  --cbf-tent-light: #A84A34;      /* lit drape folds */
+  --cbf-tent-dark: #3C120C;       /* the wall at floor level, the vignette edge */
+  --cbf-canvas: #E3CFA8;          /* light canvas: field grounds, sheet rows */
+  --cbf-canvas-deep: #C4A97C;     /* canvas tent stripe, field borders */
+  --cbf-sawdust: #D6B07A;         /* the ring floor */
+  --cbf-sawdust-deep: #B08850;    /* sawdust specks, floor shade */
+  --cbf-curb: #B8342A;            /* the ring curb's red diagonal stripes (on cream) */
+  --cbf-spot: #FFECBE;            /* spotlight on the tower, radial, 32 % -> 0 alpha */
+
+  /* color: wood (ledges, planks, the rail, plaques, the cannon carriage) */
+  --cbf-wood: #B57A44;
+  --cbf-wood-deep: #7E5028;       /* posts, grain, wheel */
+  --cbf-wood-light: #D7A46C;      /* grain highlights */
+  --cbf-wood-dark: #5E3A1C;       /* plaque text shadow, the pivot pin */
+
+  /* color: thread and ink */
+  --cbf-cream: #FFF4E0;           /* cream thread: every stitch, the aim line, the net, the primary patch */
+  --cbf-white: #FFFFFF;           /* only the photo sticker's die-cut border */
+  --cbf-ink: #2A1A12;             /* walnut ink: all text on cream, canvas and sawdust */
+  --cbf-ink-2: #6E5446;           /* muted labels on cream ("5 of 6", "Stays on this phone") */
+  --cbf-navy: #26345A;            /* THE accent: the cannon, secondary patches, the family plaque */
+  --cbf-navy-deep: #172240;       /* navy backing, the cannon's shadow side */
+  --cbf-navy-light: #3B4C7A;      /* the cannon's muzzle band */
+  --cbf-star: #EDB22C;            /* felt stars, the fuse spark (a dye, never metal) */
+  --cbf-star-deep: #A87410;       /* star edge stitch on cream */
+  --cbf-needle: #D9D4CC;          /* the aim needle (steel grey felt) */
+  --cbf-iron: #4B4643;            /* Heavy helmet band, ear plates */
+  --cbf-iron-light: #6E6863;      /* rivets */
+  --cbf-lens: #A9D3CF;            /* goggle lenses (always pushed up) */
+
+  /* color: the face (drawn defaults) */
+  --cbf-cheek: #EE8A86;           /* at 55 % alpha */
+  --cbf-mouth: #6E1F2E;
+  --cbf-tongue: #E8727A;
+  --cbf-tooth: #FFFBF2;
+  --cbf-jam-red: #B8344F;         /* Nan's cat-eye glasses (was plum on THE-407) */
+
+  /* color: the six seat colours (theme.js `colour`). Troupe only: helmet shell, stunt suit, rail ring, name patch edge */
+  --cbf-seat-poppy: #D9483B;  --cbf-seat-poppy-deep: #9E2C24;
+  --cbf-seat-cobalt: #2E5BA6; --cbf-seat-cobalt-deep: #1D3C73;
+  --cbf-seat-violet: #8A5BB0; --cbf-seat-violet-deep: #5E3A7E;
+  --cbf-seat-moss: #4C8A3C;   --cbf-seat-moss-deep: #2F5E25;
+  --cbf-seat-sun: #EDB22C;    --cbf-seat-sun-deep: #A87410;
+  --cbf-seat-teal: #1E9E9A;   --cbf-seat-teal-deep: #12696A;
+
+  /* color: the six looks' skin and hair (theme.js `look` 0-5; any look can wear any colour) */
+  --cbf-look0-skin: #E8B58F; --cbf-look0-hair: #8A3B22;   /* 0 bun + pencil, fringe, hoops (default Ma) */
+  --cbf-look1-skin: #C88A63; --cbf-look1-hair: #3B2A20;   /* 1 flat-top crest, moustache (default Pa) */
+  --cbf-look2-skin: #F0C7A6; --cbf-look2-hair: #E4DEEA;   /* 2 curls, flower, cat-eye glasses (default Nan) */
+  --cbf-look3-skin: #A8693F; --cbf-look3-hair: #EFE9DC;   /* 3 tweed shell, cap peak, brows, chin beard (default Gramps) */
+  --cbf-look4-skin: #DDA27A; --cbf-look4-hair: #5A3A22;   /* 4 propeller, freckles, gap tooth (default Kid) */
+  --cbf-look5-skin: #7A4A30; --cbf-look5-hair: #1F1A1F;   /* 5 headphones, swoop fringe (default Teen) */
+
+  /* color: targets (tins and jars only; stones are the one grey) */
+  --cbf-tin-pea: #6E9A55;
+  --cbf-tin-tomato: #C8553D;
+  --cbf-tin-mustard: #D9A43B;
+  --cbf-tin-robin: #5F9EA6;
+  --cbf-tin-cream: #EDE2CC;
+  --cbf-tin-rim: #D8D2C6;         /* the rolled metal rim + ring-pull (the cue that says "tin, not ball") */
+  --cbf-tin-rim-deep: #8E877C;
+  --cbf-jam-1: #B8344F;           /* raspberry */
+  --cbf-jam-2: #E58F3E;           /* apricot */
+  --cbf-jam-3: #6E8A2E;           /* greengage (replaces the brief's #7A3B6E: too close to plum) */
+  --cbf-jam-lid: #D9483B;         /* gingham lid check on cream */
+  --cbf-stone: #8C8379;
+  --cbf-stone-deep: #615A52;
+  --cbf-net: #FFF4E0;             /* = cream thread, 85 % */
+  --cbf-net-pole: #D9483B;        /* pole stripes on cream */
+  --cbf-smoke: #FFF4E0;           /* felt smoke puff, 85 % */
+
+  /* kit plumbing names (sheets, toggles, toast); skin.css restyles the shapes */
+  --color-bg: #5A1E16;
+  --color-bg-2: #8A3324;
+  --color-text: #2A1A12;
+  --color-text-muted: #6E5446;
+  --color-surface: #FFF4E0;
+  --color-surface-2: #E3CFA8;
+  --color-outline: #2A1A12;
+  --color-primary: #FFF4E0;
+  --color-primary-text: #8A3324;
+  --color-accent: #26345A;
+  --color-accent-text: #FFF4E0;
+  --color-danger: #8A3324;
+  --color-success: #4C8A3C;
+  --scrim: rgba(36, 10, 6, 0.6);
+
+  /* type: bundled OFL fonts (licences in design/cannonball-family/fonts/, shipped in games/cannonball-family/fonts/) */
+  --font-display: "Alfa Slab One", Georgia, serif;          /* titles, buttons, names, numbers; >= 16 px */
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-numeral: "Alfa Slab One", Georgia, serif;          /* score, level, "+100" tags */
+  --text-xs: 12px;      /* chip names on the rail (slab), never body */
+  --text-sm: 14px;      /* hints, notes, muted labels */
+  --text-md: 16px;      /* body, sheet rows */
+  --text-lg: 20px;      /* secondary patch labels, plaques */
+  --text-xl: 26px;      /* sheet titles, card score */
+  --text-2xl: 34px;     /* "Curtain call!", primary patch */
+  --text-title: 34px;   /* the banner title at 390 px (set along the arc; scales with the banner) */
+  --weight-body: 400;
+  --weight-ui: 700;
+  --text-min: 14px;
+
+  /* space (4 px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* shape: round felt with stitches */
+  --radius-sm: 6px;
+  --radius-md: 12px;    /* felt patch buttons */
+  --radius-lg: 18px;    /* cards */
+  --radius-sheet: 22px; /* the bottom sheet's top corners */
+  --radius-pill: 999px; /* only the name patch and the caption pill; buttons are never pills */
+  --stitch-inset: 6px;  /* the running stitch sits 6 px inside every patch and card */
+  --stitch-w: 1.8px;
+  --stitch-dash: 5px;   /* 5 on, 4 off */
+  --stitch-gap: 4px;
+  --backing: 2px;       /* the darker felt backing shows 2 px round every patch */
+  --hit-min: 44px;
+  --patch-h: 52px;
+  --patch-lg-h: 64px;
+  --rail-h: 56px;       /* portrait rail plank (+ safe area); 64 at >= 768 wide */
+  --rail-w: 72px;       /* landscape rail column */
+  --chip: 30px;         /* rail helmet chip (HUD, not likeness) */
+  --plaque-h: 34px;
+
+  /* canvas sizes (world units unless noted) */
+  --cbf-world-w: 640;
+  --cbf-world-h: 480;
+  --cbf-face-loaded-min: 56px;   /* screen px floor */
+  --cbf-face-flight-min: 44px;   /* screen px floor (48 if the sign-off likeness check fails) */
+  --cbf-aim-w: 6px;              /* aim stitch width, screen px at any scale */
+  --cbf-aim-dash: 11px;          /* 11 on, 7 off, screen px */
+  --cbf-aim-gap: 7px;
+  --cbf-trail-w: 3px;            /* the sewn trail, 9 on / 7 off */
+
+  /* light: felt lifts off felt with a short soft shadow; a spotlight, a vignette */
+  --shadow-felt: 0 1.3px 2.2px rgba(30, 8, 4, 0.32);                       /* every felt piece */
+  --shadow-1: 0 3px 6px rgba(20, 6, 4, 0.38);                              /* patches at rest */
+  --shadow-2: 0 4px 6px rgba(20, 6, 4, 0.3), 0 18px 34px rgba(20, 6, 4, 0.35); /* cards, sheets */
+  --shadow-sink: inset 0 2px 7px rgba(20, 6, 4, 0.45);                     /* pressed patch: sinks into the felt */
+  --glow: 0 0 0 3px rgba(237, 178, 44, 0.7);
+
+  /* motion: sewing and the stage. Out-cubic. */
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);       /* out-cubic */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);  /* star pin-on, tag pop */
+  --ease-in: cubic-bezier(0.32, 0, 0.67, 0);
+  --dur-fast: 120ms;    /* patch press */
+  --dur-med: 240ms;     /* sheet in, caption, tag pop */
+  --dur-slow: 420ms;    /* curtains close/open between screens (300-420) */
+  --dur-bow: 300ms;     /* bow / shrug pose ease */
+  --dur-hold: 600ms;    /* the bow is held before the curtain call */
+  --dur-hitstop: 60ms;
+  --shake-px: 2px;      /* the cannon's 2 px shake */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-slow: 0ms; --shake-px: 0px; --dur-hitstop: 0ms; }
+}
+
+/* contrast: --cbf-cream on --cbf-tent >= 4.5 */
+/* contrast: --cbf-tent on --cbf-cream >= 4.5 */
+/* contrast: --cbf-ink on --cbf-cream >= 4.5 */
+/* contrast: --cbf-ink-2 on --cbf-cream >= 4.5 */
+/* contrast: --cbf-ink on --cbf-canvas >= 4.5 */
+/* contrast: --cbf-ink-2 on --cbf-canvas >= 4.5 */
+/* contrast: --cbf-ink on --cbf-sawdust >= 4.5 */
+/* contrast: --cbf-cream on --cbf-navy >= 4.5 */
+/* contrast: --cbf-cream on --cbf-tent-deep >= 4.5 */
+/* contrast: --cbf-cream on --cbf-wood >= 3 */
+/* contrast: --cbf-cream on --cbf-wood-deep >= 4.5 */
+/* contrast: --color-text on --color-surface >= 4.5 */
+/* contrast: --color-primary-text on --color-primary >= 4.5 */
+/* contrast: --color-accent-text on --color-accent >= 4.5 */
+/* contrast: --color-danger on --color-surface >= 4.5 */
+/* Key game objects against the dark tent wall they stand in front of. Tomato on the wall is only 2.95:1, so every
+   tin carries the light rolled rim, and the rim is what has to clear 3:1 (the silhouette edge). */
+/* contrast: --cbf-tin-rim on --cbf-tent-deep >= 3 */
+/* contrast: --cbf-tin-pea on --cbf-tent-deep >= 3 */
+/* contrast: --cbf-tin-cream on --cbf-tent-deep >= 3 */
+/* contrast: --cbf-jam-2 on --cbf-tent-deep >= 3 */
+/* contrast: --cbf-cream on --cbf-tent-dark >= 4.5 */
+/* contrast: --cbf-stone on --cbf-tent-deep >= 3 */
+/* contrast: --cbf-cream on --cbf-seat-cobalt >= 4.5 */

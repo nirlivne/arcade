@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cannonball Family</title>
+<meta name="theme-color" content="#8A3324">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="ui-kit.css">
+<link rel="stylesheet" href="skin.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="cbf">
+<div class="cb-app cbf-app uk-root" id="cb-app">
+
+  <canvas class="cb-world cbf-world" id="cb-world"></canvas>
+
+  <section class="uk-screen cb-screen cbf-screen" id="cbf-title">
+    <div class="cbf-hero" aria-hidden="true"></div>
+    <h1 class="cbf-banner"><svg viewBox="-20 0 400 122" role="img" aria-label="Cannonball Family">
+      <polygon class="cbf-banner__tail" points="334.1,47.2 374.2,65.7 350.8,82.2 348.2,110.7 312.1,85.3"/>
+      <polygon class="cbf-banner__tail" points="25.9,47.2 -14.2,65.7 9.2,82.2 11.8,110.7 47.9,85.3"/>
+      <path class="cbf-banner__band" d="M30 70.2 A300 300 0 0 1 330 70.2"/>
+      <path class="cbf-banner__stitch" d="M26.4 47 A322 322 0 0 1 333.6 47"/>
+      <path class="cbf-banner__stitch" d="M47.4 85.6 A278 278 0 0 1 312.6 85.6"/>
+      <path id="cbf-arc" fill="none" d="M30 70.2 A300 300 0 0 1 330 70.2"/>
+      <text class="cbf-banner__text" dy="10"><textPath href="#cbf-arc" startOffset="50%" text-anchor="middle"
+        textLength="286" lengthAdjust="spacing" data-theme-text="title">Cannonball Family</textPath></text>
+    </svg></h1>
+    <p class="cbf-troupe-name"><span data-theme-text="text.theFlying">The Flying</span> <span id="cb-plaque-name"></span></p>
+    <div class="cbf-patches">
+      <button class="uk-btn cbf-patch cbf-patch--lg" id="cb-btn-play" data-theme-text="text.play">Play</button>
+      <div class="cbf-patches cbf-patches--pair" style="width:100%">
+        <button class="uk-btn cbf-patch cbf-patch--navy" id="cb-btn-daily" data-theme-text="text.dailyTower">Daily tower</button>
+        <button class="uk-btn cbf-patch cbf-patch--navy" id="cb-btn-family" data-theme-text="text.family">Our family</button>
+      </div>
+      <button class="uk-btn cbf-patch cbf-patch--ghost cbf-patch--sm" id="cb-btn-levels" data-theme-text="text.levels">Levels</button>
+      <div class="cbf-patches cbf-patches--pair" style="width:100%">
+        <button class="uk-btn cbf-patch cbf-patch--icon" id="cb-btn-howto" aria-label="How to play">?</button>
+        <button class="uk-btn cbf-patch cbf-patch--ghost cbf-patch--sm" id="cb-btn-about" data-theme-text="text.about">About</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="uk-screen cb-screen cbf-screen" id="cbf-map">
+    <header class="cbf-bar">
+      <button class="uk-btn cbf-patch cbf-patch--icon" id="cb-btn-map-back" aria-label="Back" data-theme-text="text.back">‹</button>
+      <h2 class="cbf-h2" data-theme-text="text.levels">Levels</h2>
+      <span class="cbf-total" id="cb-map-total"></span>
+    </header>
+    <div data-map-chapters></div>
+  </section>
+
+  <dialog class="cbf-sheet cbf-sheet--bottom" id="cb-family">
+    <div class="cbf-sheet__grab" aria-hidden="true"></div>
+    <div class="cbf-sheet__head">
+      <h2 class="cbf-sheet__title" data-theme-text="text.familyTitle">Our family</h2>
+      <button class="uk-btn cbf-patch cbf-patch--icon" type="button" data-family-close aria-label="Close" data-theme-text="text.close">×</button>
+    </div>
+    <label class="cbf-field"><span class="cbf-field__label" data-theme-text="text.familyName">Family name</span>
+      <span class="cbf-field__box"><span data-theme-text="text.theFlying">The Flying</span>
+        <input type="text" data-family-name></span></label>
+    <ul class="cbf-members" data-family-list></ul>
+    <p data-family-message role="status"></p>
+    <div class="cbf-family-foot">
+      <button class="uk-btn cbf-link" type="button" data-family-clear data-theme-text="text.clearPhotos">Clear photos</button>
+      <span class="cbf-count" data-family-count></span>
+      <button class="uk-btn cbf-patch" type="button" data-family-add></button>
+    </div>
+    <div class="cbf-patches">
+      <button class="uk-btn cbf-patch cbf-patch--lg" type="button" data-family-save data-theme-text="text.save">Save</button>
+    </div>
+  </dialog>
+
+  <dialog class="uk-sheet" id="cb-pause">
+    <div class="uk-sheet__head">
+      <h2 class="uk-sheet__title" data-theme-text="text.paused">Paused</h2>
+    </div>
+    <div class="uk-sheet__body">
+      <div class="cbf-patches">
+        <button class="uk-btn cbf-patch cbf-patch--lg" id="cb-btn-resume" data-theme-text="text.resume">Resume</button>
+        <div class="cbf-patches cbf-patches--pair" style="width:100%">
+          <button class="uk-btn cbf-patch cbf-patch--navy" id="cb-btn-pause-restart" data-theme-text="text.restart">Restart</button>
+          <button class="uk-btn cbf-patch cbf-patch--navy" id="cb-btn-pause-levels" data-theme-text="text.levels">Levels</button>
+        </div>
+        <button class="uk-btn cbf-patch cbf-patch--ghost cbf-patch--sm" id="cb-btn-pause-howto" data-theme-text="text.howToPlay">How to play</button>
+      </div>
+      <label class="cbf-setting"><span data-theme-text="text.sound">Sound</span>
+        <input type="checkbox" id="cb-opt-sound"></label>
+      <label class="cbf-setting"><span data-theme-text="text.reducedMotion">Reduced motion</span>
+        <input type="checkbox" id="cb-opt-motion"></label>
+    </div>
+  </dialog>
+
+  <dialog class="uk-sheet" id="cb-howto">
+    <div class="uk-sheet__head">
+      <h2 class="uk-sheet__title" data-theme-text="text.howToPlay">How to play</h2>
+    </div>
+    <div class="uk-sheet__body">
+      <div class="uk-steps">
+        <div class="uk-step">
+          <div class="uk-step__art"><canvas data-howto-art="pull" width="192" height="120"></canvas></div>
+          <p class="uk-step__text" data-theme-text="text.howTo1">Pull back from anywhere, then let go.</p>
+        </div>
+        <div class="uk-step">
+          <div class="uk-step__art"><canvas data-howto-art="tins" width="192" height="120"></canvas></div>
+          <p class="uk-step__text" data-theme-text="text.howTo2">Knock down every tin. One shot per member.</p>
+        </div>
+        <div class="uk-step">
+          <div class="uk-step__art"><canvas data-howto-art="stars" width="192" height="120"></canvas></div>
+          <p class="uk-step__text" data-theme-text="text.howTo3">Stars are the members who didn't need to fly.</p>
+        </div>
+      </div>
+      <div class="uk-dots"></div>
+    </div>
+    <div class="uk-sheet__foot">
+      <button class="uk-btn" type="button" data-howto="prev" data-theme-text="text.back">Back</button>
+      <button class="uk-btn cbf-patch" type="button" data-howto="next" data-next="Next" data-done="Let's play!" data-theme-text="text.next">Next</button>
+    </div>
+  </dialog>
+
+  <dialog class="uk-sheet" id="cb-about">
+    <div class="uk-sheet__head">
+      <h2 class="uk-sheet__title" data-theme-text="text.about">About</h2>
+    </div>
+    <div class="uk-sheet__body">
+      <p class="cbf-privacy" data-theme-text="text.privacyLine">Your family's names and photos are saved only on this device. They are never uploaded, and they never appear in a share line.</p>
+      <p class="cbf-credit" data-theme-text="text.madeBy">Made by The Game Company</p>
+      <p class="cbf-note" data-theme-text="text.fontCredit">Fonts: Alfa Slab One, Atkinson Hyperlegible (SIL OFL)</p>
+    </div>
+    <div class="uk-sheet__foot">
+      <button class="uk-btn" type="button" id="cb-btn-about-close" data-theme-text="text.close">Close</button>
+    </div>
+  </dialog>
+
+  <section class="uk-screen cb-screen cb-screen--hud cbf-screen cbf-screen--clear" id="cb-play">
+    <div class="cbf-hud">
+      <ol class="cbf-rail" id="cb-rail" aria-label="Who flies next"></ol>
+      <button class="uk-btn cbf-patch cbf-patch--icon cbf-pause" id="cb-btn-pause" aria-label="Pause">⏸</button>
+      <div class="cbf-hud__stats">
+        <span class="cbf-plaque" id="cb-plaque-level"></span>
+        <span class="cbf-plaque" id="cb-plaque-fuse"></span>
+      </div>
+    </div>
+    <p class="cb-hud" id="cb-hud" hidden></p>
+    <div class="cbf-demo" id="cb-demo" hidden>
+      <p class="cbf-caption cbf-caption--goal" id="cb-demo-caption" hidden></p>
+      <button class="cbf-demo__skip" type="button" id="cb-demo-skip" data-theme-text="text.demoSkip">Tap to skip</button>
+    </div>
+  </section>
+
+  <!-- id is set to cbf-call (win)/cbf-fail (loss)/cbf-daily (the daily result) at runtime (game.js's own
+       checkEnd()), so the skin's per-outcome grid layout (skin.css #cbf-call/#cbf-fail/#cbf-daily) applies;
+       the three share one section since only one outcome is ever showing at a time (DESIGN.md §8, THE-476). -->
+  <section class="uk-screen cb-screen cbf-screen" id="cb-result">
+    <article class="cbf-card">
+      <h2 class="cbf-card__title" id="cb-result-headline"></h2>
+      <p class="cbf-card__sub" id="cb-result-score"></p>
+      <div class="cbf-stars" id="cb-result-stars" aria-hidden="true"></div>
+      <p class="cbf-card__who" id="cb-result-who"></p>
+      <p class="cbf-card__score" id="cb-result-points"></p>
+      <p class="cbf-card__sub" id="cb-share-msg" role="status"></p>
+    </article>
+    <div class="cbf-stage" id="cb-result-stage" aria-hidden="true">
+      <canvas id="cb-result-canvas"></canvas>
+    </div>
+    <div class="cbf-patches">
+      <!-- The primary (full-width) slot is one of Next level / Share / Retry, whichever this outcome's own
+           done-when wants first (DESIGN.md §8: win -> Next level, fail -> Retry, daily -> Share); only one is
+           ever unhidden. Retry is one element throughout, not duplicated per outcome (showResult() moves it
+           between the primary slot and the secondary pair, toggling cbf-patch--lg): every real-pointer test
+           already written against #cb-btn-retry keeps working, whichever outcome it's reached through. -->
+      <button class="uk-btn cbf-patch cbf-patch--lg" id="cb-btn-next" data-theme-text="text.next" hidden>Next level</button>
+      <button class="uk-btn cbf-patch cbf-patch--lg" id="cb-btn-share" data-theme-text="text.share" hidden>Share</button>
+      <button class="uk-btn cbf-patch cbf-patch--lg" id="cb-btn-retry" data-theme-text="text.retry" hidden>Retry</button>
+      <div class="cbf-patches cbf-patches--pair" id="cb-result-pair" style="width:100%">
+        <button class="uk-btn cbf-patch cbf-patch--navy" id="cb-btn-result-levels" data-theme-text="text.levels">Levels</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="cbf-curtains" id="cb-curtains" aria-hidden="true"></div>
+
+</div>
+<!-- theme.js and ui-kit.js are classic scripts (the UI-kit starter contract), loaded before game.js's module. -->
+<script src="theme.js"></script>
+<script src="ui-kit.js"></script>
+<script type="module" src="game.js"></script>
+<script src="register-sw.js"></script>
+</body>
+</html>

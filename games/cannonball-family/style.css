@@ -1,0 +1,36 @@
+/* Cannonball Family. skin.css (the designer's) owns the look; every screen now carries its own cbf-* contract
+   id (THE-475), so this file is only the few things the skin genuinely doesn't cover: [hidden] safety, the
+   fixed app shell, and the family sheet's own non-skin layout bits (its visible classes are all cbf-* now).
+   The S1-era rules that fought skin.css by restyling its own classes (.cb-plaque, .cb-headline,
+   .cb-result-score, .cb-hud, the is-active place-items override, .cb-family's hex colours) are gone — THE-475
+   found them still winning the cascade (loaded after skin.css, same specificity) on the title plaque and
+   result card text. */
+/* The [hidden] attribute must always win: .uk-btn's display: inline-flex otherwise beats the UA stylesheet's
+   [hidden] { display: none } (author CSS always outranks the UA stylesheet, whatever the load order), so a
+   button JS hides (Retry after the daily's first shot, Next level after a loss) silently stayed visible.
+   skin.css has its own [hidden] rule too (DESIGN.md section 7); this is a harmless second line of defence. */
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+.cb-app { position: fixed; inset: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+.cb-world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* .cbf-sheet (skin.css) clips at max-height with overflow-y: auto, but sets no display of its own: a <dialog>
+   is display: none closed and (in Chromium) display: block open, purely from the UA stylesheet. A column flex
+   layout (head/field/list/foot stacking, the list itself scrolling rather than the whole dialog) needs author
+   CSS, but author CSS always outranks the UA stylesheet regardless of load order (the same [hidden] trap
+   above) — so this must stay gated on [open], or the "closed" dialog paints and hit-tests right over the
+   title screen, invisible to the eye but real to a pointer (CTO review: an earlier, ungated version of this
+   rule did exactly that). */
+#cb-family[open] { display: flex; flex-direction: column; }
+.cb-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+/* #cbf-call/#cbf-fail/#cbf-daily's own grid-template-rows (skin.css) gives .cbf-stage's row real track height
+   (minmax(0, 1fr)), but an auto-height grid item with only an absolutely-positioned child (the canvas) has no
+   normal-flow content to stretch against, so it measures 0 here regardless of its row's own size (THE-476:
+   drawResultStage() read stage.clientHeight as 0 and drew nothing). height: 100% is the one declaration the
+   skin doesn't make for .cbf-stage; this is additive, not a conflicting override of anything it does set. */
+.cbf-stage { height: 100%; }
+/* The family sheet's own status line (data-family-message): no skin equivalent, unlike #cb-share-msg (the
+   result card's own message), which relies on .cbf-card__sub alone now. */
+[data-family-message] { min-height: 1.2em; margin: 4px 0; font: var(--weight-ui) var(--text-sm)/1.3 var(--font-body); color: var(--cbf-ink-2); }
+/* The theme's cover image (theme.js images.cover, game.js themeReady). The title's hero box has no height of its own
+   (the skin gives its rows to the banner and patches), so the cover floats in its top-left corner, out of the flow. */
+.cbf-hero__cover { position: absolute; top: 0; left: 0; width: min(24vw, 200px); height: min(24vw, 200px); object-fit: contain; }
