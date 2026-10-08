@@ -97,23 +97,23 @@ button.big{display:block;width:100%;margin:14px 0 0;padding:9px 0 5px;border:3px
   color:var(--ink);font-family:Letter,Marker,cursive!important;font-size:32px;line-height:1;box-shadow:0 5px 0 #a8741c,0 8px 18px rgba(0,0,0,.3);transform:rotate(1deg)}
 button.big:active{transform:translateY(3px) rotate(1deg);box-shadow:0 2px 0 #a8741c}
 button.small{margin-top:10px;padding:6px 18px;border:2px solid currentColor;border-radius:999px;background:transparent;color:inherit;font-size:17px}
-/* Play is a big clay chip */
-button.chip{display:block;width:112px;height:112px;margin:0 auto;padding:0;border:0;border-radius:50%;color:#fff;
-  font-family:Letter,Marker,cursive!important;font-size:40px;text-shadow:0 2px 0 rgba(0,0,0,.3);
-  background:radial-gradient(circle closest-side,var(--rose) 0 57%,var(--cream) 57.5% 60%,var(--rose) 60.5% 67%,transparent 67.5%),
-    repeating-conic-gradient(from 11.25deg,var(--cream) 0 22.5deg,var(--rose) 22.5deg 45deg);
-  box-shadow:0 6px 0 #8f2b25,0 10px 20px rgba(0,0,0,.4);transform:rotate(8deg)}
-button.chip:active{transform:translateY(4px) rotate(8deg);box-shadow:0 2px 0 #8f2b25,0 6px 14px rgba(0,0,0,.4)}
+/* Play: a felt-table button in a gold frame */
+button.play{display:block;width:240px;height:64px;margin:0 auto;padding:4px 0 0;border:3px solid #E9C46A;border-radius:14px;cursor:pointer;
+  background:radial-gradient(ellipse at 50% 30%,#2f7a4f,#1d5537);color:#FFF4D6;font-family:Letter,Marker,cursive!important;font-size:36px;line-height:1;
+  text-shadow:0 2px 0 rgba(0,0,0,.35);box-shadow:inset 0 0 0 3px #1d5537,inset 0 0 0 5px rgba(233,196,106,.6),0 6px 0 #0f3321,0 12px 24px rgba(0,0,0,.5)}
+button.play:hover{filter:brightness(1.08)}
+button.play:active{transform:translateY(4px);box-shadow:inset 0 0 0 3px #1d5537,inset 0 0 0 5px rgba(233,196,106,.6),0 2px 0 #0f3321,0 6px 14px rgba(0,0,0,.4)}
 button:focus-visible,.radios input:focus-visible{outline:3px solid #fff;outline-offset:3px}
 .card button:focus-visible,.card input:focus-visible{outline-color:var(--ink)}
 
-/* start: the title is written in marker on a strip of masking tape */
-#start .title{position:absolute;left:56%;top:8px;transform:translateX(-50%) rotate(3deg);filter:drop-shadow(0 3px 3px rgba(0,0,0,.35))}
-#start h1{margin:0;padding:0 28px 4px;font-family:Doodle,Marker,cursive;font-weight:normal;font-size:50px;line-height:1.12;color:var(--ink);
-  background:var(--tape);white-space:nowrap;clip-path:polygon(3% 0,97% 5%,100% 24%,98% 50%,100% 77%,97% 100%,2% 95%,0 72%,2% 46%,0 19%)}
-#start .sub{position:absolute;left:0;right:0;top:150px;margin:0;text-align:center;font-size:20px;line-height:1.2;
+/* start: the title in gold lettering */
+#start .title{position:absolute;left:56%;top:8px;transform:translateX(-50%)}
+#start h1{margin:0;font-family:Letter,Marker,cursive;font-weight:normal;font-size:72px;line-height:.95;letter-spacing:1px;white-space:nowrap;
+  background:linear-gradient(#FFF1C1,#E9C46A 45%,#B8862B 55%,#F3D98B);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 3px 0 #5a3d0c) drop-shadow(0 8px 14px rgba(0,0,0,.6))}
+#start .sub{position:absolute;left:34px;right:34px;top:146px;margin:0;text-align:center;font-size:19px;line-height:1.22;text-wrap:balance;
   color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.9)}
-#start .go{position:absolute;left:100px;width:200px;top:518px;pointer-events:auto;text-align:center}
+#start .go{position:absolute;left:60px;width:280px;top:540px;pointer-events:auto;text-align:center}
 #startbest{margin:10px 0 0;font-size:20px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.95),0 0 2px #000}
 #about-open{position:absolute;left:22px;top:716px;margin:0;padding:2px 12px;font-size:15px;color:var(--ink);pointer-events:auto}
 #ui[data-state=start] #btns{left:8px;top:16px}
@@ -172,9 +172,9 @@ button.mv:disabled{opacity:.2;cursor:default}
 
   <div id="start" class="screen hidden">
     <div class="title"><h1>ג׳אנקיס</h1></div>
-    <p class="sub">מפילים פרצופים. שניים זהים מתאחדים.<br>מכניסים את כולם בחזרה לשולחן.</p>
+    <p class="sub">אלו הם הג׳אנקיס, זן נדיר של קלפנים המתכנס בקביעות כבר 20 שנה. החוקרים עדיין מנסים להבין כיצד שרדו זמן כה רב.</p>
     <div class="go">
-      <button id="play" type="button" class="chip">יאללה</button>
+      <button id="play" type="button" class="play">התחל משחק</button>
       <p id="startbest"></p>
     </div>
     <button id="about-open" type="button" class="small" aria-haspopup="dialog">אודות</button>
@@ -386,12 +386,25 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     'uniform sampler2D uTex; uniform sampler2D uDepth;',
     'uniform vec4 uSrc; uniform vec2 uPar; uniform float uLayerDepth; uniform float uUseMap;',
     'uniform float uDevelop; uniform float uAlpha; uniform float uSepia; uniform float uDim; uniform float uGhost;',
+    'uniform vec2 uBlur;',
     'void main(){',
     '  vec2 uv = mix(uSrc.xy, uSrc.zw, vUV);',
     '  float d = uLayerDepth;',
     '  if (uUseMap > 0.5) d = texture2D(uDepth, uv).r;',
     '  uv += uPar * (d - 0.5);',
     '  vec4 c = texture2D(uTex, uv);',
+    // soft focus: a centre tap plus two rings of 6 and 12 (radius uBlur), weighted towards the middle
+    '  if (uBlur.x > 0.0) {',
+    '    c *= 2.0; float wsum = 2.0;',
+    '    for (int i = 0; i < 18; i++) {',
+    '      float fi = float(i);',
+    '      float ring = i < 6 ? 0.5 : 1.0;',
+    '      float a = i < 6 ? fi * 1.0472 : (fi - 6.0) * 0.5236 + 0.2618;',
+    '      float w = i < 6 ? 1.0 : 0.6;',
+    '      c += texture2D(uTex, uv + vec2(cos(a), sin(a)) * uBlur * ring) * w; wsum += w;',
+    '    }',
+    '    c /= wsum;',
+    '  }',
     '  float t = clamp(uDevelop, 0.0, 1.0);',
     '  vec3 over = vec3(1.0, 0.95, 0.86) * c.a;',
     '  vec3 rgb = mix(over, c.rgb, smoothstep(0.3, 1.0, t));',
@@ -713,7 +726,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   };
 
-  // o: {tex, depth, x, y, w, h (logical dest), src: [u0,v0,u1,v1], parU, parV, layerDepth, useMap, develop, alpha, sepia, dim, ghost}
+  // o: {tex, depth, x, y, w, h (logical dest), src: [u0,v0,u1,v1], parU, parV, layerDepth, useMap, develop, alpha, sepia, dim, ghost, blur (logical px)}
   P.photo = function (o) {
     var gl = this.gl, p = this.pPhoto;
     this.flush();
@@ -731,6 +744,9 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     gl.uniform1f(p.u.uSepia, o.sepia || 0);
     gl.uniform1f(p.u.uDim, o.dim === undefined ? 1 : o.dim);
     gl.uniform1f(p.u.uGhost, o.ghost ? 1 : 0);
+    // blur is in logical px; the shader wants texture units
+    var b = o.blur || 0;
+    gl.uniform2f(p.u.uBlur, b * (s[2] - s[0]) / o.w, b * (s[3] - s[1]) / o.h);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   };
 
@@ -837,7 +853,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     gl.uniform4f(p.u.uSrc, sx / this.fw, 1 - sy / this.fh, (sx + sw) / this.fw, 1 - (sy + sh) / this.fh);
     gl.uniform2f(p.u.uPar, 0, 0); gl.uniform1f(p.u.uUseMap, 0); gl.uniform1f(p.u.uLayerDepth, 0.5);
     gl.uniform1f(p.u.uDevelop, 1); gl.uniform1f(p.u.uAlpha, alpha === undefined ? 1 : alpha);
-    gl.uniform1f(p.u.uSepia, 0); gl.uniform1f(p.u.uDim, 1); gl.uniform1f(p.u.uGhost, 0);
+    gl.uniform1f(p.u.uSepia, 0); gl.uniform1f(p.u.uDim, 1); gl.uniform1f(p.u.uGhost, 0); gl.uniform2f(p.u.uBlur, 0, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   };
 
@@ -1206,7 +1222,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var HEADS = ['head2', 'head1', 'head4', 'head3', 'head5', 'head8', 'head7', 'head6'];
   // Nicknames, shown when someone is dealt back into the picture and in table talk.
   var NAMES = { head2: 'דגי', head1: 'איתן', head4: 'סאעלם', head3: 'הבורר', head5: 'סנסאיי', head8: 'ניר', head7: 'רונזו', head6: 'אבן' };
-  var NIR = 'head8', RONZO = 'head7';
+  var RONZO = 'head7';
   // Heads whose eyes can't be seen (mirrored sunglasses) never blink.
   var NO_BLINK = { head4: true };
   // Tiers are size + colour slots; which head fills each one is dealt every game (or fixed in the settings).
@@ -1225,16 +1241,28 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var LADDER_Y = 692, LADDER_SP = 40;
   var SUIT_RED = [0.82, 0.26, 0.23], SUIT_INK = [0.17, 0.14, 0.13];
   // Table talk: the group's own lines, in a speech bubble from a face in the photo.
+  // Anyone's lines:
   var LINES = {
     tilt: ' בטילט!',              // the pile crosses the danger line (after the nickname of the face on top)
     oneday: 'באנו ליום אחד',      // a drop while the pile is over the line
     suck: 'איזו עקיצה!',          // a merge gets the pile back under the line
-    kunz: 'קונהצ!',               // a chain of 2 merges
-    nir: 'יצא צבע ניר',           // a chain of 3+ merges, not all one tier: a "flush" that isn't one (ניר's line)
-    hilo: 'אחד גבוה אחד נמוך',    // two merges at once, 3+ tiers apart
-    phone: 'רונזו תעזוב ת׳טלפון', // no drop for a while
-    bust: 'יא חבורה של מטופמים.'  // game over
+    nu: 'נוו!!!'                  // no drop for a while
   };
+  // Each player's own lines: [who says it, line]. Said only while that face is in the jar (or on the line).
+  var SAYS = {
+    hilo: [RONZO, 'אחד גבוה אחד נמוך... סוטד'], // רונזו: two merges at once, 3+ tiers apart
+    nir: ['head8', 'יצא צבע ניר'],                 // ניר: a chain of 3+ merges, not all one tier (a "flush" that isn't one)
+    kunz: ['head6', 'קונהצ!'],                     // אבן: a chain of 2 merges
+    phone: ['head2', 'רונזו, תעזוב ת׳טלפון'],      // דגי: no drop for a while with רונזו on the line
+    pee: ['head2', 'כשרון דילר יוצאים לפ**פ'],     // דגי: רונזו comes up on the line
+    nice: ['head1', 'נייס!'],                      // איתן: a big merge (one of the top four tiers)
+    sure: ['head3', 'חד משמעית'],                  // הבורר: a full house
+    brag: ['head5', 'אני פשוט שחקן מעולה!'],       // סנסאיי: a merge gets the pile back under the line
+    never: ['head4', 'זה לא יקרה!'],               // סאעלם: the pile crosses the danger line
+    fool: ['head4', 'איזה מטופם!']                 // סאעלם: a drop while the pile is over the line, and game over
+  };
+  var SOFT_BLUR = 5; // logical px: how soft the photo gets once all eight are at the table
+  var QUORUM = 6; // this many at the table is enough for a game: a banner says so
   var SAY_GAP = 4, SAY_COOL = 20, SAY_DUR = 1.9, IDLE_SAY = 8, BUB_MIN_Y = 90;
 
   // ---------------- params ----------------
@@ -1362,7 +1390,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var hang = { phi: 0, w: 0, appear: 1, lastAim: W / 2, pinKick: 0, bt: 2, bp: -1, sq: 0 };
   function blinker() { return { bt: 1 + Math.random() * 4, bp: -1, sq: 0 }; }
   var nextBl = blinker(), ladderBl = TIERS.map(blinker);
-  var introT = 0, overAnim = 0, burnOver = 0, snap = null, pendingSnap = false, snapAt = 0, famFast = 0, captureShot = false, shotURL = null;
+  var introT = 0, overAnim = 0, burnOver = 0, snap = null, pendingSnap = false, snapAt = 0, famFast = 0, captureShot = false, shotURL = null, soft = 0;
   var lineFaces = [];
   // table talk: chain tracking, merges in the last moment, a merge that may have saved the pile, idle time
   var chainTiers = [], chainOpen = false, recentM = [], lastMerged = null, rescue = null, idleT = 0;
@@ -1384,7 +1412,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     cur = 0; next = rollTier(); cooldown = 0.3; overTimer = 0; shake = 0; fx = []; waves = [];
     chainN = 0; lastMergeAt = -10; maxTier = 0; aimX = W / 2; warnT = 0;
     unlocked = TIERS.map(function () { return false; }); families = 0;
-    overAnim = 0; burnOver = 0; snap = null; snapAt = 0; pendingSnap = false; famFast = 0; captureShot = false;
+    overAnim = 0; burnOver = 0; snap = null; snapAt = 0; pendingSnap = false; famFast = 0; captureShot = false; soft = 0;
     chainTiers = []; chainOpen = false; recentM = []; lastMerged = null; rescue = null; idleT = 0;
     if (shotURL) { URL.revokeObjectURL(shotURL); shotURL = null; }
     $('saveshot').classList.add('hidden');
@@ -1454,7 +1482,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     // numbers isolated (U+2066..2069) so they keep their order inside the Hebrew line
     $('stats').textContent = back + '/' + TIERS.length + ' ליד השולחן' + (families ? '  ·  פול האוס ⁦×' + families + '⁩' : '');
     world.bodies.forEach(function (b) { b.closeAt = 0.2 + vr() * 0.9; });
-    talk('bust', topBody(), LINES.bust, true, 3.2);
+    say('fool', true, 3.2);
     if (!simulating) {
       Sound.sfx.over(); if (isBest) Sound.sfx.best();
       Sound.musicDuck(true);
@@ -1493,10 +1521,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     b.ang = hang.phi * 0.8; b.av = hang.w * 0.5;
     if (!simulating) Sound.sfx.drop();
     if (bub.who === HANG) bub.who = b; // the face that was talking on the line keeps talking as it falls
-    if (overTimer > 0) talk('oneday', b, LINES.oneday); // a risky call: in while the pile is over the line
+    if (overTimer > 0) either('fool', function () { talk('oneday', b, LINES.oneday); }); // a risky call: in while the pile is over the line
     idleT = 0;
     seeTier(cur, b);
     cur = next; next = rollTier(); cooldown = DROP_CD;
+    if (faces[cur].pid === RONZO && vr() < 0.5) say('pee'); // רונזו deals
     aimX = clampAim(aimX);
     hang.appear = 0; hang.pinKick = 1;
     syncNext();
@@ -1518,7 +1547,8 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       Sound.sfx.shutter(0); Sound.sfx.unlock();
       fx.push({ k: 'glow', x: f.spot.x, y: f.spot.y, r: f.spot.r * 4, life: 0.5, max: 0.5, c: [1, 0.95, 0.8] });
       sparkles(f.spot.x, f.spot.y, 10, [1, 0.95, 0.7]);
-      banner(f.name, ' נכנס לשולחן!', back + '/' + TIERS.length + ' ליד השולחן', TIERS[tier].ink);
+      if (back === QUORUM) { banner('בום!', ' יש מניין לפוקר', f.name + ' נכנס לשולחן', TIERS[tier].ink); Sound.sfx.best(); }
+      else banner(f.name, ' נכנס לשולחן!', back + '/' + TIERS.length + ' ליד השולחן', TIERS[tier].ink);
     }
   }
 
@@ -1544,6 +1574,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       if (nt > MAX_T) {
         families++;
         if (!simulating) fullHouse(x, y, pts, mult);
+        say('sure', true, 2.6);
         events.push('fullhouse@' + t.toFixed(2));
         persons.forEach(function (p) { p.target = 1; });
         famFast = 1.2;
@@ -1552,6 +1583,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         n.age = 2; n.pop = 0.22; n.sq = 0.28; n.ang = (a.ang + c.ang) / 2;
         if (nt > maxTier) maxTier = nt;
         seeTier(nt, n);
+        if (nt >= MAX_T - 3) say('nice');
         if (!simulating) {
           burst(x, y, nt, 10 + nt * 3);
           popText(x, y - TIERS[nt].r * 0.6, '+' + pts, mult > 1 ? '×' + mult : '', TIERS[nt].ink, nt);
@@ -1566,7 +1598,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       recentM = recentM.filter(function (m) { return t - m.t <= 0.3; });
       for (var q = 0; q < recentM.length; q++) {
         var m = recentM[q];
-        if (Math.abs(m.nt - nt) >= 3) { talk('hilo', nt > m.nt ? alive(nb) || alive(m.b) : alive(m.b) || alive(nb), LINES.hilo); break; }
+        if (Math.abs(m.nt - nt) >= 3) { say('hilo'); break; }
       }
       recentM.push({ t: t, nt: nt, b: nb });
       if (nb) lastMerged = nb;
@@ -1696,20 +1728,25 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     if (chainN < 2) return;
     var mixed = chainTiers.some(function (x) { return x !== chainTiers[0]; });
     if (chainN >= 3 && mixed) {
-      var nir = world.bodies.filter(function (b) { return faces[b.t].pid === NIR; })[0];
-      if (nir) { talk('nir', nir, LINES.nir); return; }
+      if (say('nir')) return;
     }
-    talk('kunz', alive(lastMerged), LINES.kunz);
+    say('kunz');
   }
-  // nobody has dropped for a while: the face on the line says it (or, if that's רונזו, someone in the jar)
+  // nobody has dropped for a while: דגי tells רונזו off when he's on the line, otherwise someone in the jar hurries the line
   function phoneTalk() {
-    var who = HANG;
-    if (faces[cur].pid === RONZO) {
-      var others = world.bodies.filter(function (b) { return faces[b.t].pid !== RONZO; });
-      who = others.length ? others[Math.floor(vr() * others.length)] : null;
-    }
-    return talk('phone', who, LINES.phone);
+    if (faces[cur].pid === RONZO) return say('phone');
+    var bs = world.bodies;
+    return talk('nu', bs.length ? bs[Math.floor(vr() * bs.length)] : HANG, LINES.nu);
   }
+  // a player's own line, from their face in the jar (or on the line); nothing when they aren't in play
+  function own(pid) {
+    var bs = world ? world.bodies : [];
+    for (var i = 0; i < bs.length; i++) if (!bs[i].dead && faces[bs[i].t].pid === pid) return bs[i];
+    return faces[cur].pid === pid && hang.appear >= 1 ? HANG : null;
+  }
+  function say(key, force, dur) { return talk(key, own(SAYS[key][0]), SAYS[key][1], force, dur); }
+  // half the time the player's own line, otherwise (or when they aren't in play) anyone's
+  function either(key, anyone) { if (!(vr() < 0.5 && say(key))) anyone(); }
 
   // ---------------- HUD ----------------
   function syncHud() {
@@ -1771,11 +1808,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         }
       }
       // table talk: someone calls out the face on top of the pile when it first goes over the line ...
-      if (over && overTimer === 0) talk('tilt', nearest(topB), faces[topB.t].name + LINES.tilt);
+      if (over && overTimer === 0) either('never', function () { talk('tilt', nearest(topB), faces[topB.t].name + LINES.tilt); });
       // ... a merge made while over the line saves the pile if nothing is over for a moment ...
       if (rescue) {
         if (over) rescue = null;
-        else if (t - rescue.at > 0.8) { talk('suck', alive(rescue.b) || alive(lastMerged), LINES.suck); rescue = null; }
+        else if (t - rescue.at > 0.8) { var rb = rescue.b; either('brag', function () { talk('suck', alive(rb) || alive(lastMerged), LINES.suck); }); rescue = null; }
       }
       // ... a chain is called once it ends, and a slow hand gets told off
       if (chainOpen && t - lastMergeAt > 1) { chainOpen = false; chainTalk(); }
@@ -1829,6 +1866,9 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       if (p.dev < p.target) p.dev = Math.min(p.target, p.dev + dt / (famFast > 0 ? 0.8 : 1.3));
       else if (p.dev > p.target) p.dev = Math.max(p.target, p.dev - dt / 0.6);
     }
+    // everyone is at the table: the photo goes soft so the faces in the jar stand out
+    var all = (state === 'play' || state === 'over') && unlocked.length && unlocked.every(Boolean);
+    soft = all ? Math.min(1, soft + dt / 1.5) : Math.max(0, soft - dt / 0.4);
     // fx
     for (var m = fx.length - 1; m >= 0; m--) {
       var f = fx[m];
@@ -1888,15 +1928,17 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     R.clip(PH.x, PH.y, PH.w, PH.h);
     var sepia = state === 'over' ? clamp(overAnim / 1.2, 0, 0.85) : 0;
     var dim = state === 'start' ? 1 : 0.94;
+    var e = soft * soft * (3 - 2 * soft), blur = e * SOFT_BLUR;
+    dim *= 1 - e * 0.06;
     R.photo({ tex: tex.plate, depth: tex.plateDepth, x: PH.x, y: PH.y, w: PH.w, h: PH.h,
       src: [SRC[0] / mainP.w, SRC[1] / mainP.h, SRC[2] / mainP.w, SRC[3] / mainP.h],
-      parU: par[0] / PS / mainP.w, parV: par[1] / PS / mainP.h, useMap: true, sepia: sepia, dim: dim });
+      parU: par[0] / PS / mainP.w, parV: par[1] / PS / mainP.h, useMap: true, sepia: sepia, dim: dim, blur: blur });
     // everyone overlaps everyone in this photo, so nobody leaves it: people not dealt in yet stay as pale, undeveloped figures
     for (var i = 0; i < persons.length; i++) {
       var p = persons[i];
       var a = toLogical(p.bbox[0], p.bbox[1]), d = p.depth - 0.5;
       R.photo({ tex: p.t, x: a[0] - par[0] * d, y: a[1] - par[1] * d, w: (p.bbox[2] - p.bbox[0]) * PS, h: (p.bbox[3] - p.bbox[1]) * PS,
-        develop: p.dev, sepia: sepia, dim: dim, ghost: true });
+        develop: p.dev, sepia: sepia, dim: dim, ghost: true, blur: blur });
     }
     var burn = burnLevel();
     if (burn > 0.001) R.burn(PH.x, PH.y, PH.w, PH.h, burn, t);
@@ -2403,17 +2445,18 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       if (SCREEN === 'intro') { state = 'start'; makeLine(); beginGame(); for (var i = 0; i < FROZEN_T / STEP; i++) update(STEP); }
       // advance blink/visual timers deterministically to the frozen time
       lineFaces.forEach(function (lf, i) { lf.bp = (i % 3 === 0) ? 0.1 : -1; });
-      // ?show=banner: hold the "dealt in" banner mid-animation for screenshots
-      if (qs.get('show') === 'banner') {
-        banner(faces[4].name, ' נכנס לשולחן!', '5/' + TIERS.length + ' ליד השולחן', TIERS[4].ink);
+      // ?show=banner (or quorum: the sixth at the table): hold the "dealt in" banner mid-animation for screenshots
+      if (qs.get('show') === 'banner' || qs.get('show') === 'quorum') {
+        if (qs.get('show') === 'quorum') banner('בום!', ' יש מניין לפוקר', faces[5].name + ' נכנס לשולחן', TIERS[5].ink);
+        else banner(faces[4].name, ' נכנס לשולחן!', '5/' + TIERS.length + ' ליד השולחן', TIERS[4].ink);
         clearTimeout(bannerTimer);
         $('banner').style.animationDelay = '-0.9s'; $('banner').style.animationPlayState = 'paused';
       }
-      // ?say=<line>: hold a table-talk bubble (from the top face; 'phone' from the face on the line)
+      // ?say=<line>: hold a table-talk bubble (a player's own line from their face, anyone's from the top face)
       var SAY = qs.get('say'), tb = topBody();
-      if (SAY && LINES[SAY] && tb) {
-        if (SAY === 'phone') { hang.appear = 1; cooldown = 0; }
-        talk(SAY, SAY === 'phone' ? HANG : tb, SAY === 'tilt' ? faces[tb.t].name + LINES.tilt : LINES[SAY], true, 99);
+      if (SAY && (LINES[SAY] || SAYS[SAY]) && tb) {
+        if (LINES[SAY]) talk(SAY, tb, SAY === 'tilt' ? faces[tb.t].name + LINES.tilt : LINES[SAY], true, 99);
+        else talk(SAY, own(SAYS[SAY][0]) || tb, SAYS[SAY][1], true, 99);
         $('say').style.animation = 'none'; $('say').style.opacity = '1';
       }
     }

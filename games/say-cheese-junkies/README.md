@@ -7,7 +7,8 @@ have played Texas Hold'em together for 20+ years. The whole game is in Hebrew, r
   Two of the biggest make a full house. Everyone who gets dealt in comes back into the picture.
 - **Order:** a new random order of who is which size every game. The ⚙ settings on the start screen can set a fixed
   order instead.
-- **Table talk:** the group's own lines pop up in speech bubbles.
+- **Table talk:** the group's own lines pop up in speech bubbles; each player has their own, said from their face.
+- **Six at the table:** a "בום! יש מניין לפוקר" banner. **All eight:** the photo goes soft so the faces stand out.
 
 Unlisted: it is not in `games.json` and does not appear on the arcade home page. Open it by its link.
 
