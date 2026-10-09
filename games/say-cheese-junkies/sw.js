@@ -1,6 +1,6 @@
 // Hand-written service worker: precache the game's own files, serve cache-first.
 // Bump CACHE_VERSION whenever any shipped file changes.
-var CACHE_VERSION = 'junkies-v6';
+var CACHE_VERSION = 'junkies-v7';
 var FILES = [
   './', 'index.html', 'register-sw.js', 'favicon-32.png',
   'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',

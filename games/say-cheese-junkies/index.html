@@ -38,7 +38,6 @@ html,body{margin:0;height:100%;overflow:hidden;background:#1d3a2c;overscroll-beh
 #best{font-size:14px;color:#6b5b4b;margin-top:2px}
 #nextlbl{position:absolute;left:74px;top:24px;font-family:Letter,Marker,cursive;font-size:24px;color:#f3e6c4;transform:rotate(8deg);text-shadow:0 2px 3px rgba(0,0,0,.6)}
 /* קוקו's double down: a gold chip by the score, the ring empties as the 10 s run out (--k: 1 -> 0) */
-#x2{position:absolute;right:96px;top:66px;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-family:Marker,Hand,cursive;font-size:19px;color:#3a2a08;transform:rotate(-6deg);background:radial-gradient(circle,#F6D77A 0 58%,transparent 60%),conic-gradient(#C9A227 calc(var(--k,1)*360deg),rgba(201,162,39,.25) 0);box-shadow:0 2px 4px rgba(0,0,0,.4)}
 #fam{position:absolute;left:20px;top:713px;width:40px;text-align:center;font-size:14px;color:var(--ink);font-weight:bold}
 #btns{position:absolute;left:162px;top:14px;display:flex;gap:6px}
 .ibtn{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,250,235,.85);background:rgba(255,250,235,.14);
@@ -158,7 +157,6 @@ button.mv:disabled{opacity:.2;cursor:default}
     <div id="scorebox"><div class="note"><div class="lbl">ניקוד</div><div id="score" dir="ltr">0</div><div id="best">שיא 0</div></div></div>
     <div id="nextlbl">הבא</div>
     <div id="fam" class="hidden" dir="ltr">×<span>0</span></div>
-    <div id="x2" class="hidden" dir="ltr" aria-label="נקודות כפולות">×2</div>
   </div>
   <div id="cut" class="hidden" aria-hidden="true">✂</div>
   <div id="btns">
@@ -1334,60 +1332,63 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
 </script>
 <script>
 'use strict';
-// Guests at the table: three friends who aren't tiers. Now and then the line deals one instead of a face, and each has a
-// power: דניאל goes all in (a blast, then pizza), מיקי is a wild card with a guitar the others sing along to, קוקו peeks
-// in from the edge, doubles the points and brings a rain of flags.
+// Guests at the table: three friends who aren't tiers. A few times a game, as the score climbs, the line deals one
+// instead of a face, and each has a power: דניאל goes all in (a blast of the small faces, then pizza), מיקי is a wild card
+// with a guitar the others sing along to in pairs, קוקו peeks in from the edge with a rain of flags and pops a few little faces.
 // They also peek in to say their line at big moments.
-// Deck and blastPlan are pure (tested by scripts/test_guests.mjs); create(api) is the runtime, driven by game.js.
+// Deck, blastPlan, singPlan and popPlan are pure (tested by scripts/test_guests.mjs); create(api) is the runtime.
 (function (root) {
   var IDS = ['daniel', 'michael', 'koko'];
   var NAMES = { daniel: 'דניאל', michael: 'מיקי', koko: 'קוקו' };
   var LINES = { daniel: 'אול אין!', michael: 'אווו פמלה..', koko: 'קוקו הגיע!' };
-  // when a guest is due: active seconds (a drop in the last IDLE s) AND drops, counted from the previous guest
-  var FIRST_T = 45, FIRST_N = 15, GAP_T = [40, 60], GAP_N = 12, IDLE = 5;
+  // when a guest is due: never in the opening (not before FIRST_T s of play, unless FIRST_FRIENDS friends are already on
+  // the board), then each time the score passes the next threshold, at least GAP_N drops after the previous guest.
+  // One threshold per guest: each friend comes at most CAP times a game (a bag of all three, CAP rounds), then no more.
+  var FIRST_T = 150, FIRST_FRIENDS = 7, CAP = 2, THRESH = [2500, 6000, 12000, 20000, 32000, 50000], GAP_N = 12;
 
-  function Deck(rng) { this.rng = rng; this.reset(); }
+  function Deck(rng, thresh, ids) { this.rng = rng; this.thresh = thresh || THRESH; this.ids = ids || IDS; this.reset(); }
   Deck.prototype.reset = function () {
-    this.active = 0; this.drops = 0; this.sinceDrop = 1e9; this.busy = false; this.forced = null;
-    this.needT = FIRST_T; this.needN = FIRST_N; this.bag = [];
+    this.drops = GAP_N; this.busy = false; this.forced = null; this.dealt = 0; this.rounds = 0; this.bag = [];
   };
-  // only play counts: time while the player keeps dropping (pause doesn't tick at all)
-  Deck.prototype.tick = function (dt) {
-    this.sinceDrop += dt;
-    if (this.sinceDrop <= IDLE) this.active += dt;
-  };
-  Deck.prototype.onDrop = function () { this.drops++; this.sinceDrop = 0; };
-  Deck.prototype.due = function () {
+  Deck.prototype.tick = function () {};
+  Deck.prototype.onDrop = function () { this.drops++; };
+  // score; play: seconds into the game; friends: how many friends are on the board so far
+  Deck.prototype.due = function (score, play, friends) {
     if (this.forced) return true;
-    return !this.busy && this.active >= this.needT && this.drops >= this.needN;
+    if (play < FIRST_T && friends < FIRST_FRIENDS) return false;
+    return !this.busy && this.dealt < this.thresh.length && score >= this.thresh[this.dealt] && this.drops >= GAP_N && this.left() > 0;
   };
+  // guests still to come this game
+  Deck.prototype.left = function () { return this.bag.length + (CAP - this.rounds) * this.ids.length; };
   Deck.prototype.force = function (id) { this.forced = id; };
-  // the next guest from a shuffled bag (each once before any repeats); the counters start again
+  // the next guest from a shuffled bag (each once before any repeats, CAP rounds); the counters start again
   Deck.prototype.take = function () {
     var id = this.forced;
     this.forced = null;
     if (!id) {
       if (!this.bag.length) {
-        this.bag = IDS.slice();
+        this.bag = this.ids.slice(); this.rounds++;
         for (var i = this.bag.length - 1; i > 0; i--) { var j = Math.floor(this.rng() * (i + 1)), x = this.bag[i]; this.bag[i] = this.bag[j]; this.bag[j] = x; }
       }
       id = this.bag.pop();
+      this.dealt++;
     }
-    this.active = 0; this.drops = 0;
-    this.needT = GAP_T[0] + this.rng() * (GAP_T[1] - GAP_T[0]); this.needN = GAP_N;
+    this.drops = 0;
     return id;
   };
 
-  // דניאל's blast at (x, y): every face inside R is gone, whatever its tier; the shockwave throws the rest out and up,
-  // harder the nearer they are. Returns {remove: [body], push: [[body, dvx, dvy]]}; guests and treats (b.g) are left alone.
+  // דניאל's blast at (x, y): every face up to tier maxT inside R is gone; bigger ones and the faces around are thrown
+  // out and up by the shockwave, harder the nearer they are. Returns {remove: [body], push: [[body, dvx, dvy]]};
+  // guests and treats (b.g) are left alone.
   var SHOCK_K = 2.2, PUSH_V = 1100, PUSH_UP = 350;
-  function blastPlan(bodies, x, y, R) {
+  function blastPlan(bodies, x, y, R, maxT) {
     var out = { remove: [], push: [] };
+    if (maxT === undefined) maxT = Infinity;
     for (var i = 0; i < bodies.length; i++) {
       var b = bodies[i];
       if (b.g || b.dead) continue;
       var dx = b.x - x, dy = b.y - y, d = Math.hypot(dx, dy);
-      if (d < R + 0.5 * b.r) { out.remove.push(b); continue; }
+      if (d < R + 0.5 * b.r && b.t <= maxT) { out.remove.push(b); continue; }
       var reach = SHOCK_K * R + b.r;
       if (d >= reach) continue;
       var nx = d > 1e-6 ? dx / d : 0, ny = d > 1e-6 ? dy / d : -1, k = PUSH_V * (1 - d / reach);
@@ -1402,13 +1403,24 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       .sort(function (a, b) { return a.x - b.x; });
   }
 
+  // קוקו's pops: up to n faces of tier maxT or below, picked at random
+  function popPlan(bodies, n, maxT, rng) {
+    var c = bodies.filter(function (b) { return !b.g && !b.dead && b.t >= 0 && b.t <= maxT; });
+    for (var i = c.length - 1; i > 0; i--) { var j = Math.floor(rng() * (i + 1)), x = c[i]; c[i] = c[j]; c[j] = x; }
+    return c.slice(0, n);
+  }
+
   // ---------------- runtime ----------------
   var GUEST_R = 38, TREAT_R = 13, BLAST_R = 120, FUSE = 0.7, TREAT_FADE = 2, TREAT_MAX_AGE = 4.5;
   var PIZZA_DELAY = 0.4, FLAG_DELAY = 0.45, GUITAR_SEG = 0.55, GUITAR_ENDS = 1.8; // the guitar: s per hop, x for coming in / going out
-  var DD_T = 10, PEEK_R = 34, PEEK_Y = 330, PEEK_IN = 0.35, CAMEO_FLY = 0.5, SAY_HOLD = 2.5;
-  // pop-ups: the moment -> [who, chance, delay s]
-  var MOMENTS = { over: ['daniel', 1 / 3], chain3: ['michael', 1 / 3], fullhouse: ['koko', 1 / 2, 2.8] };
-  // treats fall after a power and change the first face they touch: דניאל's pizza (a tier down), קוקו's flags (a tier up)
+  var DD_T = 4, PEEK_R = 34, PEEK_Y = 330, PEEK_IN = 0.35, CAMEO_FLY = 0.5, SAY_HOLD = 2.5;
+  // דניאל's blast takes faces up to BLAST_MAX_T (the big ones are only thrown); of his slices, 1-2 shrink a face
+  var BLAST_MAX_T = 3, PIZZA_LIVE = [1, 2];
+  // קוקו pops POPS faces of tier POP_MAX_T or below, one every POP_GAP s, starting POP_AT s after he lands
+  var POPS = [3, 4], POP_MAX_T = 2, POP_AT = 0.9, POP_GAP = 0.3;
+  // pop-ups: the moment -> [who ('any': one of the three), chance, delay s]
+  var MOMENTS = { over: ['daniel', 1 / 2], chain3: ['michael', 1 / 2], fullhouse: ['koko', 1 / 2, 2.8], best: ['any', 1 / 2, 1.2] };
+  // treats fall after a power: דניאל's pizza (a live slice takes the first face it touches a tier down), קוקו's flags (just the show)
   function isTreat(g) { return g === 'pizza' || g === 'flag'; }
 
   function canvas(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
@@ -1464,19 +1476,19 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   // promote(face, other) -> new body or null (full house), grow(face) -> one tier up on its own,
   // shrink(face, other) -> one tier down (null: the smallest is eaten), scoreGone(bodies, x, y),
   // cleanup(), boom(x, y), sparkles(x, y, n, col), talk(key, who, text, force, dur) -> bool, banner(name, text, sub),
-  // sfx(name, ...args), event(s), face(id), faceSprite(face, x, y, r, o), R (renderer), jar {l, r, top, floor}, x2(k: 0 hides)
+  // sfx(name, ...args), event(s), face(id), faceSprite(face, x, y, r, o), R (renderer), jar {l, r, top, floor}, score(), play() s into the game, friends() on the board so far
   function create(api, opt) {
-    var deck = new Deck(api.rng), off = !!(opt && opt.off);
-    var live = null, treats = [], rain = [], dd = 0, peeks = [], pend = [], gtr = null, tex = null, dealtOut = false;
+    var deck = new Deck(api.rng, opt && opt.thresh, opt && opt.ids), off = !!(opt && opt.off);
+    var live = null, treats = [], rain = [], dd = 0, peeks = [], pend = [], gtr = null, tex = null, dealtOut = false, pops = null;
     // no new guest while one is dealt, on the line, in the jar, or his power is still running
-    function busyNow() { return dealtOut || !!live || treats.length > 0 || rain.length > 0 || !!gtr || dd > 0; }
+    function busyNow() { return dealtOut || !!live || treats.length > 0 || rain.length > 0 || !!gtr || dd > 0 || !!pops; }
 
-    function reset() { deck.reset(); dealtOut = false; live = null; treats = []; rain = []; gtr = null; dd = 0; peeks = []; pend = []; api.x2(0); }
-    function end() { dd = 0; peeks = []; pend = []; rain = []; gtr = null; api.x2(0); }
-    function due() { return !off && deck.due(); }
+    function reset() { deck.reset(); dealtOut = false; live = null; treats = []; rain = []; gtr = null; dd = 0; peeks = []; pend = []; pops = null; }
+    function end() { dd = 0; peeks = []; pend = []; rain = []; gtr = null; pops = null; }
+    function due() { return !off && deck.due(api.score(), api.play(), api.friends()); }
     function take() { var id = deck.take(); dealtOut = true; deck.busy = true; api.event('guest:' + id); return id; }
     // he moves from NEXT onto the line
-    function dealt(id) { api.banner(NAMES[id], ' הגיע!', 'אורח בשולחן'); api.sfx('riffle', 0); }
+    function dealt(id) { api.banner(NAMES[id], ' הגיע!', 'תראו מי בא'); api.sfx('riffle', 0); }
     function onDrop() { deck.onDrop(); }
     // his drop starts his power; returns his body (קוקו has none)
     function drop(id, x, y) {
@@ -1487,28 +1499,40 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       return b;
     }
 
-    // treats fall from the top of the jar after `delay` s: n of a kind, spread across
-    function treatRain(kind, n, delay) { rain.push({ kind: kind, n: n, at: delay }); }
-    function dropTreats(kind, n) {
+    // treats fall from the top of the jar after `delay` s: n of a kind, spread across, the first `live` of them work
+    function treatRain(kind, n, delay, live) { rain.push({ kind: kind, n: n, at: delay, live: live || 0 }); }
+    function dropTreats(kind, n, live) {
       var J = api.jar;
       for (var i = 0; i < n; i++) {
         var x = J.l + TREAT_R * 2 + (i + api.rng()) / n * (J.r - J.l - TREAT_R * 4);
         var p = api.newBody(x, J.top + 6 - (i % 3) * 30 - api.rng() * 20, kind, 40 + api.rng() * 60);
-        p.ang = (api.vr() - 0.5) * 1.2; p.used = false; p.tt = -1; p.ph = api.vr() * 6;
+        p.ang = (api.vr() - 0.5) * 1.2; p.used = false; p.live = i < live; p.tt = -1; p.ph = api.vr() * 6;
         treats.push(p);
       }
       api.sfx('riffle', 0);
     }
 
-    // ---- קוקו: flies out of the jar to the edge of the photo, doubles the points for DD_T s, and a rain of flags
+    // ---- קוקו: flies out of the jar to the edge of the photo, a rain of flags, and a few little faces pop
     function cameo(x, y) {
       var J = api.jar, side = x < (J.l + J.r) / 2 ? 'r' : 'l';
       var p = { id: 'koko', side: side, x: x, y: y, x0: x, y0: y, r: PEEK_R, ang: 0, life: 0, hold: DD_T, fly: true };
       peeks = [p]; pend = [];
-      dd = DD_T; api.x2(1);
+      dd = DD_T;
       api.talk('g-koko', p, LINES.koko, true, SAY_HOLD);
-      api.sfx('best'); api.event('double');
+      api.sfx('best'); api.event('cameo');
       treatRain('flag', 5 + Math.floor(api.rng() * 4), FLAG_DELAY);
+      pops = { n: POPS[0] + Math.floor(api.rng() * (POPS[1] - POPS[0] + 1)), at: POP_AT };
+    }
+    // one pop: a little face is gone in red, white and blue
+    function popOne() {
+      var b = popPlan(api.world().bodies, 1, POP_MAX_T, api.rng)[0];
+      if (!b) return false;
+      b.dead = true;
+      api.scoreGone([b], b.x, b.y);
+      api.sparkles(b.x, b.y, 8, [0.78, 0.2, 0.23]); api.sparkles(b.x, b.y, 8, [0.18, 0.25, 0.5]); api.sparkles(b.x, b.y, 6, [1, 1, 1]);
+      api.sfx('pluck', 4);
+      api.event('pop:' + b.t);
+      return true;
     }
     // ---- a guest peeks in at the edge to say his line (false when another peek is up or the bubble is busy)
     function peek(id) {
@@ -1522,8 +1546,9 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     function moment(name) {
       var m = MOMENTS[name];
       if (off || !m || peeks.length || dd > 0 || api.vr() >= m[1]) return false;
-      if (m[2]) { pend.push({ id: m[0], at: m[2] }); return false; } // later, after the table's own line
-      return peek(m[0]);
+      var id = m[0] === 'any' ? IDS[Math.floor(api.vr() * IDS.length)] : m[0];
+      if (m[2]) { pend.push({ id: id, at: m[2] }); return false; } // later, after the table's own line
+      return peek(id);
     }
     function placePeek(p) {
       var J = api.jar, inX = p.side === 'l' ? J.l + p.r * 0.45 : J.r - p.r * 0.45, outX = p.side === 'l' ? J.l - p.r * 1.2 : J.r + p.r * 1.2;
@@ -1541,7 +1566,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
 
     // ---- דניאל: the fuse, the blast, the pizza
     function blast(b) {
-      var plan = blastPlan(api.world().bodies, b.x, b.y, BLAST_R);
+      var plan = blastPlan(api.world().bodies, b.x, b.y, BLAST_R, BLAST_MAX_T);
       plan.remove.forEach(function (o) { o.dead = true; });
       plan.push.forEach(function (q) { var o = q[0]; o.vx += q[1]; o.vy += q[2]; o.sleep = false; o.sleepT = 0; });
       b.dead = true;
@@ -1549,18 +1574,19 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       api.boom(b.x, b.y, BLAST_R);
       api.event('blast:' + plan.remove.length);
       live = null;
-      treatRain('pizza', 2 + (api.rng() < 0.5 ? 1 : 0), PIZZA_DELAY);
+      treatRain('pizza', 2 + (api.rng() < 0.5 ? 1 : 0), PIZZA_DELAY, PIZZA_LIVE[0] + (api.rng() < 0.5 ? 1 : 0));
       api.cleanup();
     }
 
-    // ---- מיקי: the wild card, then the guitar flies through every other face of that tier and each one sings along
+    // ---- מיקי: the wild card, then the guitar flies through every other face of that tier and they sing along in pairs:
+    // each second singer the guitar reaches pairs with the one before him, and the two become one face a tier up
     function serenade(from, x, y) {
       var J = api.jar, list = from < api.maxT ? singPlan(api.world().bodies, from, null) : [];
       var pts = [[J.l - 40, Math.max(J.top + 40, y - 80)]];
       list.forEach(function (b) { pts.push([b.x, b.y]); });
       if (!list.length) pts.push([(J.l + J.r) / 2, J.top + 140]); // nobody to sing along: a pass through the middle, so it's seen
       pts.push([J.r + 40, J.top + 60]);
-      gtr = { pts: pts, who: [null].concat(list.length ? list : [null]), seg: 0, k: 0, x: pts[0][0], y: pts[0][1], ang: 0, n: 0 };
+      gtr = { pts: pts, who: [null].concat(list.length ? list : [null]), seg: 0, k: 0, x: pts[0][0], y: pts[0][1], ang: 0, n: 0, held: null };
       api.sfx('strum', 0.05);
       api.event('sing:' + list.length);
     }
@@ -1570,7 +1596,15 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       while (g.k >= 1 && g.seg < g.pts.length - 1) {
         g.k -= 1; g.seg++;
         var who = g.who[g.seg];
-        if (who && !who.dead && who.t === who.t0) { api.grow(who); api.sfx('pluck', g.n++); }
+        if (who && !who.dead && who.t === who.t0) {
+          var h = g.held;
+          if (h && !h.dead && h.t === h.t0) { // a pair: the lower one joins the higher one (more room up there), a tier up
+            var up = h.y < who.y ? h : who, lo = up === h ? who : h;
+            lo.dead = true; api.sparkles(lo.x, lo.y, 10, [1, 0.9, 0.55]);
+            api.grow(up); api.cleanup(); g.held = null;
+          } else g.held = who; // waits for a partner (the last odd one just sings)
+          api.sfx('pluck', g.n++);
+        }
         if (g.seg >= g.pts.length - 1) { gtr = null; return true; }
       }
       // aim at where each singer is now (faces keep moving), or the planned point once he's gone
@@ -1594,12 +1628,12 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
           api.event('wild:' + from);
           api.talk('g-michael', nb || o, LINES.michael, true, 1.8);
           live = null; dirty = true;
-          // the faces that sing along: everyone of the tier he joined (marked now, grown as the guitar reaches them)
+          // the faces that sing along: everyone of the tier he touched (marked now, paired up as the guitar reaches them)
           serenade(from, g.x, g.y);
           if (gtr) gtr.who.forEach(function (b) { if (b) b.t0 = b.t; });
-        } else if (isTreat(g.g) && !g.used) {
-          g.used = true; api.event(g.g + ':' + o.t);
-          if (g.g === 'pizza') api.shrink(o, g); else api.promote(o, g); // pizza: a tier down; a flag: a tier up
+        } else if (g.g === 'pizza' && g.live && !g.used) {
+          g.used = true; api.event('pizza:' + o.t);
+          api.shrink(o, g); // a tier down
           dirty = true;
         }
       }
@@ -1618,7 +1652,13 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         }
       }
       if (gtr && tickGuitar(dt)) dirty = true;
-      for (i = rain.length - 1; i >= 0; i--) { rain[i].at -= dt; if (rain[i].at <= 0) { var rn = rain.splice(i, 1)[0]; dropTreats(rn.kind, rn.n); } }
+      for (i = rain.length - 1; i >= 0; i--) { rain[i].at -= dt; if (rain[i].at <= 0) { var rn = rain.splice(i, 1)[0]; dropTreats(rn.kind, rn.n, rn.live); } }
+      if (pops) {
+        pops.at -= dt;
+        while (pops && pops.at <= 0) {
+          if (pops.n-- > 0 && popOne()) { dirty = true; pops.at += POP_GAP; } else pops = null;
+        }
+      }
       // a treat that found no face fades TREAT_FADE s after it first lands
       for (i = treats.length - 1; i >= 0; i--) {
         var pz = treats[i];
@@ -1629,7 +1669,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
           treats.splice(i, 1);
         }
       }
-      if (dd > 0) { dd = Math.max(0, dd - dt); api.x2(dd / DD_T); }
+      if (dd > 0) dd = Math.max(0, dd - dt);
       for (i = pend.length - 1; i >= 0; i--) { pend[i].at -= dt; if (pend[i].at <= 0) peek(pend.splice(i, 1)[0].id); }
       for (i = peeks.length - 1; i >= 0; i--) {
         var p = peeks[i];
@@ -1641,13 +1681,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       if (dirty) api.cleanup();
       deck.busy = busyNow();
     }
-    function mult() { return dd > 0 ? 2 : 1; }
 
-    // ?show=peek|x2|guitar|boom (with ?t=): hold a moment for screenshots
+    // ?show=peek|guitar|boom (with ?t=): hold a moment for screenshots
     function show(what) {
       if (what === 'guitar') { serenade(0, 200, 300); gtr.seg = 0; gtr.k = 0.55; tickGuitar(0); return; }
       if (what === 'boom') { api.boom(200, 470, BLAST_R); return; }
-      if (what === 'x2') { dd = DD_T * 0.6; api.x2(0.6); }
       var p = { id: 'koko', side: 'r', x: 0, y: PEEK_Y, r: PEEK_R, ang: 0, life: PEEK_IN, hold: 99 };
       placePeek(p); peeks = [p];
       api.talk('g-koko', p, LINES.koko, true, 99);
@@ -1679,10 +1717,10 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     }
 
     return { reset: reset, end: end, due: due, take: take, force: function (id) { deck.force(id); }, dealt: dealt,
-      onDrop: onDrop, drop: drop, tick: tick, mult: mult, moment: moment, show: show, draw: draw };
+      onDrop: onDrop, drop: drop, tick: tick, moment: moment, show: show, draw: draw };
   }
 
-  root.Guests = { IDS: IDS, NAMES: NAMES, LINES: LINES, GUEST_R: GUEST_R, TREAT_R: TREAT_R, isTreat: isTreat, Deck: Deck, blastPlan: blastPlan, singPlan: singPlan, create: create };
+  root.Guests = { IDS: IDS, NAMES: NAMES, LINES: LINES, GUEST_R: GUEST_R, TREAT_R: TREAT_R, isTreat: isTreat, Deck: Deck, blastPlan: blastPlan, singPlan: singPlan, popPlan: popPlan, create: create };
 })(window);
 
 </script>
@@ -1698,13 +1736,18 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var LINE_Y = 196, OVER_TIME = 2, DROP_CD = 0.5, STEP = 1 / 120;
   var ROPE_Y = 70, ROPE_SAG = 14;
   var MAIN = 'junkies';
-  // The eight heads by age, youngest first: the default fixed order (smallest tier first).
-  var HEADS = ['head2', 'head1', 'head4', 'head3', 'head5', 'head8', 'head7', 'head6'];
+  // The eight players: their photolab head id (photos/headN in the group photo, numbered left to right).
+  var HEAD_DAGI = 'head2', HEAD_EITAN = 'head1', HEAD_SAALEM = 'head4', HEAD_HABORER = 'head3',
+    HEAD_SENSEI = 'head5', HEAD_NIR = 'head8', HEAD_RONZO = 'head7', HEAD_EVEN = 'head6';
+  // By age, youngest first: the default fixed order (smallest tier first).
+  var HEADS = [HEAD_DAGI, HEAD_EITAN, HEAD_SAALEM, HEAD_HABORER, HEAD_SENSEI, HEAD_NIR, HEAD_RONZO, HEAD_EVEN];
   // Nicknames, shown when someone is dealt back into the picture and in table talk.
-  var NAMES = { head2: 'דגי', head1: 'איתן', head4: 'סאעלם', head3: 'הבורר', head5: 'סנסאיי', head8: 'ניר', head7: 'רונזו', head6: 'אבן' };
-  var RONZO = 'head7';
+  var NAMES = {
+    [HEAD_DAGI]: 'דגי', [HEAD_EITAN]: 'איתן', [HEAD_SAALEM]: 'סאעלם', [HEAD_HABORER]: 'שייקו',
+    [HEAD_SENSEI]: 'יונצי', [HEAD_NIR]: 'ניר', [HEAD_RONZO]: 'רונזו', [HEAD_EVEN]: 'אבן'
+  };
   // Heads whose eyes can't be seen (mirrored sunglasses) never blink.
-  var NO_BLINK = { head4: true };
+  var NO_BLINK = { [HEAD_SAALEM]: true };
   // Tiers are size + colour slots; which head fills each one is dealt every game (or fixed in the settings).
   // c = colour (sticker outline, confetti), s = second confetti colour, ink = text accent, o = outline (defaults: cream, c, c).
   var TIERS = [
@@ -1721,27 +1764,28 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var LADDER_Y = 692, LADDER_SP = 40;
   var SUIT_RED = [0.82, 0.26, 0.23], SUIT_INK = [0.17, 0.14, 0.13];
   // Table talk: the group's own lines, in a speech bubble from a face in the photo.
-  // Anyone's lines:
-  var LINES = {
-    tilt: ' בטילט!',              // the pile crosses the danger line (after the nickname of the face on top)
-    oneday: 'באנו ליום אחד',      // a drop while the pile is over the line
-    suck: 'איזו עקיצה!',          // a merge gets the pile back under the line
-    nu: 'נוו!!!'                  // no drop for a while
-  };
-  // Each player's own lines: [who says it, line]. Said only while that face is in the jar (or on the line).
+  // Anyone's lines: now and then a random face in the jar says one, in the same rotation as the players' own lines (SAYS).
+  // A function gets the face that's talking and returns the line.
+  var ANYONE = [
+    function (who) { return faceOf(nearest(who)).name + ' בטילט!'; }, // calls out a neighbour
+    'באנו ליום אחד',
+    'איזו עקיצה!'
+  ];
+  // Said when nobody has dropped for IDLE_SAY s: one of these, at random.
+  var NUDGE = ['נוו!!!'];
+  // Each player's own lines. Every CHAT_GAP s of play a random player whose face is in the jar (or on the line) says one
+  // of theirs, at random. To add a line, append it to the player's list.
   var SAYS = {
-    hilo: [RONZO, 'אחד גבוה אחד נמוך... סוטד'], // רונזו: two merges at once, 3+ tiers apart
-    nir: ['head8', 'יצא צבע ניר'],                 // ניר: a chain of 3+ merges, not all one tier (a "flush" that isn't one)
-    kunz: ['head6', 'קונהצ!'],                     // אבן: a chain of 2 merges
-    phone: ['head2', 'רונזו, תעזוב ת׳טלפון'],      // דגי: no drop for a while with רונזו on the line
-    pee: ['head2', function () { return 'כש' + dealer() + ' דילר, יוצאים לפ**פ'; }], // דגי: now and then after a drop; the dealer is anyone else at the table
-    twss: ['head2', 'זה מה שהיא אמרה'],             // דגי: a big merge (instead of איתן's נייס, half the time)
-    nice: ['head1', 'נייס!'],                      // איתן: a big merge (one of the top four tiers)
-    sure: ['head3', 'חד משמעית'],                  // הבורר: a full house
-    brag: ['head5', 'אני פשוט שחקן מעולה!'],       // סנסאיי: a merge gets the pile back under the line
-    never: ['head4', 'זה לא יקרה!'],               // סאעלם: the pile crosses the danger line
-    fool: ['head4', 'איזה מטופם!']                 // סאעלם: a drop while the pile is over the line, and game over
+    [HEAD_RONZO]: ['אחד גבוה אחד נמוך סוטד'],
+    [HEAD_NIR]: ['יצא צבע ניר', 'סורי'],
+    [HEAD_EVEN]: ['קונהצ!'],
+    [HEAD_DAGI]: ['רונזו, תעזוב ת׳טלפון', 'זה מה שהיא אמרה', 'כשיוני דילר יוצאים לפ*ף'],
+    [HEAD_EITAN]: ['נייס!'],
+    [HEAD_HABORER]: ['חד משמעית'],
+    [HEAD_SENSEI]: ['אני פשוט שחקן מעולה!'],
+    [HEAD_SAALEM]: ['זה לא יקרה!', 'איזה מטופם!']
   };
+  var CHAT_GAP = [9, 16]; // s of play between two players' lines
   var SOFT_BLUR = 5; // logical px: how soft the photo gets once all eight are at the table
   var QUORUM = 6; // this many at the table is enough for a game: a banner says so
   var SAY_GAP = 4, SAY_COOL = 20, SAY_DUR = 1.9, IDLE_SAY = 8, BUB_MIN_Y = 90;
@@ -1762,6 +1806,8 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var BOT_WAIT = qs.has('botwait') ? parseFloat(qs.get('botwait')) : 0; // test: the bot waits this long before its first drop
   var GUEST_Q = Guests.NAMES[qs.get('guest')] ? qs.get('guest') : null; // test: deal this guest first
   var GUESTS_OFF = qs.has('guestsoff'); // test: no guests (balance runs)
+  var GUEST_ONLY = qs.has('gonly') ? qs.get('gonly').split(',') : null; // test: deal only these guests (balance runs)
+  var GUEST_TH = qs.has('gth') ? qs.get('gth').split(',').map(Number) : null; // test: guest score thresholds (balance runs)
   var seed = qs.has('seed') ? parseInt(qs.get('seed'), 10) : (Date.now() & 0xffffffff);
   function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   var rng = mulberry(seed), vr = mulberry(seed ^ 0x5bd1e995), orng = mulberry(seed ^ 0x2545f491);
@@ -1841,7 +1887,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         var tx = R.texture(cv.open);
         gfaces[id] = { pid: GUEST_PIDS[id], open: tx, closed: tx, top: top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S, eyes: null, name: Guests.NAMES[id] };
       });
-      guests = Guests.create(guestApi(), { off: GUESTS_OFF });
+      guests = Guests.create(guestApi(), { off: GUESTS_OFF, thresh: GUEST_TH, ids: GUEST_ONLY });
     });
   }
 
@@ -1888,7 +1934,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var introT = 0, overAnim = 0, burnOver = 0, snap = null, pendingSnap = false, snapAt = 0, famFast = 0, captureShot = false, shotURL = null, soft = 0;
   var lineFaces = [];
   // table talk: chain tracking, merges in the last moment, a merge that may have saved the pile, idle time
-  var chainTiers = [], chainOpen = false, recentM = [], lastMerged = null, rescue = null, idleT = 0;
+  var chainOpen = false, idleT = 0, chatT = 0;
   var pointerDown = false, keys = { left: false, right: false }, simulating = false;
   var best = parseInt(load('best', '0'), 10) || 0;
   var sfxOn = load('sfx', '1') === '1', musOn = load('mus', '1') === '1';
@@ -1908,7 +1954,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     chainN = 0; lastMergeAt = -10; maxTier = 0; aimX = W / 2; warnT = 0;
     unlocked = TIERS.map(function () { return false; }); families = 0;
     overAnim = 0; burnOver = 0; snap = null; snapAt = 0; pendingSnap = false; famFast = 0; captureShot = false; soft = 0;
-    chainTiers = []; chainOpen = false; recentM = []; lastMerged = null; rescue = null; idleT = 0;
+    chainOpen = false; idleT = 0; chatT = chatGap();
     if (shotURL) { URL.revokeObjectURL(shotURL); shotURL = null; }
     $('saveshot').classList.add('hidden');
     $('pops').innerHTML = '';
@@ -1942,7 +1988,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       return { t: i, x: 200 - (i - (faces.length - 1) / 2) * 44, phi: 0, w: (vr() - 0.5) * 2, bt: 0.5 + vr() * 3, bp: -1, sq: 0, r: 19 };
     });
   }
-  function ronBig() { return faces[MAX_T].pid === RONZO; }
+  function ronBig() { return faces[MAX_T].pid === HEAD_RONZO; }
   function beginGame() {
     if (state !== 'start') return;
     Sound.unlock(); Sound.sfx.shutter(0); Sound.sfx.riffle(0.15);
@@ -1980,7 +2026,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     // numbers isolated (U+2066..2069) so they keep their order inside the Hebrew line
     $('stats').textContent = back + '/' + TIERS.length + ' ליד השולחן' + (families ? '  ·  פול האוס ⁦×' + families + '⁩' : '');
     world.bodies.forEach(function (b) { b.closeAt = 0.2 + vr() * 0.9; });
-    say('fool', true, 3.2);
     guests.end();
     if (!simulating) {
       Sound.sfx.over(); if (isBest) Sound.sfx.best();
@@ -2026,7 +2071,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     if (b) { b.ang = hang.phi * 0.8; b.av = hang.w * 0.5; }
     if (!simulating) Sound.sfx.drop();
     if (bub.who === HANG) { if (b) bub.who = b; else hideBubble(); } // the face that was talking on the line keeps talking as it falls
-    if (overTimer > 0 && b) either('fool', function () { talk('oneday', b, LINES.oneday); }); // a risky call: in while the pile is over the line
     idleT = 0;
     guests.onDrop();
     // a guest in NEXT goes to the line and the dealt face waits behind him; otherwise deal on
@@ -2034,7 +2078,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     else { curG = null; cur = next; next = rollTier(); }
     if (!nextG && guests.due()) nextG = guests.take();
     cooldown = DROP_CD;
-    if (vr() < 0.08) say('pee'); // someone deals
     aimX = clampAim(aimX);
     hang.appear = 0; hang.pinKick = 1;
     syncNext();
@@ -2085,9 +2128,8 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     else { var ka = a.m / (a.m + c.m); x = lerp(c.x, a.x, ka); y = lerp(c.y, a.y, ka); vx = lerp(c.vx, a.vx, ka); vy = lerp(c.vy, a.vy, ka); }
     chainN = (t - lastMergeAt <= 1) ? chainN + 1 : 1;
     lastMergeAt = t;
-    if (chainN === 1) chainTiers = [];
-    chainTiers.push(nt); chainOpen = true;
-    var mult = Math.min(chainN, 5) * guests.mult();
+    chainOpen = true;
+    var mult = Math.min(chainN, 5);
     var pts = (nt > MAX_T ? FULL_HOUSE_BONUS : TIERS[nt].pts) * mult;
     score += pts;
     if (!simulating) {
@@ -2097,7 +2139,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     if (nt > MAX_T) {
       families++;
       if (!simulating) fullHouse(x, y, pts, mult);
-      say('sure', true, 2.6);
       guests.moment('fullhouse');
       events.push('fullhouse@' + t.toFixed(2));
       persons.forEach(function (p) { p.target = 1; });
@@ -2105,9 +2146,8 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     } else {
       var n = nb = newBody(x, y, nt, vx, vy);
       n.age = 2; n.pop = 0.22; n.sq = 0.28; n.ang = (a.ang + c.ang) / 2;
-      if (nt > maxTier) maxTier = nt;
+      if (nt > maxTier) { maxTier = nt; if (nt >= 5) guests.moment('best'); }
       seeTier(nt, n);
-      if (nt >= MAX_T - 3) { var big = vr() < 0.5 ? ['twss', 'nice'] : ['nice', 'twss']; if (!say(big[0])) say(big[1]); }
       if (!simulating) {
         burst(x, y, nt, 10 + nt * 3);
         popText(x, y - TIERS[nt].r * 0.6, '+' + pts, mult > 1 ? '×' + mult : '', TIERS[nt].ink, nt);
@@ -2118,15 +2158,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         if (nt >= 5 && !reduced) ca = Math.max(ca, 0.6 + (nt - 5) * 0.5);
       }
     }
-    // table talk: two merges at once, far apart in size; a merge made while the pile was over the line
-    recentM = recentM.filter(function (m) { return t - m.t <= 0.3; });
-    for (var q = 0; q < recentM.length; q++) {
-      var m = recentM[q];
-      if (Math.abs(m.nt - nt) >= 3) { say('hilo'); break; }
-    }
-    recentM.push({ t: t, nt: nt, b: nb });
-    if (nb) lastMerged = nb;
-    if (overTimer > 0) rescue = { at: t, b: nb };
     return nb;
   }
 
@@ -2155,7 +2186,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       // faces דניאל blew away: their tier points (x the double down), one sum at the blast
       scoreGone: function (bs, x, y) {
         var pts = 0;
-        bs.forEach(function (b) { pts += TIERS[b.t].pts * guests.mult(); if (!simulating) burst(b.x, b.y, b.t, 8); });
+        bs.forEach(function (b) { pts += TIERS[b.t].pts; if (!simulating) burst(b.x, b.y, b.t, 8); });
         score += pts; syncHud();
         if (pts) popText(x, y - 50, '+' + pts, '', '#C0413A', 6);
       },
@@ -2178,11 +2209,8 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       event: function (s) { events.push(s + '@' + t.toFixed(2)); },
       face: function (id) { return gfaces[id]; },
       faceSprite: faceSprite,
-      x2: function (k) {
-        var el = $('x2');
-        el.classList.toggle('hidden', !(k > 0));
-        el.style.setProperty('--k', String(Math.max(0, Math.min(1, k))));
-      }
+      score: function () { return score; }, play: function () { return playTime; },
+      friends: function () { return unlocked.filter(Boolean).length; }
     };
   }
 
@@ -2253,7 +2281,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   // (a body in the jar, or HANG: the face on the line); if that face merges away it stays where it was.
   var HANG = { hang: true };
   var bub = { who: null, until: 0, last: -99, cool: {}, w: 0, h: 0 };
-  function alive(b) { return b && !b.dead ? b : null; }
   function topBody() {
     var top = null;
     (world ? world.bodies : []).forEach(function (b) { if (!top || b.y - b.r < top.y - top.r) top = b; });
@@ -2261,7 +2288,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   }
   function nearest(b) {
     var best = null, bd = 1e9;
-    world.bodies.forEach(function (o) { var d = Math.hypot(o.x - b.x, o.y - b.y); if (o !== b && d < bd) { bd = d; best = o; } });
+    world.bodies.forEach(function (o) { var d = Math.hypot(o.x - b.x, o.y - b.y); if (o !== b && faceOf(o) && d < bd) { bd = d; best = o; } });
     return best || b;
   }
   function talk(key, who, text, force, dur) {
@@ -2298,21 +2325,31 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     el.style.setProperty('--tx', clamp(ax - x, 16, bub.w - 16).toFixed(1) + 'px');
     el.classList.toggle('down', !up);
   }
-  // a chain has ended: two merges, or a "flush" that isn't one (3+ merges, mixed tiers) for ניר
-  function chainTalk() {
-    if (chainN < 2) return;
-    if (chainN >= 3 && guests.moment('chain3')) return; // מיקי peeks in
-    var mixed = chainTiers.some(function (x) { return x !== chainTiers[0]; });
-    if (chainN >= 3 && mixed) {
-      if (say('nir')) return;
-    }
-    say('kunz');
+  // a chain of 3+ has ended: מיקי may peek in
+  function chainTalk() { if (chainN >= 3) guests.moment('chain3'); }
+  // a random face in the jar (not a pizza slice or a flag), or the one on the line when the jar is empty
+  function anyFace() {
+    var fs = world.bodies.filter(function (b) { return !b.dead && faceOf(b); });
+    return fs.length ? fs[Math.floor(vr() * fs.length)] : HANG;
   }
-  // nobody has dropped for a while: דגי tells רונזו off when he's on the line, otherwise someone in the jar hurries the line
-  function phoneTalk() {
-    if (!curG && faces[cur].pid === RONZO) return say('phone');
-    var bs = world.bodies;
-    return talk('nu', bs.length ? bs[Math.floor(vr() * bs.length)] : HANG, LINES.nu);
+  // nobody has dropped for a while: someone hurries the line
+  function idleTalk() { return talk('nu', anyFace(), NUDGE[Math.floor(vr() * NUDGE.length)]); }
+  // now and then someone says a line: a random player in play (one of their SAYS), or anyone in the jar (ANYONE),
+  // never a line said in the last SAY_COOL s
+  function chatGap() { return CHAT_GAP[0] + vr() * (CHAT_GAP[1] - CHAT_GAP[0]); }
+  function chatter() {
+    var who = HEADS.filter(function (pid) { return own(pid) && freeLines(SAYS[pid], pid).length; });
+    if (world.bodies.some(function (o) { return !o.dead && faceOf(o); }) && freeLines(ANYONE, 'any').length) who.push('any');
+    if (!who.length) return false;
+    var pid = who[Math.floor(vr() * who.length)], list = pid === 'any' ? ANYONE : SAYS[pid];
+    var free = freeLines(list, pid), i = free[Math.floor(vr() * free.length)], ln = list[i];
+    var sp = pid === 'any' ? anyFace() : own(pid);
+    return talk(pid + ':' + i, sp, typeof ln === 'function' ? ln(sp) : ln);
+  }
+  function freeLines(list, key) {
+    var out = [];
+    (list || []).forEach(function (ln, i) { if (t >= (bub.cool[key + ':' + i] || 0)) out.push(i); });
+    return out;
   }
   // a player's own line, from their face in the jar (or on the line); nothing when they aren't in play
   function own(pid) {
@@ -2320,15 +2357,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     for (var i = 0; i < bs.length; i++) { var f = faceOf(bs[i]); if (!bs[i].dead && f && f.pid === pid) return bs[i]; }
     return hangFace().pid === pid && hang.appear >= 1 ? HANG : null;
   }
-  function say(key, force, dur) { return talk(key, own(SAYS[key][0]), sayText(key), force, dur); }
-  function sayText(key) { var s = SAYS[key][1]; return typeof s === 'function' ? s() : s; }
-  // a random nickname from the table, never the one who's talking
-  function dealer() {
-    var ids = HEADS.filter(function (pid) { return pid !== SAYS.pee[0]; });
-    return NAMES[ids[Math.floor(vr() * ids.length)]];
-  }
-  // half the time the player's own line, otherwise (or when they aren't in play) anyone's
-  function either(key, anyone) { if (!(vr() < 0.5 && say(key))) anyone(); }
 
   // ---------------- HUD ----------------
   function syncHud() {
@@ -2392,16 +2420,12 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
           if (!topB || b.y - b.r < topB.y - topB.r) topB = b;
         }
       }
-      // table talk: someone calls out the face on top of the pile when it first goes over the line ...
-      if (over && overTimer === 0 && !guests.moment('over')) either('never', function () { talk('tilt', nearest(topB), faceOf(topB).name + LINES.tilt); });
-      // ... a merge made while over the line saves the pile if nothing is over for a moment ...
-      if (rescue) {
-        if (over) rescue = null;
-        else if (t - rescue.at > 0.8) { var rb = rescue.b; either('brag', function () { talk('suck', alive(rb) || alive(lastMerged), LINES.suck); }); rescue = null; }
-      }
+      // the pile first goes over the line: דניאל may peek in
+      if (over && overTimer === 0) guests.moment('over');
       // ... a chain is called once it ends, and a slow hand gets told off
       if (chainOpen && t - lastMergeAt > 1) { chainOpen = false; chainTalk(); }
-      if (hang.appear >= 1 && cooldown <= 0) { idleT += dt; if (idleT > IDLE_SAY && phoneTalk()) idleT = 0; }
+      if (hang.appear >= 1 && cooldown <= 0) { idleT += dt; if (idleT > IDLE_SAY && idleTalk()) idleT = 0; }
+      chatT -= dt; if (chatT <= 0) chatT = chatter() ? chatGap() : 1.5; // the bubble was busy: try again soon
       overTimer = over ? overTimer + dt : Math.max(0, overTimer - dt * 2);
       if (overTimer > 0 && !simulating) {
         warnT -= dt; if (warnT <= 0) { Sound.sfx.warn(); warnT = 0.5; }
@@ -2977,7 +3001,38 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   }
 
   // ---------------- test hooks ----------------
+  // ?bot2 (balance runs): a careful player. Waits BOT_GAP s between drops, tries x positions across the jar and drops where
+  // the face lands on its own tier, else on the lowest spot next to the closest tier; מיקי onto the tier with the most
+  // faces, דניאל where the most small faces are near the top, קוקו anywhere.
+  var BOT2 = qs.has('bot2'), BOT_GAP = qs.has('botgap') ? parseFloat(qs.get('botgap')) : 1.2, botT = 0;
+  function landing(x, r) { // the body a face of radius r dropped at x lands on first, and how high (y of its centre)
+    var hit = null, y = JAR.floor - r;
+    world.bodies.forEach(function (b) {
+      if (b.dead || (b.g && Guests.isTreat(b.g))) return;
+      var dx = Math.abs(b.x - x), rr = b.r + r;
+      if (dx >= rr) return;
+      var yy = b.y - Math.sqrt(rr * rr - dx * dx);
+      if (yy < y) { y = yy; hit = b; }
+    });
+    return { b: hit, y: y };
+  }
+  function bot2() {
+    if (cooldown > 0 || hang.appear < 0.6 || playTime < botT) return;
+    var r = hangR(), best = -1e9, bx = W / 2;
+    for (var x = JAR.l + r; x <= JAR.r - r; x += 6) {
+      var L = landing(x, r), s;
+      if (curG === 'michael') s = L.b && L.b.t >= 0 ? world.bodies.filter(function (b) { return b.t === L.b.t; }).length * 100 - L.y * 0.1 : -1e6;
+      else if (curG === 'daniel') s = world.bodies.filter(function (b) { return b.t >= 0 && b.t <= 3 && Math.hypot(b.x - x, b.y - L.y) < 140; }).length * 100 - L.y * 0.3;
+      else if (curG) s = -L.y;
+      else s = (L.b && L.b.t === cur ? 400 : L.b && L.b.t >= 0 ? -40 * Math.abs(L.b.t - cur) : 0) + L.y * 0.5;
+      if (s > best) { best = s; bx = x; }
+    }
+    aimX = clampAim(bx + (rng() - 0.5) * 10);
+    botT = playTime + BOT_GAP * (0.7 + rng() * 0.6);
+    drop();
+  }
   function bot() {
+    if (BOT2) return bot2();
     if (cooldown > 0 || hang.appear < 0.6 || playTime < BOT_WAIT) return;
     var r = hangR(), bestB = null;
     if (!curG) world.bodies.forEach(function (b) { if (b.t === cur && (!bestB || b.y < bestB.y)) bestB = b; });
@@ -2994,7 +3049,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     persons.forEach(function (p) { p.dev = p.target; });
   }
   function beginGameSilently() {
-    reset(); state = 'play'; hang.appear = 1; showScreen(null);
+    reset(); state = 'play'; hang.appear = 1; showScreen(null); botT = 0;
   }
   window.__cheese = {
     get state() { return state; }, get score() { return score; }, get world() { return world; }, get best() { return best; },
@@ -3042,16 +3097,16 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         clearTimeout(bannerTimer);
         $('banner').style.animationDelay = '-0.9s'; $('banner').style.animationPlayState = 'paused';
       }
-      // ?show=peek|x2|guitar|boom: hold קוקו peeking in (and the double-down badge), or מיקי's guitar in flight
-      if (['peek', 'x2', 'guitar', 'boom'].indexOf(qs.get('show')) >= 0 && state === 'play') {
+      // ?show=peek|guitar|boom: hold קוקו peeking in, or מיקי's guitar in flight
+      if (['peek', 'guitar', 'boom'].indexOf(qs.get('show')) >= 0 && state === 'play') {
         guests.show(qs.get('show'));
         $('say').style.animation = 'none'; $('say').style.opacity = '1';
       }
-      // ?say=<line>: hold a table-talk bubble (a player's own line from their face, anyone's from the top face)
+      // ?say=nu|any|<head id>: hold a table-talk bubble (the first NUDGE / ANYONE line, or that player's first line)
       var SAY = qs.get('say'), tb = topBody();
-      if (SAY && (LINES[SAY] || SAYS[SAY]) && tb) {
-        if (LINES[SAY]) talk(SAY, tb, SAY === 'tilt' ? faceOf(tb).name + LINES.tilt : LINES[SAY], true, 99);
-        else talk(SAY, own(SAYS[SAY][0]) || tb, sayText(SAY), true, 99);
+      if (SAY && tb && (SAY === 'nu' || SAY === 'any' || SAYS[SAY])) {
+        var ln = SAY === 'nu' ? NUDGE[0] : SAY === 'any' ? ANYONE[0] : SAYS[SAY][0], sp = SAYS[SAY] ? own(SAY) || tb : tb;
+        talk(SAY, sp, typeof ln === 'function' ? ln(sp) : ln, true, 99);
         $('say').style.animation = 'none'; $('say').style.opacity = '1';
       }
     }
