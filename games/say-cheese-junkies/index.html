@@ -1157,6 +1157,18 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       });
     },
     // one plucked note for each face that sings along (rising up the scale)
+    // מיקי's sing-along: each face that joins in plucks the next note of "פמלה", picking up where his entrance stopped
+    sing: function (n) {
+      if (!sfxOn) return;
+      var f = midi(PAMELA[(PAMELA_SING + n) % PAMELA.length][2]);
+      tone(f, f * 0.996, 0.7, 'triangle', 0.22); tone(f * 2, f * 2, 0.2, 'sine', 0.06);
+    },
+    // מיקי lands as the joker: his entrance fades out and the band comes back
+    handoff: function () {
+      if (!pamBus) return;
+      pamBus.gain.setTargetAtTime(0.0001, ac.currentTime, 0.12); pamBus = null;
+      if (musTimer) { musBus.gain.cancelScheduledValues(ac.currentTime); musBus.gain.setTargetAtTime(musTarget(), ac.currentTime, 0.4); }
+    },
     pluck: function (n) {
       if (!sfxOn) return;
       var f = [330, 370, 392, 440, 494, 523, 587, 659][Math.min(n, 7)];
@@ -1295,11 +1307,40 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     var a = ctx(); if (!a || !sfxOn) return;
     var t0 = a.currentTime + 0.05, last = 0;
     for (var i = 0; i < count; i++) { var n = SOLF[i]; harpsi(midi(n[2]), t0 + n[0] * T32, 0.16, n[1] * T32, sfxBus); last = n[0] + n[1]; }
-    if (musTimer) {
-      musBus.gain.cancelScheduledValues(a.currentTime);
-      musBus.gain.setTargetAtTime(musTarget() * 0.2, a.currentTime, 0.08);
-      musBus.gain.setTargetAtTime(musTarget(), t0 + last * T32, 0.4);
-    }
+    hush(t0 + last * T32);
+  }
+  // the band drops to a murmur now and comes back at time `until`
+  function hush(until) {
+    if (!musTimer) return;
+    musBus.gain.cancelScheduledValues(ac.currentTime);
+    musBus.gain.setTargetAtTime(musTarget() * 0.2, ac.currentTime, 0.08);
+    musBus.gain.setTargetAtTime(musTarget(), until, 0.4);
+  }
+
+  // ---- מיקי arrives: the intro (פתיחה) of "פמלה" (music Boaz Sharabi, words Hana Ben Ari).
+  // Melody as [beat, beats, midi] at 116 bpm in E minor; the guitar strums the bar's chord on beats 1 and 3.
+  // His entrance plays bars 1-4; the sing-along (SFX.sing) carries on from bar 5.
+  var PAMELA = [[0, 1.5, 59], [1.5, 1.5, 64], [3, 1, 59], [4, 1.5, 60], [5.5, 1.5, 67], [7, 0.25, 60], [7.25, 0.25, 62], [7.5, 0.5, 60],
+    [8, 1.5, 59], [9.5, 1.5, 64], [11, 1, 59], [12, 1.5, 60], [13.5, 1.5, 67], [15, 1, 64],
+    [16, 0.5, 67], [16.5, 0.5, 69], [17, 0.5, 71], [17.5, 1.5, 67], [20, 0.5, 71], [20.5, 0.5, 73], [21, 0.5, 74], [21.5, 1.5, 71],
+    [24, 0.5, 72], [24.5, 1, 72], [25.5, 1.5, 72], [28, 0.5, 76], [28.5, 1, 72], [29.5, 1.5, 71]];
+  var PAMELA_BARS = ['Em', 'Am7', 'Em', 'Am7', 'Em'], PAMELA_SING = 14, pamBus = null;
+  var GTR = { Em: [40, 47, 52, 55, 59, 64], Am7: [45, 52, 55, 60, 64], Am: [45, 52, 57, 60, 64], G: [43, 47, 50, 55, 59, 67],
+    Bm: [47, 54, 59, 62, 66], C: [48, 52, 55, 60, 64], B7: [47, 51, 57, 59, 66] };
+  function strumAt(notes, t, vol, bus) {
+    notes.forEach(function (m, i) { var f = midi(m), d = t + i * 0.022 - ac.currentTime; tone(f, f * 0.997, 1.0, 'triangle', vol, d, bus); tone(f * 2, f * 2, 0.3, 'sine', vol * 0.3, d, bus); });
+  }
+  function pamela() {
+    var a = ctx(); if (!a || !sfxOn) return;
+    var spb = 60 / 116, t0 = a.currentTime + 0.05, end = (PAMELA_BARS.length - 1) * 4;
+    pamBus = a.createGain(); pamBus.connect(sfxBus); // its own bus, so his landing can fade it
+    PAMELA.forEach(function (n) { if (n[0] < end) harpsi(midi(n[2]), t0 + n[0] * spb, 0.15, n[1] * spb, pamBus); });
+    PAMELA_BARS.forEach(function (bar, i) {
+      var ch = bar.split(' '), last = i === PAMELA_BARS.length - 1;
+      strumAt(GTR[ch[0]], t0 + i * 4 * spb, last ? 0.12 : 0.08, pamBus);
+      if (!last) strumAt(GTR[ch[1] || ch[0]], t0 + (i * 4 + 2) * spb, 0.06, pamBus);
+    });
+    hush(t0 + (PAMELA_BARS.length * 4 - 2) * spb);
   }
   function musicStart() {
     var a = ctx(); if (!a || musTimer) return;
@@ -1324,7 +1365,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     setSfx: function (v) { sfxOn = v; },
     setMusic: function (v) { musOn = v; if (ac && musBus && musTimer) { musBus.gain.cancelScheduledValues(ac.currentTime); musBus.gain.setTargetAtTime(musTarget(), ac.currentTime, 0.15); } },
     musicStart: musicStart, musicStop: musicStop, musicDuck: musicDuck,
-    setTension: setTension, calm: calm, musicHit: musicHit, setTune: setTune, solfIntro: solfIntro,
+    setTension: setTension, calm: calm, musicHit: musicHit, setTune: setTune, solfIntro: solfIntro, pamela: pamela,
     suspend: function (hidden) { if (!ac) return; if (hidden) ac.suspend(); else ac.resume(); }
   };
 })();
@@ -1628,7 +1669,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       if (!list.length) pts.push([(J.l + J.r) / 2, J.top + 140]); // nobody to sing along: a pass through the middle, so it's seen
       pts.push([J.r + 40, J.top + 60]);
       gtr = { pts: pts, who: [null].concat(list.length ? list : [null]), seg: 0, k: 0, x: pts[0][0], y: pts[0][1], ang: 0, n: 0, held: null };
-      api.sfx('strum', 0.05);
+      api.sfx('handoff'); api.sfx('strum', 0.05);
       api.event('sing:' + list.length);
     }
     function tickGuitar(dt) {
@@ -1644,7 +1685,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
             lo.dead = true; api.sparkles(lo.x, lo.y, 10, [1, 0.9, 0.55]);
             api.grow(up); api.cleanup(); g.held = null;
           } else g.held = who; // waits for a partner (the last odd one just sings)
-          api.sfx('pluck', g.n++);
+          api.sfx('sing', g.n++);
         }
         if (g.seg >= g.pts.length - 1) { gtr = null; return true; }
       }
@@ -2122,7 +2163,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     idleT = 0;
     guests.onDrop();
     // a guest in NEXT goes to the line and the dealt face waits behind him; otherwise deal on
-    if (nextG) { curG = nextG; nextG = null; guests.dealt(curG); if (!simulating) Sound.solfIntro(32); } // a guest walks in to the Solfeggietto
+    if (nextG) { curG = nextG; nextG = null; guests.dealt(curG); if (!simulating) { if (curG === 'michael') Sound.pamela(); else Sound.solfIntro(32); } } // מיקי walks in to פמלה, the rest to the Solfeggietto
     else { curG = null; cur = next; next = rollTier(); }
     if (!nextG && guests.due()) nextG = guests.take();
     cooldown = DROP_CD;
