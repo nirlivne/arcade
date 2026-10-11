@@ -1,19 +1,26 @@
 // Cannonball Family: screens, the fixed-step loop, keyboard and pointer aim, and the test hook (THE-449 S1–S2).
 // The rules are in sim.js.
-import { createLevel, fire, step, hash, fastForwardAim, randomShot, DT, tinsDown, FUSE_STEPS, CANNON } from "./sim.js";
-import { levelDef, LEVEL_COUNT } from "./levels.js";
+import { createLevel, fire, step, cloneSim, hash, fastForwardAim, randomShot, DT, tinsDown, FUSE_STEPS, CANNON, STAR_MAX, FIELD } from "./sim.js";
+import { levelDef, LEVEL_COUNT, DEMO_SHOT } from "./levels.js";
 import { continueLevel, progressTotals, isCleared } from "./progress.js";
 import { chapterOf } from "./generator.js";
 import { aimFrom, FULL_POWER_PX } from "./aim.js";
 import { createSave } from "./save.js";
 import { createCastStore } from "./family.js";
 import { bindFamilySheet } from "./family-sheet.js";
-import { draw, fitView, screenToWorld, worldToScreen, memberFor, loadPhotos } from "./render.js";
+import { draw, fitView, viewFromCamera, scaleForHeight, screenToWorld, worldToScreen, memberFor, loadPhotos } from "./render.js";
+import { initCamera, stepCamera, skipToAim } from "./camera.js";
 import { bindPull } from "./input.js";
 import { dailyLevel, localDateKey, shareLine, ARCADE_URL } from "./daily.js";
 import { DAILY_TABLE } from "./daily-table.js";
 import { CBF } from "./troupe.js";
 import * as audio from "./audio.js";
+import { createCompositor } from "./gl.js";
+import {
+  initFx, stepFx, triggerRing, triggerCA, triggerFlash, ringState,
+  triggerShake, triggerMuzzle, triggerFluff, triggerSplinters, triggerDust, triggerStoneSparks, triggerConfetti,
+  shakeOffset, drawParticles,
+} from "./fx.js";
 
 let LEVEL = 1; // the level being played (1–30)
 const MAX_CATCH_UP = 5 * DT; // spec §2: after a stall, at most 5 steps catch up (no burst)
@@ -22,6 +29,24 @@ const KEY_ANGLE = 1, KEY_POWER = 0.02; // spec §5 keyboard steps
 const app = document.getElementById("cb-app");
 const canvas = document.getElementById("cb-world");
 const ctx = canvas.getContext("2d");
+
+// THE-523 S4 / spec v2 §G1-G2: the GL compositor. ?gl=0 forces the 2D fallback (for QA and this file's own
+// real-pointer tests); otherwise gl.js tries WebGL and reports back whether it actually got it. ?flat=1 (CTO
+// review on THE-561 B3) zeroes the post pass's always-on grain/vignette/grade, test-only, so the S4 parity
+// check can compare the GL and fallback paths' geometry alone - the look players actually see is unaffected.
+const glCanvas = document.getElementById("cb-gl");
+const glForcedOff = new URLSearchParams(location.search).get("gl") === "0";
+const flatPost = new URLSearchParams(location.search).get("flat") === "1";
+const compositor = glForcedOff ? null : createCompositor(glCanvas, canvas);
+const fx = initFx();
+function glActive() {
+  return !!(compositor && compositor.state.ok);
+}
+function syncGlVisibility() {
+  const on = glActive();
+  glCanvas.hidden = !on;
+  canvas.style.visibility = on ? "hidden" : "visible"; // the 2D canvas stays the scene buffer either way; only its own display toggles
+}
 const hud = document.getElementById("cb-hud");
 const resultCard = document.getElementById("cb-result");
 const resultHeadlineEl = document.getElementById("cb-result-headline");
@@ -72,7 +97,13 @@ let manual = false; // true while a test drives the clock through __sim.pause or
 let paused = false; // tab hidden, or the Pause/How to play dialog is open (syncPaused() is the only writer)
 let pull = null; // { start, now } while a pointer is down
 let keyAim = { angle: 45, power: 0.6 }, keyActive = false; // keyboard aim, once an arrow key has been used
+let peekHeld = false; // spec C3: true while the V key or the binoculars patch is held
 let view = fitView(1, 1), dpr = 1;
+// The play screen's own CSS-px box the world canvas gets (past the rail; see computeViewportBox()), separate
+// from `view` (which also folds in the camera's current pan/zoom, recomputed every frame — see updateView()).
+let viewportBox = { w: 1, h: 1, ox: 0, oy: 0, full: true };
+let camera = null; // built fresh per level by startLevel/startDaily (initCamera); null before the first level loads
+let retryShot = false; // this level's own first-vs-retry flag (spec C1's 0.8 s intro length), set in startLevel
 let acc = 0, last = performance.now();
 
 // The daily Family Tower (spec §2). dailyFirstAttempt is true only while today's result isn't saved yet: once it
@@ -93,15 +124,27 @@ function arcFraction() {
   return 0.375; // the midpoint of the spec's 35–40 %
 }
 
-// The first-run demo (spec §5 "Controls and first 10 seconds"; shown once, ever, on this device, on level 1
-// only). The sim is frozen throughout (advance() never runs while demoPhase is set): nothing physical
-// happens during the demo, so there's nothing to resolve early, and the fuse starts fresh only once it ends.
-// demoClock is wall-clock seconds since the demo started, driving both the two captions and the looping hand.
-let demoPhase = null; // null | "goal" (0-1.5s) | "rule" (1.5-3s) | "loop" (hand demo, until a tap or Space/Enter)
+// The first-run demo (spec §5 "Controls and first 10 seconds", §I1; shown once, ever, on this device, on level
+// 1 only). The real sim is frozen throughout (advance() never runs while demoPhase is set): nothing the player
+// will actually play moves, so there's nothing to resolve early, and the fuse starts fresh only once it ends.
+// §I1's own acceptance ("shows the intro pan, a pull, the flight follow and a tin going down, automatically
+// once") is covered by a *cloned* sim (demoSim) that the "fire" phase fires and steps for real, same as a live
+// shot - the clone means the player's own level 1 (tins standing, shotsLeft) never moves, but the camera and
+// renderer, which both key off whichever sim's phase/flyer is "active", follow it exactly as they would a real
+// flight. demoClock is wall-clock seconds since the current phase started, driving the captions, the hand loop
+// and the ghost flight's own stepping.
+let demoPhase = null; // null | "goal" (0-1.5s) | "rule" (1.5-3s) | "loop" (one pull) | "fire" (ghost flight + hold)
 let demoClock = 0;
+let demoSim = null, demoAcc = 0, demoShotPath = [];
+const DEMO_RESULT_HOLD_MS = 700; // how long the demo holds on the downed tin before handing control to the player
 const demoEl = document.getElementById("cb-demo");
 const demoCaption = document.getElementById("cb-demo-caption");
 const HAND_LOOP_MS = 1800; // one pull-back-and-release cycle of the felt hand
+
+// Which sim the camera and the renderer should follow this frame: the real one, except mid-ghost-flight.
+function activeSim() {
+  return demoPhase === "fire" ? demoSim : sim;
+}
 
 function startDemo() {
   demoPhase = "goal";
@@ -109,12 +152,25 @@ function startDemo() {
   demoEl.hidden = false;
   demoCaption.hidden = false;
   demoCaption.textContent = T.demoGoal;
+  positionDemoCaption();
+}
+
+// D2-3 (THE-595): skin.css's shared .cbf-caption top offset assumes the portrait rail-row layout (rail-h +
+// plaque-h); in the landscape rail-as-left-column layout the Fuse plaque floats above that assumed stack, so
+// the demo's own caption (unlike the brief knack caption, which is never shown mid-pull) needs a *measured*
+// clearance under it, not an assumed one. Harmless before cb-play's curtain-open layout settles (bottom <= 0).
+function positionDemoCaption() {
+  const fuseBottom = plaqueFuse.getBoundingClientRect().bottom;
+  demoCaption.style.top = fuseBottom > 0 ? `${fuseBottom + 12}px` : "";
 }
 
 function endDemo() {
   demoPhase = null;
+  demoSim = null;
+  demoShotPath = [];
   demoEl.hidden = true;
   demoCaption.hidden = true;
+  demoCaption.style.top = "";
   save.markDemoSeen();
   updateRailState(); // hands the rail chips' is-now back to the real sim state
   last = performance.now(); // the fuse starts fresh from here, not from whenever startLevel ran
@@ -125,10 +181,11 @@ document.getElementById("cb-demo-skip").addEventListener("click", (e) => { e.sto
 
 const RULE_CHIP_MS = 1500 / 5; // 5 is the default family size; a 6th (Teen) just gets caught in the last slot
 
-// Advances the demo's own clock and caption/hand/rail-chip state. Runs every frame while demoPhase is set,
-// independent of advance()/step() (the sim itself never moves during the demo).
+// Advances the demo's own clock and caption/hand/rail-chip/ghost-flight state. Runs every frame while
+// demoPhase is set, independent of advance()/step() on the real sim (which never moves during the demo).
 function tickDemo(dtMs) {
   demoClock += dtMs;
+  if (demoPhase === "goal" || demoPhase === "rule") positionDemoCaption(); // re-measured each tick: cb-play's own layout isn't settled yet the instant startDemo() runs, mid curtain-open
   if (demoPhase === "goal" && demoClock >= 1500) {
     demoPhase = "rule";
     demoClock = 0;
@@ -139,6 +196,22 @@ function tickDemo(dtMs) {
     const lit = Math.min(railEl.children.length - 1, Math.floor(demoClock / RULE_CHIP_MS));
     [...railEl.children].forEach((li, i) => li.classList.toggle("is-now", i === lit));
     if (demoClock >= 1500) { demoPhase = "loop"; demoClock = 0; demoCaption.hidden = true; }
+  } else if (demoPhase === "loop" && demoClock >= DEMO_PULL_MS + DEMO_HOLD_MS) {
+    // The pull has released: fire the one scripted shot on a clone, instead of resetting to pull again forever.
+    demoPhase = "fire";
+    demoClock = 0;
+    demoAcc = 0;
+    demoShotPath = [];
+    demoSim = cloneSim(sim);
+    fire(demoSim, DEMO_SHOT.angle, DEMO_SHOT.power, "demo");
+  } else if (demoPhase === "fire") {
+    if (demoSim.phase === "flight" || demoSim.phase === "bow") {
+      demoAcc = Math.min(demoAcc + dtMs / 1000, MAX_CATCH_UP);
+      while (demoAcc >= DT) { step(demoSim, 1); demoAcc -= DT; }
+      if (demoSim.phase === "flight" && demoSim.flyer) demoShotPath.push({ x: demoSim.flyer.x, y: demoSim.flyer.y });
+    } else if (demoClock >= DEMO_RESULT_HOLD_MS) {
+      endDemo(); // the ghost shot has resolved (a tin down) and held long enough to read; hand control back
+    }
   }
 }
 
@@ -152,20 +225,36 @@ function tickDemo(dtMs) {
 // read zero there — fitting against it anyway would shrink the world on the title/map/result for no reason.
 // railEl itself is declared further down (buildRail/updateRailState's own home), reused here.
 const playScreenEl = document.getElementById("cb-play");
+// The CSS-px box the world canvas gets on cb-play (past the rail), or the full canvas elsewhere (full: true,
+// decorative screens have no rail to dodge). Recomputed on resize/screen-change only — the rail's own layout
+// doesn't move mid-level, unlike the camera (updateView() below, which runs every frame).
+function computeViewportBox() {
+  const w = app.clientWidth, h = app.clientHeight;
+  if (!playScreenEl.classList.contains("is-active")) return { w, h, ox: 0, oy: 0, full: true };
+  const railRect = railEl.getBoundingClientRect();
+  const railIsColumn = railRect.height > railRect.width; // the left-column layout is taller than it is wide
+  return {
+    w: railIsColumn ? w - railRect.width : w,
+    h: railIsColumn ? h : h - railRect.height,
+    ox: railIsColumn ? railRect.width : 0,
+    oy: railIsColumn ? 0 : railRect.height,
+    full: false,
+  };
+}
+// view = the camera (gameplay) or the decorative default (fitView), fit into viewportBox and re-offset past
+// the rail — the camera itself only ever thinks in the box it's given, never the full canvas (THE-523).
+function updateView() {
+  const fitted = viewportBox.full ? fitView(viewportBox.w, viewportBox.h) : viewFromCamera(camera, viewportBox.w, viewportBox.h);
+  view = { ...fitted, ox: fitted.ox + viewportBox.ox, oy: fitted.oy + viewportBox.oy };
+}
 function resize() {
   dpr = window.devicePixelRatio || 1;
   const w = app.clientWidth, h = app.clientHeight;
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
-  if (!playScreenEl.classList.contains("is-active")) { view = fitView(w, h); return; }
-  const railRect = railEl.getBoundingClientRect();
-  const railIsColumn = railRect.height > railRect.width; // the left-column layout is taller than it is wide
-  const worldW = railIsColumn ? w - railRect.width : w;
-  const worldH = railIsColumn ? h : h - railRect.height;
-  const fitted = fitView(worldW, worldH);
-  // fitView centres inside (worldW, worldH); re-offset into the full canvas, past the rail's own edge, so the
-  // centred world doesn't creep under the rail column/plank.
-  view = { ...fitted, ox: fitted.ox + (railIsColumn ? railRect.width : 0), oy: fitted.oy + (railIsColumn ? 0 : railRect.height) };
+  if (compositor) compositor.resize(w, h); // glCanvas already fills the box via .cb-world's own CSS (inset:0, 100%/100%)
+  viewportBox = computeViewportBox();
+  updateView();
 }
 
 // The single place a screen change happens, so inPlay can never stay true behind a screen that isn't the
@@ -195,8 +284,18 @@ function applyScreen(id) {
 let pendingResultDraw = null; // set by checkEnd() just before showScreen(); consumed by applyScreen() above
 let screenShown = false; // false until the very first showScreen call: nothing to close over yet, so no curtain
 let pendingOpen = null; // the in-flight transition's own open(), if a screen change is still closing/opening
+// THE-523 / spec v2 §C7 (THE-527 feel check): the camera's intro clock is frozen until the curtain has fully
+// finished its reopen transition, not just started it (see markCurtainOpen below) - the feel check measured
+// the fort's own 0.6s hold being entirely hidden under the curtain otherwise.
+let curtainOpen = false;
+function markCurtainOpen() {
+  let done = false;
+  const finish = () => { if (done) return; done = true; curtainOpen = true; };
+  curtains.addEventListener("transitionend", finish, { once: true });
+  setTimeout(finish, 480); // --dur-slow (420ms) + slack, the same fallback pattern as showScreen's own open()
+}
 function showScreen(id) {
-  if (!screenShown) { screenShown = true; applyScreen(id); return; }
+  if (!screenShown) { screenShown = true; applyScreen(id); curtainOpen = true; return; } // no curtain cycle yet to wait for
   if (pendingOpen) {
     // A second screen change landed before the first one's curtain finished (e.g. two showScreen calls in the
     // same synchronous task, as checkEnd() can produce right after a level loads via the test hook): swap to
@@ -206,6 +305,7 @@ function showScreen(id) {
     pendingOpen.id = id;
     return;
   }
+  curtainOpen = false;
   curtains.classList.add("is-closed");
   const pending = { id, opened: false };
   pendingOpen = pending;
@@ -215,6 +315,7 @@ function showScreen(id) {
     applyScreen(pending.id);
     curtains.classList.remove("is-closed");
     if (pendingOpen === pending) pendingOpen = null;
+    markCurtainOpen();
   };
   curtains.addEventListener("transitionend", open, { once: true });
   setTimeout(open, 480); // --dur-slow (420ms) + slack, in case transitionend doesn't fire
@@ -279,16 +380,51 @@ function updateHud() {
   document.getElementById("cb-btn-pause-restart").hidden = !canRestart();
 }
 
+// The fort's own centre (midpoint of every ledge/tin/stone x), for camera.js's fortX (spec C1/C2/C4).
+function fortCenterX(def) {
+  const xs = [];
+  for (const L of def.ledges) xs.push(L.x0, L.x1);
+  for (const t of def.tins) xs.push(t.x);
+  for (const s of def.stones || []) xs.push(s.x);
+  for (const d of def.drums || []) xs.push(d.x); // THE-523 S2: drums are a target too (spec v2 §D)
+  return (Math.min(...xs) + Math.max(...xs)) / 2;
+}
+
+// The aim frame's own camera x: the one where the cannon lands 18% in from the left edge of the current
+// viewport box (spec C2). Scale only depends on the box's height (render.js's scaleForHeight), never its x pan,
+// so this has no circular dependency on the camera it's computing.
+function aimCameraX(box) {
+  const scale = scaleForHeight(box.h, 1);
+  return CANNON.x + 0.32 * box.w / scale;
+}
+
+// Levels/the daily already started at least once this session get the shorter 0.8 s retry intro pan (spec
+// C1); a fresh level or the day's first attempt gets the full 1.4 s. Session-only (not saved): a reload is
+// itself a fresh start at whatever it loads.
+const startedLevels = new Set();
+let dailyStarted = false;
+
 // Starts level n (default: the one Play continues at). A fresh attempt of that level.
-function startLevel(n = LEVEL) {
+// defOverride (test hook only, see __sim.loadCustom): plays a def directly instead of levelDef(n)'s own table,
+// for a dev/QA scenario that isn't one of the 30 real levels (THE-523 S2's drum/crate checks, for example).
+function startLevel(n = LEVEL, defOverride = null) {
   dailyMode = false;
   LEVEL = n;
-  sim = createLevel(levelDef(LEVEL), { level: LEVEL, familySize: cast.members.length });
+  sim = createLevel(defOverride || levelDef(LEVEL), { level: LEVEL, familySize: cast.members.length });
+  retryShot = startedLevels.has(n);
+  startedLevels.add(n);
+  camera = initCamera(fortCenterX(sim.def));
   inPlay = true;
   ended = false;
   pull = null;
   tags = [];
   tagTins = [];
+  lastDrumHp = [];
+  lastCrateHp = [];
+  lastCracked = 0;
+  lastStonesList = sim.stones;
+  shotPath = [];
+  lastShotPath = [];
   acc = 0;
   last = performance.now();
   resultCard.classList.remove("is-active");
@@ -302,17 +438,24 @@ function startLevel(n = LEVEL) {
 // fast-forwarding to each saved shot's step and firing it, which lands on the same hash as an unbroken run
 // (spec O13 = a). Once the first attempt is done, any further play of the day's tower is Practice.
 function startDaily() {
-  dailyMode = true;
   dailyDate = localDateKey(new Date());
   const def = dailyLevel(dailyDate, DAILY_TABLE);
+  // dailyLevel() only returns null if DAILY_TABLE's own row 0 isn't solved yet (THE-535: every other null row
+  // falls back to a known-good one) - nothing playable to start, so fall back to the level map instead of
+  // crashing on def.N below.
+  if (!def) { openMap(); return; }
+  dailyMode = true;
   const saved = save.loadDaily();
   const resuming = !!(saved && saved.date === dailyDate && !saved.done);
   dailyFirstAttempt = !(saved && saved.date === dailyDate && saved.done);
   // Share reads lastDailyResult (CTO review on THE-449): it was only ever set at the end of a first attempt
   // in this same session, so Share did nothing after a reload straight into today's already-done tower (a
   // Practice end then showed Share, but shareResult() found lastDailyResult still null and returned early).
-  if (!dailyFirstAttempt) lastDailyResult = { won: saved.won, stars: saved.stars };
+  if (!dailyFirstAttempt) lastDailyResult = { won: saved.won, stars: saved.stars, score: saved.score, shotsUsed: saved.shots.length, totalShots: def.N };
   sim = createLevel(def, { level: def.level, familySize: cast.members.length });
+  retryShot = dailyStarted;
+  dailyStarted = true;
+  camera = initCamera(fortCenterX(sim.def));
   dailyShotsWritten = 0;
   if (resuming) {
     for (const s of saved.shots) {
@@ -338,7 +481,13 @@ function startDaily() {
   // Reflects the resumed tins' down state already, so a tag doesn't pop for a tin that went down before the
   // reload (tags are for what happens live, not for replaying the resumed shots' history).
   tagTins = sim.tins.map((t) => t.down);
+  lastDrumHp = sim.drums.map((d) => d.hp ?? 0);
+  lastCrateHp = sim.ledges.map((L) => (L.crate ? L.hp ?? 0 : undefined));
+  lastCracked = sim.cracked; // CTO review on THE-561 (B2): a resume can replay shots that already cracked a
+  lastStonesList = sim.stones; // stone, same as lastDrumHp/lastCrateHp above reading the resumed sim's own state
   tags = [];
+  shotPath = [];
+  lastShotPath = [];
   acc = 0;
   last = performance.now();
   resultCard.classList.remove("is-active");
@@ -419,7 +568,16 @@ function checkEnd() {
   ended = true;
   const won = sim.phase === "won";
   let newBest = false; // a level result that beats the saved best (set in the level branch below)
-  if (won) audio.playCurtainCall(); // drum roll + cymbal (DESIGN.md §10), the win-only curtain call
+  if (won) {
+    audio.playCurtainCall(); // drum roll + cymbal (DESIGN.md §10), the win-only curtain call
+    triggerCA(fx, 1.6); // spec v2 G3: a clear
+    triggerFlash(fx, 0.6);
+    // D2-1 (THE-595): sim.def.W is only ever set for a hand-placed def (level 1); every generated level left it
+    // undefined, so x1 was NaN here and all 80 pieces spawned at the same degenerate x - the "dark clump at one
+    // point" the sign-off caught. sim.world.b.r is the same right bound boundsFor() already computed for the
+    // physics world, so it's right for every level. CBF.FXP.confetti.cols is the spec's own confetti palette.
+    triggerConfetti(fx, CANNON.x, sim.world.b.r, -200, CBF.FXP.confetti.cols);
+  }
   const unflown = unflownMembers();
   const whoText = won && unflown.length ? fillTemplate(T.didntFly, "names", joinNames(unflown.map((i) => cast.members[i].name))) : "";
 
@@ -464,7 +622,12 @@ function checkEnd() {
     // Share always reports the first attempt (spec O13 = a), never a Practice replay (CTO review — this used
     // to be set on every daily end, so Share after a Practice run reported the Practice result, not the
     // day's). A Practice end reads the saved first-attempt result back instead of using this run's own.
-    const shown = wasFirstAttempt ? { won, stars: sim.stars } : save.loadDaily();
+    // shotsUsed/totalShots feed the share line's "N/N" (spec v2 §E4); totalShots is always the current sim.N,
+    // even on a Practice read, since the same daily def is deterministic and replays to the same N.
+    const practiceSaved = wasFirstAttempt ? null : save.loadDaily();
+    const shown = wasFirstAttempt
+      ? { won, stars: sim.stars, score: sim.score, shotsUsed: sim.N - sim.shotsLeft, totalShots: sim.N }
+      : { ...practiceSaved, shotsUsed: practiceSaved.shots.length, totalShots: sim.N };
     if (wasFirstAttempt) lastDailyResult = shown; // Practice leaves it exactly as the first attempt set it
     resultHeadlineEl.textContent = (shown.won ? fillTemplate(T.win, "family", cast.family) : T.lose) + (wasFirstAttempt ? "" : ` · ${T.practice}`);
     resultScoreEl.textContent = shareLine(dailyDate, shown).split("\n")[0];
@@ -489,10 +652,20 @@ function checkEnd() {
     levelFails[LEVEL] = won ? 0 : (levelFails[LEVEL] ?? 0) + 1; // the full-arc comfort kicks in at 2
   }
   document.getElementById("cb-share-msg").textContent = "";
+  // spec v2 §H1: shown once, ever, the first curtain call after a v1 -> schema 2 save migration.
+  document.getElementById("cb-result-migration").textContent = save.consumeMigrationNotice() ? T.migrationNotice : "";
   pendingResultDraw = () => drawResultStage(won, unflown);
   showScreen(resultId);
   // Celebration (AC-W6): a win or a new best. ui-kit draws the confetti, or a soft glow under reduced motion.
-  if (window.UIKit && (won || newBest)) window.UIKit.celebrate();
+  // D2-1 (THE-595): the spec's own confetti palette (CBF.FXP.confetti in troupe.js) and spread across the top
+  // edge, not ui-kit's generic token colours bursting from one point.
+  if (window.UIKit && (won || newBest)) {
+    window.UIKit.celebrate({
+      colors: ["--cbf-cream", "--cbf-star", "--cbf-tin-tomato", "--cbf-tin-robin", "--cbf-tin-pea", "--cbf-tin-mustard"],
+      spreadX: [0, innerWidth],
+      y: innerHeight * 0.12,
+    });
+  }
   // showScreen applies the new screen synchronously only for the very first screen ever shown (screenShown's
   // own check) — every later call defers to applyScreen() via the curtain, where pendingResultDraw is
   // actually consumed. That first-screen case can't happen here (checkEnd only runs after at least one level
@@ -500,20 +673,30 @@ function checkEnd() {
   updateHud();
 }
 
-// The level map: all 30 open, grouped into 3 chapters of 10, each a felt patch with its stars out of its cap
-// (DESIGN.md's class contract: #cbf-map, .cbf-bar/.cbf-h2/.cbf-total, .cbf-chapter__title, ol.cbf-levels >
-// button.cbf-level(.is-cleared, .is-current) > b, .cbf-level__stars > i(.is-lit)).
+// The level map: all 30 open, grouped into 3 chapters of 10, each a felt patch with its stars out of
+// STAR_MAX (spec v2 §E2: the cap is fixed, not N - par - see progress.js's own capOf()). DESIGN.md's class
+// contract: #cbf-map, .cbf-bar/.cbf-h2/.cbf-total, .cbf-chapter__title, ol.cbf-levels >
+// button.cbf-level(.is-cleared, .is-current) > b, .cbf-level__stars > i(.is-lit).
 function levelPatch(n, data, current) {
   const d = levelDef(n);
-  const cap = Math.min(3, d.N - d.par);
-  const got = Math.min(cap, data.stars[String(n)] ?? 0);
   const li = document.createElement("li");
   const b = document.createElement("button");
   b.type = "button";
-  b.className = "cbf-level" + (isCleared(data, n) ? " is-cleared" : "") + (n === current ? " is-current" : "");
-  b.dataset.level = String(n);
   const num = document.createElement("b");
   num.textContent = String(n);
+  if (!d) {
+    // S3's solver hasn't produced this level yet (THE-523): show it locked rather than crash on a null def.
+    b.type = "button";
+    b.className = "cbf-level is-locked";
+    b.disabled = true;
+    b.append(num);
+    li.append(b);
+    return li;
+  }
+  const cap = STAR_MAX;
+  const got = Math.min(cap, data.stars[String(n)] ?? 0);
+  b.className = "cbf-level" + (isCleared(data, n) ? " is-cleared" : "") + (n === current ? " is-current" : "");
+  b.dataset.level = String(n);
   const stars = document.createElement("span");
   stars.className = "cbf-level__stars";
   for (let i = 0; i < cap; i++) {
@@ -563,9 +746,29 @@ let lastDownThisShot = 0; // sim.downThisShot as of the previous advance(), to c
 const TAG_POP_MS = 240, TAG_FLOAT_MS = 700, TAG_FLOAT_PX = 18;
 let tags = []; // { x, y, bornAt } in world units, bornAt a performance.now() timestamp
 let tagTins = []; // this shot's tins' down flags as of the previous advance() call
+let lastDrumHp = [], lastCrateHp = []; // this shot's drums'/crates' hp as of the previous advance() call (fx triggers only, THE-523 S4)
+let lastCracked = 0, lastStonesList = []; // sim.cracked and sim.stones as of the previous advance() call (spec G5: sparks on a stone hit); reset in startLevel()/startDaily() below, the same as lastDrumHp/lastCrateHp (CTO review on THE-561, B2)
+
+// A post-pass shake amplitude from an impact (spec v2 §G6): scales with the same impact reading as the ring,
+// just mapped to CSS px instead of a shader amplitude.
+function impactShakeAmp(impact) {
+  return 10 * Math.max(0, Math.min(1, (impact - 300) / 600));
+}
+
+// A post-pass ring's amplitude from an impact (spec v2 §G3): 0.25-0.6, scaled by how far past the 300 hit
+// threshold the impact was, capped at 600 over (a very hard hit always reads as the max).
+function impactRingAmp(impact) {
+  return 0.25 + 0.35 * Math.max(0, Math.min(1, (impact - 300) / 600));
+}
 
 let lastShotsLogged = 0; // sim.shots.length as of the previous advance(): a new entry is a cannon fire, any source
 let lastPosesLogged = 0; // sim.poses.length as of the previous advance(): a new entry is a landing (bow/shrug)
+
+// The last-shot tacking-dot trace (spec v2 §C7, THE-527 feel check): the previous shot's real flight path,
+// kept as world points and shown while aiming the next one. shotPath records the shot currently in flight;
+// lastShotPath is what's actually drawn, replaced once that shot resolves and hidden again the moment the
+// next one fires (checkEnd()/advance() below own clearing it, draw() itself never reads sim.phase for this).
+let shotPath = [], lastShotPath = [];
 
 // Cannon shake (DESIGN.md §9 "Fire": 2 px, 160 ms, skin.css's .cbf-app.is-shake). Off under reduced motion.
 const appEl = document.getElementById("cb-app");
@@ -577,27 +780,87 @@ function shake() {
 }
 
 function advance(n) {
+  const wasFlight = sim.phase === "flight";
   step(sim, n, heldAim);
-  if (sim.shots.length > lastShotsLogged) { audio.playCannon(); shake(); } // every real fire, held fuse or random (DESIGN.md §9 "Fire")
+  if (sim.shots.length > lastShotsLogged) {
+    audio.playCannon(); shake(); shotPath = []; lastShotPath = [];
+    triggerRing(fx, CANNON.x, CANNON.y, 0.5); // spec v2 G3: fire
+    triggerCA(fx, 0.8);
+    const lastShot = sim.shots[sim.shots.length - 1];
+    triggerMuzzle(fx, CANNON.x, CANNON.y, -(lastShot.angle * Math.PI) / 180); // spec G5
+  }
   lastShotsLogged = sim.shots.length;
+  if (sim.phase === "flight" && sim.flyer) shotPath.push({ x: sim.flyer.x, y: sim.flyer.y });
+  else if (wasFlight) lastShotPath = shotPath; // the shot just resolved: this is now "the last shot's path"
   if (sim.downThisShot > 0 && lastDownThisShot === 0) hitStopUntil = performance.now() + HITSTOP_MS;
   lastDownThisShot = sim.downThisShot;
   const now = performance.now();
   sim.tins.forEach((t, i) => {
-    if (t.down && !tagTins[i]) { tags.push({ x: t.x, y: t.y, bornAt: now }); audio.playTonk((i % 4) / 3); }
+    if (t.down && !tagTins[i]) {
+      tags.push({ x: t.x, y: t.y, bornAt: now });
+      audio.playTonk((i % 4) / 3);
+      triggerRing(fx, t.x, t.y, impactRingAmp(t.impact));
+      triggerShake(fx, impactShakeAmp(t.impact));
+      triggerFluff(fx, t.x, t.y);
+    }
     tagTins[i] = t.down;
   });
+  sim.drums.forEach((d, i) => {
+    const hp = d.hp ?? 0;
+    if (lastDrumHp[i] === undefined) lastDrumHp[i] = hp;
+    if (hp < lastDrumHp[i]) {
+      if (hp <= 0) { // spec G3/G5: drum burst - torn felt skin, the same fluff look as a tin down
+        triggerRing(fx, d.x, d.y, 0.8); triggerCA(fx, 1.2); triggerShake(fx, 10); triggerFluff(fx, d.x, d.y, 10);
+      } else { triggerRing(fx, d.x, d.y, impactRingAmp(d.impact)); triggerShake(fx, impactShakeAmp(d.impact)); }
+    }
+    lastDrumHp[i] = hp;
+  });
+  sim.ledges.forEach((L, i) => {
+    if (!L.crate) return;
+    const hp = L.hp ?? 0;
+    if (lastCrateHp[i] === undefined) lastCrateHp[i] = hp;
+    if (hp < lastCrateHp[i]) {
+      triggerRing(fx, (L.x0 + L.x1) / 2, L.top, impactRingAmp(L.impact));
+      triggerShake(fx, impactShakeAmp(L.impact));
+      if (hp <= 0) triggerSplinters(fx, (L.x0 + L.x1) / 2, L.top); // spec G5: splinters once it actually breaks
+    }
+    lastCrateHp[i] = hp;
+  });
+  if (sim.cracked > lastCracked) { // spec G5: sparks on a stone hit (it leaves sim.world once it cracks)
+    const broken = lastStonesList.filter((s) => !sim.stones.includes(s));
+    for (const s of broken) { triggerStoneSparks(fx, s.x, s.y); triggerRing(fx, s.x, s.y, 0.4); }
+  }
+  lastCracked = sim.cracked;
+  lastStonesList = sim.stones;
   tags = tags.filter((tg) => now - tg.bornAt < TAG_POP_MS + TAG_FLOAT_MS);
   if (sim.poses.length > lastPosesLogged) {
     // "Landing" (DESIGN.md §9): the net sags, then bow or shrug. Both the boing and the pose sound land here,
     // the one moment resolve() (sim.js) settles a shot.
     audio.playBoing();
     if (sim.pose === "bow") audio.playBow(); else audio.playShrug();
+    triggerDust(fx, 320, FIELD.floor); // spec G5: dust on landing, the same net spot render.js draws the pose at
   }
   lastPosesLogged = sim.poses.length;
   if (sim.phase !== "aim") pull = null; // a fuse shot ended the pull: the real release will fire nothing
   recordNewDailyShots(); // covers a fuse-fired shot, taken inside step()
   checkEnd();
+}
+
+// Steps the camera and rebuilds `view` from it (THE-523 §C). Runs every rAF frame regardless of manual/paused
+// (so a test driving the clock through __sim.step still gets a settled aim-frame view to read worldToScreen
+// against), except while actually paused — nothing should visibly move behind an open dialog.
+function updateCamera(dtMs) {
+  if (!inPlay || !camera || paused) return;
+  const dt = Math.min(dtMs, 250) / 1000; // clamps a stalled tab's huge delta, same spirit as MAX_CATCH_UP
+  const asim = activeSim(); // the demo's "fire" phase follows its own ghost flight, not the frozen real sim
+  const flyer = asim.phase === "flight" && asim.flyer ? { x: asim.flyer.x, y: asim.flyer.y } : null;
+  stepCamera(camera, dt, {
+    phase: asim.phase, flyer, cannonX: CANNON.x,
+    aimX: aimCameraX(viewportBox), fortX: fortCenterX(sim.def), retry: retryShot,
+    visibleW: viewportBox.w / scaleForHeight(viewportBox.h, 1), visibleH: viewportBox.h, curtainOpen,
+    peek: peekHeld,
+  });
+  updateView();
 }
 
 function frame(now) {
@@ -614,6 +877,7 @@ function frame(now) {
   }
   last = now;
   if (inPlay && !ended) updateHud();
+  updateCamera(dtMs);
   // Fuse fizz (DESIGN.md §9, §10): quiet, last 5 s only (FUSE_STEPS/3 = 600 steps = 5 s), louder as it nears 0.
   // Not during the demo (the fuse hasn't started) or a dialog/pause (sim.fuse is frozen there, so fizz would
   // have nothing to ramp toward anyway, and a sheet shouldn't have a sound bed running behind it).
@@ -639,8 +903,42 @@ function frame(now) {
     const floatT = Math.max(0, Math.min(1, (age - TAG_POP_MS) / TAG_FLOAT_MS));
     return { x: tg.x, y: tg.y - TAG_FLOAT_PX * floatT, scale, alpha: 1 - floatT };
   });
-  draw(ctx, sim, view, dpr, preview, cast, demoPhase ? 1 : arcFraction(), hand, wobble, liveTags, photos);
+  const asim = activeSim(); // "fire" draws the ghost flight; every other phase draws the real (frozen) sim
+  const trace = asim.phase === "aim" ? lastShotPath : []; // spec C7: hidden again the instant the next shot fires
+  const flightTrail = asim.phase === "flight" ? (demoPhase === "fire" ? demoShotPath : shotPath) : []; // spec G5: the live flyer's own streamer
+  const chapterLevel = dailyMode ? 1 : LEVEL;
+  draw(ctx, asim, view, dpr, preview, cast, demoPhase ? 1 : arcFraction(), hand, wobble, liveTags, photos, camera ? camera.fortX : null, chapterLevel, trace, flightTrail);
+  drawParticles(ctx, fx, view); // spec G5/G1(c): additive particles, onto the same 2D scene gl.js then uploads
+  renderGl(now, chapterLevel);
+  applyShake();
   requestAnimationFrame(frame);
+}
+
+// Screen shake (spec G6): a fresh random jitter every frame, scaled by fx.shake's live (decaying) amplitude.
+// Applied to #cb-app, the same element the cannon-fire kick (shake(), above) animates via a CSS class - the
+// two never fight for long: the kick is a brief 160ms animation, and real impacts land well after a shot has
+// already fired.
+function applyShake() {
+  const off = shakeOffset(fx);
+  appEl.style.transform = off.dx || off.dy ? `translate(${off.dx.toFixed(1)}px, ${off.dy.toFixed(1)}px)` : "";
+}
+
+// THE-523 S4 / spec v2 §G1-G3: steps fx.js's post-pass state and, when GL is actually available, composites
+// the just-drawn 2D scene through the post pass. syncGlVisibility() runs every frame so a context loss mid-game
+// (spec G2) drops back to the plain 2D canvas within one frame, not just at the next explicit check.
+let lastFxT = performance.now();
+function renderGl(now, chapterLevel) {
+  const dt = Math.min(now - lastFxT, 250) / 1000;
+  lastFxT = now;
+  const reducedMotion = !!(window.UIKit && window.UIKit.reduceMotion());
+  stepFx(fx, dt, reducedMotion);
+  syncGlVisibility();
+  if (!glActive()) return;
+  const cssW = canvas.clientWidth || 1, cssH = canvas.clientHeight || 1;
+  const toUv = (x, y) => { const p = worldToScreen(view, x, y); return { x: p.x / cssW, y: p.y / cssH }; };
+  const rings = fx.rings.map((r) => { const s = ringState(r, fx.reducedMotion), uv = toUv(r.x, r.y); return { x: uv.x, y: uv.y, r: s.r, amp: s.amp }; });
+  const chapter = CBF.CHAPTERS[CBF.chapterFor(chapterLevel)];
+  compositor.render({ rings, ca: fx.ca, flash: fx.flash, chapter, grainSeed: now * 0.001, neutral: flatPost });
 }
 
 // The felt hand's loop (spec §5): pulls back from the cannon along a fixed down-left line (reads as an
@@ -657,8 +955,11 @@ function demoHandPull() {
   return { start, now: { x: start.x - dist * Math.SQRT1_2, y: start.y + dist * Math.SQRT1_2 } };
 }
 
+// The camera gates aiming too (spec C2: aiming happens at the aim frame): a pull can't start mid-intro-pan,
+// mid-flight-follow or mid-return — sim.phase === "aim" alone would otherwise let a pull start while the
+// camera is still easing back from the fort after the previous shot.
 function canAim() {
-  return inPlay && !ended && !paused && !demoPhase && sim.phase === "aim";
+  return inPlay && !ended && !paused && !demoPhase && sim.phase === "aim" && !!camera && camera.mode === "aim";
 }
 
 // Unlocks (or resumes) the AudioContext on every real gesture, anywhere (not gated on canAim: the title
@@ -672,6 +973,14 @@ function canAim() {
 document.addEventListener("pointerdown", audio.unlock);
 document.addEventListener("pointerup", audio.unlock);
 document.addEventListener("keydown", audio.unlock);
+
+// Any tap or key skips the intro pan, the post-shot hold or the return pan straight to the aim frame (spec
+// C1/C7). Separate from canAim()/bindPull (which never see this gesture at all, since canPull() is false the
+// whole time): this only ever mutates the camera, so it can't double-fire a shot or fight the dialog/typing
+// guards the real keydown handler below has. skipToAim is itself a no-op during flight (the shot must resolve
+// in the sim first), so this is safe to call unconditionally on every tap/key.
+document.addEventListener("pointerdown", () => { if (inPlay && camera) skipToAim(camera); });
+document.addEventListener("keydown", () => { if (inPlay && camera) skipToAim(camera); });
 
 bindPull(app, {
   canPull: canAim,
@@ -706,6 +1015,11 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { e.preventDefault(); openPause(); return; } // spec §5: Esc pause
   if (e.key === "r" || e.key === "R") { if (canRestart()) (dailyMode ? startDaily() : startLevel(LEVEL)); return; }
   if (!canAim()) return;
+  // !pull: a held pointer drag is already aiming a shot (spec C3 "aiming is blocked while peeking" cuts both
+  // ways - CTO review on THE-561, non-blocking): starting peek mid-drag would still let onRelease fire it once
+  // the peek pan has moved the camera away, a confusing shot even though canAim() alone can't see a pull in
+  // flight (it only gates whether a *new* one may start).
+  if ((e.key === "v" || e.key === "V") && !pull) { peekHeld = true; e.preventDefault(); return; }
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   switch (e.key) {
     case "ArrowLeft": keyAim.angle = clamp(keyAim.angle - KEY_ANGLE, 10, 80); break;
@@ -718,6 +1032,16 @@ document.addEventListener("keydown", (e) => {
   keyActive = true;
   e.preventDefault();
 });
+
+// Releasing V ends the peek (spec C3) wherever the key went down - unconditional (no dialog/inPlay guard,
+// unlike keydown above), so a key released after a dialog opened or the tab lost focus mid-hold still clears it.
+document.addEventListener("keyup", (e) => { if (e.key === "v" || e.key === "V") peekHeld = false; });
+
+// The binoculars patch (spec C3): the same hold-to-peek gesture as V, for touch/mouse. pointercancel and
+// pointerleave both release it too - a dragged-off or interrupted gesture must never leave peek stuck on.
+const peekBtn = document.getElementById("cb-btn-peek");
+peekBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); if (canAim() && !pull) peekHeld = true; }); // !pull: see the V-key handler's own note
+["pointerup", "pointercancel", "pointerleave"].forEach((evt) => peekBtn.addEventListener(evt, () => { peekHeld = false; }));
 
 document.getElementById("cb-btn-play").addEventListener("click", () => startLevel(continueLevel(save.load())));
 document.getElementById("cb-btn-retry").addEventListener("click", () => { if (canRestart()) (dailyMode ? startDaily() : startLevel(LEVEL)); });
@@ -750,6 +1074,27 @@ const sheet = bindFamilySheet({
 document.getElementById("cb-btn-family").addEventListener("click", () => sheet.open());
 window.addEventListener("resize", resize);
 
+// ---- Turn card (spec v2 §A3, DESIGN.md §19) ----
+// Shown by skin.css alone in portrait (.cbf-app:not(.is-upright) > .cbf-turn); "Play upright" only has to add
+// .is-upright for the rest of the session - never saved, so a reload is a fresh start and shows the card again.
+const uprightBtn = document.getElementById("cb-btn-upright");
+uprightBtn.addEventListener("click", () => app.classList.add("is-upright"));
+// DESIGN.md §19: "Focus moves to Play upright when the card appears" - CSS alone decides *whether* it's
+// showing, so this only has to catch the moment it does (the false -> true edge, not every portrait resize).
+let turnCardWasShown = false;
+function focusTurnCardOnAppear() {
+  const shown = window.innerHeight > window.innerWidth && !app.classList.contains("is-upright");
+  if (shown && !turnCardWasShown) uprightBtn.focus();
+  turnCardWasShown = shown;
+}
+window.addEventListener("resize", focusTurnCardOnAppear);
+if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener("change", focusTurnCardOnAppear);
+// Not called yet here: showScreen("cbf-title") below (after themeReady) focuses its own first button, which
+// would otherwise win focus back from the turn card on the very first paint - themeReady's own .then() below
+// calls this again, after that, so the turn card wins in portrait.
+// The installed PWA only (spec A4); a plain browser tab rejects this, which is fine to ignore.
+if (screen.orientation && screen.orientation.lock) screen.orientation.lock("landscape").catch(() => {});
+
 // ---- Pause (spec: Resume, Restart, Levels, How to play, Sound, Reduced motion) ----
 const pauseDialog = document.getElementById("cb-pause");
 const soundToggle = document.getElementById("cb-opt-sound");
@@ -766,6 +1111,7 @@ if (window.UIKit) window.UIKit.howTo(howToDialog);
 // touches paused directly.
 function syncPaused() {
   paused = document.hidden || pauseDialog.open || howToDialog.open;
+  peekHeld = false; // never leave a peek stuck on across a tab-hide or dialog open (spec C3)
   acc = 0;
   last = performance.now();
 }
@@ -833,6 +1179,32 @@ function drawHowToArt() {
   sctx.setTransform(K, 0, 0, K, 96, 75);
   CBF.feltStar(sctx, -26, 0, 22, true, 1);
   CBF.feltStar(sctx, 26, 0, 22, true, 1);
+
+  // Drum (spec v2 §D): dented after one hit, whole before it - the same CBF.drum() the live game draws.
+  const drum = document.querySelector('[data-howto-art="drum"]');
+  const dctx = drum.getContext("2d");
+  dctx.setTransform(K, 0, 0, K, 96, 75);
+  CBF.drum(dctx, -26, 0, 24, "whole", 1);
+  CBF.drum(dctx, 26, 0, 24, "dent", 1);
+
+  // Crate (spec v2 §D): the same CBF.crate() the live game draws, pine then iron-banded.
+  const crate = document.querySelector('[data-howto-art="crate"]');
+  const cctx = crate.getContext("2d");
+  cctx.setTransform(K, 0, 0, K, 96, 95);
+  CBF.crate(cctx, -50, 0, 36, 40, { k: 1, iron: false, hp: 1 });
+  CBF.crate(cctx, 10, 0, 36, 40, { k: 1, iron: true, hp: 2 });
+
+  // Peek (spec v2 §C3): no CBF art for this (a functional control, not a troupe character) - a plain pair of
+  // binocular lenses, the same shape language as the HUD's own key-cap patch.
+  const peek = document.querySelector('[data-howto-art="peek"]');
+  const kctx = peek.getContext("2d");
+  kctx.setTransform(K, 0, 0, K, 96, 60);
+  kctx.fillStyle = "#3B2415";
+  kctx.beginPath(); kctx.arc(-14, 0, 20, 0, Math.PI * 2); kctx.fill();
+  kctx.beginPath(); kctx.arc(14, 0, 20, 0, Math.PI * 2); kctx.fill();
+  kctx.fillStyle = "#F6E9C9";
+  kctx.beginPath(); kctx.arc(-14, 0, 11, 0, Math.PI * 2); kctx.fill();
+  kctx.beginPath(); kctx.arc(14, 0, 11, 0, Math.PI * 2); kctx.fill();
 }
 drawHowToArt();
 
@@ -858,6 +1230,9 @@ window.__sim = {
       fuse: sim.fuse,
       tinsDown: tinsDown(sim),
       targets: sim.tins.length,
+      drums: sim.drums.map((d) => ({ hp: d.hp, down: d.down })),
+      cracked: sim.cracked,
+      stones: sim.stones.length,
       score: sim.score,
       stars: sim.stars,
       cap: sim.cap,
@@ -882,6 +1257,15 @@ window.__sim = {
   load(level = LEVEL) {
     manual = true;
     startLevel(level);
+    return this.state();
+  },
+  // Dev/QA only: plays an arbitrary def directly, not one of the 30 real levels (THE-523 S2). Level number 2
+  // (not 1) so this never accidentally triggers the first-run demo, which freezes the sim. Unlike load()/
+  // loadDaily(), this never sets manual: it exists to set up a scenario for a real-pointer test that then
+  // drives the rest of the flow through real input, with the rAF loop auto-advancing exactly as it would for
+  // a real player - not for a test that steps the sim by hand.
+  loadCustom(def) {
+    startLevel(2, def);
     return this.state();
   },
   loadDaily() {
@@ -911,6 +1295,31 @@ window.__sim = {
   fuseSteps: FUSE_STEPS,
 };
 
+// The camera's own test hook (plan "Test hooks"): QA reads this instead of poking at `view` or the canvas.
+window.__cam = {
+  state() {
+    return camera && { mode: camera.mode, x: camera.x, y: camera.y, zoom: camera.zoom, highFlyer: !!camera.highFlyer };
+  },
+};
+
+// The GL/fx test hook (plan "Test hooks"): QA reads GL availability, the post pass's live trigger state and
+// the reduced-motion flag from here, instead of poking at the canvas or the shader directly.
+window.__fx = {
+  state() {
+    return {
+      glOk: glActive(),
+      glForcedOff,
+      flatPost,
+      ringCount: fx.rings.length,
+      ca: fx.ca,
+      flash: fx.flash,
+      shake: fx.shake,
+      particleCount: fx.particles.length,
+      reducedMotion: !!(window.UIKit && window.UIKit.reduceMotion()),
+    };
+  },
+};
+
 resize();
-themeReady.then(() => showScreen("cbf-title"));
+themeReady.then(() => { showScreen("cbf-title"); focusTurnCardOnAppear(); }); // showScreen focuses the title's own first button; re-run after it so the turn card (shown over every screen) wins focus in portrait
 requestAnimationFrame(frame);

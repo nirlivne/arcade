@@ -16,6 +16,10 @@
   /* knack helmet tags (rail chips + caption pill): a cream felt disc with the helmet add-on */
   --cbf-knack-heavy: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-12 -12 24 24'><circle r='11' fill='%23FFF4E0'/><path d='M-6.5,2 A6.5,6.5 0 0 1 6.5,2 Z' fill='%234B4643'/><rect x='-7' y='1' width='14' height='3' fill='%236E6863'/></svg>");
   --cbf-knack-light: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-12 -12 24 24'><circle r='11' fill='%23FFF4E0'/><path d='M5,0 Q10,-4 9,-9 Q7,-4 4,-2 Z M-5,0 Q-10,-4 -9,-9 Q-7,-4 -4,-2 Z' fill='%23C4A97C'/><path d='M-6.5,2 A6.5,6.5 0 0 1 6.5,2 Z' fill='%2326345A'/></svg>");
+  /* v2 HUD icons: the peek binoculars (navy felt, lens-blue glass, cream rings) and sound on/off (cream on the dark patch) */
+  --cbf-icon-peek: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-24 -24 48 48'><g fill='%2326345A'><rect x='-19' y='-15' width='16' height='22' rx='5'/><rect x='3' y='-15' width='16' height='22' rx='5'/><circle cx='-11' cy='8' r='10'/><circle cx='11' cy='8' r='10'/></g><rect x='-5' y='-9' width='10' height='9' rx='3' fill='%233B4C7A'/><circle cy='-12' r='3' fill='%23EDB22C'/><g fill='%23A9D3CF' stroke='%23FFF4E0' stroke-width='2.2'><circle cx='-11' cy='8' r='6.6'/><circle cx='11' cy='8' r='6.6'/></g><circle cx='-13.4' cy='5.6' r='1.9' fill='%23fff' opacity='.75'/><circle cx='8.6' cy='5.6' r='1.9' fill='%23fff' opacity='.75'/><path d='M-17-11h12M5-11h12' stroke='%23FFF4E0' stroke-width='1.2' stroke-dasharray='2.2 1.8' opacity='.6'/></svg>");
+  --cbf-icon-sound: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FFF4E0' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M4 9.5h3.5L12 5.5v13l-4.5-4H4z' fill='%23FFF4E0'/><path d='M15.5 9a4 4 0 0 1 0 6M18.2 6.5a7.5 7.5 0 0 1 0 11'/></svg>");
+  --cbf-icon-mute: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FFF4E0' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M4 9.5h3.5L12 5.5v13l-4.5-4H4z' fill='%23FFF4E0'/><path d='M15.5 9.5l5 5M20.5 9.5l-5 5'/></svg>");
   --cbf-knack-bounce: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-12 -12 24 24'><circle r='11' fill='%23FFF4E0'/><path d='M-6.5,2 A6.5,6.5 0 0 1 6.5,2 Z' fill='%2326345A'/><path d='M-8,2 A8,8 0 0 1 8,2' fill='none' stroke='%23D9483B' stroke-width='2.4' stroke-dasharray='2.5 2.5'/></svg>");
 }
 
@@ -407,35 +411,225 @@ body.cbf {
   .cbf-banner { width: min(80vw, 520px); }
   .cbf-troupe-name { font-size: 26px; }
 }
-/* landscape phones: the rail is a column on the left edge, plaques and pause top-right, outside the world */
-@media (orientation: landscape) and (max-height: 520px) {
-  .cbf-hud { grid-template-columns: var(--rail-w) minmax(0, 1fr) auto; grid-template-rows: auto auto; padding-bottom: max(var(--space-2), env(safe-area-inset-bottom)); }
-  .cbf-rail { grid-column: 1; grid-row: 1 / 3; height: auto; max-height: calc(100dvh - 2 * var(--space-2)); width: var(--rail-w); flex-direction: column; justify-content: center; padding: var(--space-2) 0; }
-  .cbf-hud .cbf-pause { grid-column: 3; grid-row: 1; }
-  .cbf-hud__stats { grid-column: 3; grid-row: 2; flex-direction: column; align-items: end; }
-  .cbf-caption { top: max(var(--space-3), env(safe-area-inset-top)); }
-  #cbf-title { grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); grid-template-rows: auto auto minmax(0, 1fr); column-gap: var(--space-4); row-gap: var(--space-1); padding-top: var(--space-2); padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
-  #cbf-title .cbf-banner { grid-column: 2; grid-row: 1; margin-top: 0; width: 100%; }
-  #cbf-title .cbf-troupe-name { grid-column: 2; grid-row: 2; font-size: 19px; }
-  #cbf-title .cbf-hero { grid-column: 1; grid-row: 1 / 4; }
-  #cbf-title > .cbf-patches { grid-column: 2; grid-row: 3; align-self: end; margin-bottom: 0; }
-  .cbf-patch--lg { min-height: 52px; font-size: 26px; }
-  /* no sawdust under the world here: the hint becomes a cream pill under the caption (walnut ink on rust would fail) */
-  .cbf-hint { bottom: auto; top: calc(max(var(--space-3), env(safe-area-inset-top)) + 48px); padding: 5px 12px; border-radius: var(--radius-pill); background: var(--cbf-cream); box-shadow: var(--shadow-felt); font-size: 14px; }
-  .cbf-corner { top: max(var(--space-2), env(safe-area-inset-top)); }
-  .cbf-corner--r { right: auto; left: calc(max(var(--space-3), env(safe-area-inset-left)) + 52px); }
-  #cbf-call, #cbf-fail, #cbf-daily { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); grid-template-rows: minmax(0, 1fr) auto; column-gap: var(--space-5); padding-top: var(--space-4); padding-bottom: calc(36px + env(safe-area-inset-bottom)); }
-  :is(#cbf-call, #cbf-fail, #cbf-daily) > .cbf-card { grid-column: 2; grid-row: 1; align-self: center; padding: 14px 16px; }
-  :is(#cbf-call, #cbf-fail, #cbf-daily) > .cbf-stage { grid-column: 1; grid-row: 1 / 3; }
-  :is(#cbf-call, #cbf-fail, #cbf-daily) > .cbf-patches { grid-column: 2; grid-row: 2; }
-  .cbf-card__title { font-size: 28px; } .cbf-star { width: 36px; height: 36px; } .cbf-star:nth-child(2) { width: 42px; height: 42px; }
-  .cbf-levels { grid-template-columns: repeat(10, minmax(0, 1fr)); }
-  #cbf-map > * { width: 100%; }
-}
 @media (min-width: 900px) and (min-height: 600px) {
   .cbf-levels { grid-template-columns: repeat(10, minmax(0, 1fr)); }
   #cbf-map > * { width: min(100%, 860px); }
   .cbf-card { width: 380px; }
+}
+
+/* ================================================================ v2 (THE-522): landscape is the design frame (spec §A)
+   Every rule below is landscape-only, so the v1 portrait rules above stay as the "Play upright" layout (A3): the
+   upright player gets the v1 stacked menus, the rail plank across the top and the 16:9 world letterboxed under it.
+   Three tiers, by height: compact (phones, <= 520 tall: 844x390), regular (521-899: 1280x720), large (>= 900: 1920x1080). */
+
+/* ---------------------------------------------------------------- new HUD pieces (all orientations)
+   <div class="cbf-hud__btns"> <button class="cbf-patch cbf-patch--icon cbf-sound" aria-pressed="true"> <button ... cbf-pause> </div>
+   <button class="uk-btn cbf-patch cbf-peek" aria-label="Look at the fort (V)" aria-pressed="false"><kbd>V</kbd></button> */
+.cbf-hud__btns { grid-column: 2; grid-row: 1; align-self: center; display: flex; gap: var(--space-2); pointer-events: auto; }
+@media (orientation: portrait) { /* "Play upright": the peek patch sits bottom-right, under the letterboxed world */
+  .cbf-peek { position: absolute; right: max(var(--space-3), env(safe-area-inset-right)); bottom: max(var(--space-5), env(safe-area-inset-bottom)); }
+}
+.cbf-hud__btns .cbf-patch--icon, .cbf-hud .cbf-pause { width: var(--hud-btn, var(--hit-min)); height: var(--hud-btn, var(--hit-min)); min-height: var(--hud-btn, var(--hit-min)); }
+.cbf-sound::after, .cbf-pause::after { opacity: .35; }
+.cbf-sound { background: var(--cbf-icon-sound) center / 58% no-repeat, var(--face); }
+.cbf-sound[aria-pressed="false"] { background-image: var(--cbf-icon-mute); }
+/* the PEEK patch: navy felt binoculars on a cream patch; held = sunk into the felt with a gold stitch (aria-pressed) */
+.cbf-peek {
+  --face: var(--cbf-cream); --back: var(--cbf-canvas-deep); --stitch: var(--cbf-tent); width: var(--peek, 60px); height: var(--peek, 60px); min-height: 0; padding: 0;
+  background: var(--cbf-icon-peek) 50% 46% / 74% no-repeat, var(--face); border-radius: 50%; pointer-events: auto; touch-action: none;
+}
+.cbf-peek::before { inset: 5px; border-radius: 50%; }
+.cbf-peek[aria-pressed="true"] { --stitch: var(--cbf-star); transform: translateY(1.5px); box-shadow: 0 0 0 var(--backing) var(--back), 0 0 0 5px rgba(237, 178, 44, .55), var(--shadow-sink); }
+.cbf-peek kbd { /* the keyboard hint, only where there is a keyboard and room */
+  position: absolute; right: -6px; bottom: -6px; display: none; min-width: 20px; height: 20px; padding: 0 4px; box-sizing: border-box; border-radius: 6px;
+  background: var(--cbf-navy); color: var(--cbf-cream); font: 700 12px/20px var(--font-body); box-shadow: 0 0 0 1.5px var(--cbf-navy-deep);
+}
+@media (hover: hover) and (pointer: fine) { .cbf-peek kbd { display: block; } }
+.cbf-plaque--score { min-width: 5.2em; justify-content: flex-end; }
+.cbf-plaque__ch { font: var(--weight-ui) 12px/1 var(--font-body); letter-spacing: .1em; text-transform: uppercase; opacity: .9; text-shadow: none; }
+
+/* ---------------------------------------------------------------- the curtain call tally (spec §E3)
+   <ol class="cbf-tally"><li class="cbf-tally__row"><span>Tins <small>× 7</small></span><b>700</b></li> ... drums, crates,
+   <li class="cbf-tally__row cbf-tally__row--bonus"><span>Family bonus <small>2 × 1,000</small></span><b>2,000</b></li></ol>
+   then .cbf-card__score (the total, counting up) and .cbf-meter. Rows start hidden; add .is-in to each one 250 ms apart
+   (reduced motion: all at once). The total counts with the rows; each star stamps (.is-lit) as its threshold is passed. */
+.cbf-tally { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; text-align: left; }
+.cbf-tally__row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); padding: 3px 4px;
+  border-bottom: 1.5px dashed rgba(138, 51, 36, .3); font: var(--weight-ui) 16px/1.2 var(--font-body);
+  opacity: 0; transform: translateX(-10px); transition: opacity var(--dur-med) var(--ease-out), transform var(--dur-med) var(--ease-out);
+}
+.cbf-tally__row small { font: var(--weight-ui) 13px/1 var(--font-body); color: var(--cbf-ink-2); margin-left: 4px; }
+.cbf-tally__row b { font: 400 18px/1 var(--font-numeral); color: var(--cbf-tent); font-variant-numeric: tabular-nums; }
+.cbf-tally__row--bonus { border-bottom: 0; background: rgba(237, 178, 44, .22); border-radius: 8px; }
+.cbf-tally__row.is-in { opacity: 1; transform: none; }
+:root[data-reduce-motion="true"] .cbf-tally__row { transition: none; }
+/* the star meter (nice-to-have, cut first): a felt strip the total fills, with a star pinned at S2 and S3.
+   <div class="cbf-meter" style="--fill:.62; --s2:.5; --s3:.82"><i class="cbf-meter__fill"></i><i class="cbf-meter__pin" style="--at:var(--s2)"></i>...</div>
+   Scale: 0 = 0 points, 1 = S3 x 1.2. */
+.cbf-meter { position: relative; height: 14px; margin: 14px 6px 4px; border-radius: 7px; background: rgba(42, 26, 18, .16); box-shadow: inset 0 1px 2px rgba(20, 6, 4, .25); }
+.cbf-meter__fill { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--fill, 0) * 100%); border-radius: 7px; background: var(--cbf-star); box-shadow: inset 0 0 0 2px var(--cbf-star), inset 0 0 0 3.4px rgba(168, 116, 16, .6); transition: width 250ms linear; }
+.cbf-meter__pin { position: absolute; top: -9px; left: calc(var(--at) * 100%); width: 3px; height: 32px; margin-left: -1.5px; background: var(--cbf-tent); border-radius: 2px; }
+
+/* ---------------------------------------------------------------- "Turn your phone sideways" (spec §A3)
+   <section class="cbf-turn" id="cb-turn" role="dialog" aria-modal="true" aria-labelledby="cb-turn-title">
+     <div class="cbf-turn__phone" aria-hidden="true"><svg viewBox="-60 -60 120 120">… (DESIGN.md §15)</svg></div>
+     <h2 class="cbf-turn__title" id="cb-turn-title">Turn your phone sideways</h2>
+     <p class="cbf-turn__sub">The big top is wider that way.</p>
+     <button class="uk-btn cbf-patch cbf-patch--ghost cbf-patch--sm" id="cb-btn-upright">Play upright</button></section>
+   Shown by CSS alone in portrait. "Play upright" adds .is-upright to .cbf-app for the session (never saved). */
+.cbf-turn {
+  position: absolute; inset: 0; z-index: 45; display: none; box-sizing: border-box; align-content: center; justify-items: center; gap: var(--space-3);
+  padding: max(var(--space-6), env(safe-area-inset-top)) var(--space-5) max(var(--space-6), env(safe-area-inset-bottom)); text-align: center;
+  background: var(--cbf-fibre-dark) 0 0 / 120px 120px, radial-gradient(ellipse 70% 45% at 50% 38%, rgba(255, 236, 190, .22), rgba(255, 236, 190, 0) 70%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .2) 0, rgba(255, 220, 200, .06) 14px, rgba(0, 0, 0, .2) 30px), var(--cbf-tent-deep);
+}
+@media (orientation: portrait) { .cbf-app:not(.is-upright) > .cbf-turn { display: grid; } }
+.cbf-turn__phone { width: 220px; height: 220px; }
+.cbf-turn__phone svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 4px 4px rgba(20, 6, 4, .45)); }
+.cbf-turn__body { transform-origin: 0 0; animation: cbf-turn 2.8s var(--ease-out) infinite; }
+.cbf-turn__arrow { stroke-dasharray: 7 5; animation: cbf-turn-arrow 2.8s linear infinite; }
+@keyframes cbf-turn { 0%, 18% { transform: rotate(0); } 46%, 82% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+@keyframes cbf-turn-arrow { 0%, 18% { opacity: 1; } 40%, 100% { opacity: 0; } }
+:root[data-reduce-motion="true"] .cbf-turn__body, :root[data-reduce-motion="true"] .cbf-turn__arrow { animation: none; }
+@media (prefers-reduced-motion: reduce) { .cbf-turn__body, .cbf-turn__arrow { animation: none; } }
+.cbf-turn__title { margin: var(--space-2) 0 0; max-width: 12ch; font: 400 32px/1.08 var(--font-display); color: var(--cbf-cream); text-shadow: 0 2px 2px rgba(20, 6, 4, .5); text-wrap: balance; }
+.cbf-turn__sub { margin: 0; font: var(--weight-ui) 17px/1.3 var(--font-body); color: var(--cbf-canvas); }
+.cbf-turn .cbf-patch { width: auto; margin-top: var(--space-4); padding: 0 var(--space-5); }
+
+/* ---------------------------------------------------------------- landscape: every tier */
+@media (orientation: landscape) {
+  :root { --rail-w: 72px; --hud-btn: 44px; --peek: 60px; --chip-box: 48px; --chip-head: 42px; }
+  /* play HUD: rail = a wooden column on the left edge (rows 1..3); level + score plaques top-left of the world; sound
+     + pause top-right; the peek patch under them. The fort flag (canvas) lives on the right edge between 34 % and 86 %
+     of the height, so it never meets the buttons. */
+  .cbf-hud {
+    grid-template-columns: var(--rail-w) minmax(0, 1fr) auto; grid-template-rows: auto auto minmax(0, 1fr); column-gap: var(--space-3); row-gap: var(--space-3);
+    padding: max(var(--space-2), env(safe-area-inset-top)) max(var(--space-3), env(safe-area-inset-right)) max(var(--space-2), env(safe-area-inset-bottom)) max(var(--space-2), env(safe-area-inset-left));
+  }
+  .cbf-rail {
+    grid-column: 1; grid-row: 1 / -1; align-self: center; width: var(--rail-w); height: auto; max-height: 100%; flex-direction: column; justify-content: center; gap: 8px; padding: var(--space-3) 0;
+    background: var(--cbf-fibre-dark) 0 0 / 120px 120px,
+      repeating-linear-gradient(90deg, rgba(126, 80, 40, 0) 0 5px, rgba(126, 80, 40, .28) 5px 6px, rgba(215, 164, 108, .18) 6px 7px, rgba(126, 80, 40, 0) 7px 13px),
+      var(--cbf-wood);
+  }
+  .cbf-chip { width: var(--chip-box); height: var(--chip-box); }
+  .cbf-chip__head { width: var(--chip-head); height: var(--chip-head); }
+  .cbf-hud__stats { grid-column: 2; grid-row: 1; flex-direction: row; justify-content: flex-start; align-items: center; align-self: start; flex-wrap: wrap; }
+  .cbf-hud__btns { grid-column: 3; grid-row: 1; justify-self: end; }
+  .cbf-hud > .cbf-pause { grid-column: 3; grid-row: 1; justify-self: end; } /* v1 markup (no __btns wrapper) */
+  .cbf-peek { grid-column: 3; grid-row: 2; justify-self: end; }
+  .cbf-caption { top: max(var(--space-3), env(safe-area-inset-top)); left: 50%; }
+  /* no sawdust under the world in the aim frame's top band: the hint is a cream pill under the caption */
+  .cbf-hint { bottom: auto; top: calc(max(var(--space-3), env(safe-area-inset-top)) + 52px); padding: 5px 12px; border-radius: var(--radius-pill); background: var(--cbf-cream); box-shadow: var(--shadow-felt); font-size: 14px; }
+  .cbf-demo__skip { bottom: max(var(--space-3), env(safe-area-inset-bottom)); padding: 6px 12px; border-radius: var(--radius-pill); background: var(--cbf-cream); box-shadow: var(--shadow-felt); }
+
+  /* title: the diorama on the left, the banner + plaque + patches in a right column */
+  #cbf-title { grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); grid-template-rows: auto auto minmax(0, 1fr); column-gap: var(--space-5); row-gap: var(--space-2);
+    padding-top: max(var(--space-3), env(safe-area-inset-top)); padding-bottom: max(var(--space-4), env(safe-area-inset-bottom)); }
+  #cbf-title .cbf-banner { grid-column: 2; grid-row: 1; margin-top: 0; width: 100%; }
+  #cbf-title .cbf-troupe-name { grid-column: 2; grid-row: 2; }
+  #cbf-title .cbf-hero { grid-column: 1; grid-row: 1 / 4; }
+  #cbf-title > .cbf-patches { grid-column: 2; grid-row: 3; align-self: end; margin-bottom: 0; width: 100%; }
+  .cbf-corner { top: max(var(--space-3), env(safe-area-inset-top)); }
+  .cbf-corner--r { right: auto; left: calc(max(var(--space-3), env(safe-area-inset-left)) + 56px); }
+
+  /* curtain call, fail, daily: the bowing troupe on the left, the card (tally + total + stars) and patches on the right */
+  #cbf-call, #cbf-fail, #cbf-daily { grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); grid-template-rows: minmax(0, 1fr) auto; column-gap: var(--space-5); row-gap: var(--space-3);
+    padding-top: max(var(--space-4), env(safe-area-inset-top)); padding-bottom: max(var(--space-4), env(safe-area-inset-bottom)); }
+  :is(#cbf-call, #cbf-fail, #cbf-daily) > .cbf-card { grid-column: 2; grid-row: 1; align-self: center; width: 100%; }
+  :is(#cbf-call, #cbf-fail, #cbf-daily) > .cbf-stage { grid-column: 1; grid-row: 1 / 3; }
+  :is(#cbf-call, #cbf-fail, #cbf-daily) > .cbf-patches { grid-column: 2; grid-row: 2; width: 100%; }
+
+  /* sheets: wider and two-column, never a full-height bottom sheet */
+  #cb-pause, .uk-sheet#cb-pause { width: min(92vw, 640px); }
+  #cb-pause .uk-sheet__body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: var(--space-5); align-items: center; }
+  #cb-pause .uk-sheet__body > .cbf-patches { grid-row: 1 / span 3; width: 100%; }
+  #cb-pause .cbf-setting { grid-column: 2; }
+  #cb-pause .cbf-setting:first-of-type { border-top: 0; }
+  #cb-howto { width: min(92vw, 680px); }
+  #cb-howto .uk-step { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: center; justify-items: start; text-align: left; column-gap: var(--space-5); }
+  #cb-howto .uk-step__text { font-size: 20px; text-align: left; }
+  .cbf-sheet--bottom { margin: auto; width: min(94vw, 860px); max-height: calc(100dvh - 2 * var(--space-3)); border-radius: var(--radius-lg); padding-bottom: var(--space-5); }
+  .cbf-sheet--bottom .cbf-sheet__grab { display: none; }
+  .cbf-members { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cbf-member.is-open { grid-column: 1 / -1; }
+  /* Save stays in reach on a 390-tall phone: the foot row + Save stick to the bottom of the scrolling sheet */
+  .cbf-sheet--bottom > .cbf-patches { position: sticky; bottom: calc(-1 * var(--space-5)); width: auto; margin: var(--space-3) calc(-1 * var(--space-5)) calc(-1 * var(--space-5)); padding: var(--space-3) var(--space-5) var(--space-4);
+    grid-template-columns: minmax(0, 320px); justify-content: center; background: linear-gradient(rgba(255, 244, 224, 0), var(--cbf-cream) 14px); z-index: 1; }
+
+  .cbf-levels { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+  #cbf-map > * { width: min(100%, 900px); }
+  .cbf-chapter__title { display: flex; align-items: center; gap: 8px; }
+  .cbf-chapter__title::before { content: ""; width: 26px; height: 12px; border-radius: 3px; background: var(--chapter-swatch, var(--cbf-tent)); box-shadow: 0 0 0 1.5px rgba(255, 244, 224, .5); }
+  [data-chapter="matinee"] { --chapter-swatch: linear-gradient(90deg, #8A3324 0 50%, #C4A97C 50%); }
+  [data-chapter="sunset"] { --chapter-swatch: linear-gradient(90deg, #A13E26 0 50%, #DDA062 50%); }
+  [data-chapter="night"] { --chapter-swatch: linear-gradient(90deg, #1E0C0C 0 50%, #FFE08A 50%); }
+}
+
+/* compact: phones on their side (844x390, 740x360, 932x430) */
+@media (orientation: landscape) and (max-height: 520px) {
+  :root { --rail-w: 64px; --hud-btn: 44px; --peek: 56px; --chip-box: 44px; --chip-head: 38px; --plaque-h: 32px; }
+  .cbf-rail { gap: 6px; padding: var(--space-2) 0; }
+  .cbf-plaque { font-size: 17px; }
+  #cbf-title { grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); row-gap: var(--space-1); padding-top: var(--space-2); padding-bottom: max(var(--space-3), env(safe-area-inset-bottom)); }
+  #cbf-title .cbf-troupe-name { font-size: 18px; padding: 6px 18px 7px; }
+  .cbf-patch--lg { min-height: 52px; font-size: 26px; }
+  .cbf-patches { gap: var(--space-2); }
+  /* three columns so the card never has to share a column with the buttons: stage | card | patches */
+  #cbf-call, #cbf-fail, #cbf-daily { grid-template-columns: minmax(0, 1fr) minmax(272px, 300px) minmax(160px, 190px); grid-template-rows: minmax(0, 1fr); column-gap: var(--space-4); padding-top: var(--space-3); padding-bottom: max(var(--space-3), env(safe-area-inset-bottom)); }
+  :is(#cbf-call, #cbf-fail, #cbf-daily) > .cbf-stage { grid-row: 1; }
+  :is(#cbf-call, #cbf-fail, #cbf-daily) > .cbf-card { grid-column: 2; grid-row: 1; padding: 12px 14px 12px; max-height: 100%; overflow: hidden; }
+  :is(#cbf-call, #cbf-fail, #cbf-daily) > .cbf-patches { grid-column: 3; grid-row: 1; align-self: end; }
+  .cbf-card__title { font-size: 26px; } .cbf-card__sub { font-size: 15px; margin-top: 2px; }
+  .cbf-card__score { font-size: 24px; margin-top: 4px; }
+  .cbf-tally { margin-top: 6px; } .cbf-tally__row { padding: 2px 4px; font-size: 14px; } .cbf-tally__row b { font-size: 16px; }
+  .cbf-stars { margin-top: 6px; } .cbf-star { width: 34px; height: 34px; } .cbf-star:nth-child(2) { width: 40px; height: 40px; }
+  .cbf-card__share { margin-top: 6px; padding: 6px 10px; font-size: 13px; }
+  .cbf-meter { margin-top: 10px; }
+  .uk-sheet, .cbf-sheet { padding: var(--space-4); max-height: calc(100dvh - 2 * var(--space-2)); }
+  .uk-sheet__head { padding-bottom: var(--space-2); }
+  .uk-sheet__title, .cbf-sheet__title { font-size: 22px; }
+  #cb-howto .uk-step { grid-template-columns: 260px minmax(0, 1fr); }
+  #cb-howto .uk-step__text { font-size: 18px; }
+  .uk-sheet__foot { padding-bottom: var(--space-3); }
+  .cbf-sheet__head { margin-bottom: var(--space-2); }
+  .cbf-field { margin-bottom: var(--space-2); }
+}
+
+/* regular: tablets and laptops (1280x720, 1024x768 landscape) */
+@media (orientation: landscape) and (min-height: 521px) {
+  :root { --rail-w: 84px; --hud-btn: 52px; --peek: 68px; --chip-box: 58px; --chip-head: 50px; --plaque-h: 40px; }
+  .cbf-plaque { font-size: 22px; padding: 0 var(--space-4); }
+  #cbf-title { grid-template-columns: minmax(0, 1fr) minmax(340px, 440px); padding-left: max(var(--space-6), env(safe-area-inset-left)); padding-right: max(var(--space-6), env(safe-area-inset-right)); padding-top: var(--space-6); padding-bottom: var(--space-6); }
+  #cbf-title .cbf-troupe-name { font-size: 24px; }
+  #cbf-call, #cbf-fail, #cbf-daily { grid-template-columns: minmax(0, 1fr) minmax(340px, 400px); padding: var(--space-6) max(var(--space-6), env(safe-area-inset-right)) var(--space-6) max(var(--space-6), env(safe-area-inset-left)); }
+  .cbf-card { padding: 22px 24px 20px; }
+  .cbf-tally__row { font-size: 17px; padding: 4px 6px; } .cbf-tally__row b { font-size: 20px; }
+}
+
+/* large: 1080p and up. Same layout; the HUD and cards grow so they don't float in a sea of tent. */
+@media (orientation: landscape) and (min-height: 900px) {
+  :root { --rail-w: 104px; --hud-btn: 60px; --peek: 80px; --chip-box: 72px; --chip-head: 62px; --plaque-h: 48px; --patch-h: 60px; --patch-lg-h: 76px; }
+  .cbf-hud { padding: var(--space-4) var(--space-5); column-gap: var(--space-4); }
+  .cbf-rail { gap: 12px; }
+  .cbf-plaque { font-size: 26px; }
+  .cbf-plaque small, .cbf-plaque__ch { font-size: 15px; }
+  .cbf-patch { font-size: 24px; } .cbf-patch--lg { font-size: 40px; } .cbf-patch--navy { font-size: 20px; } .cbf-patch--ghost, .cbf-patch--sm { font-size: 18px; }
+  .cbf-patches { width: min(100%, 400px); gap: var(--space-4); }
+  #cbf-title { grid-template-columns: minmax(0, 1fr) minmax(420px, 560px); padding: var(--space-7) 64px; }
+  #cbf-title .cbf-troupe-name { font-size: 30px; padding: 10px 28px 11px; }
+  #cbf-call, #cbf-fail, #cbf-daily { grid-template-columns: minmax(0, 1fr) minmax(420px, 480px); padding: 64px; }
+  .cbf-card__title { font-size: 44px; } .cbf-card__sub { font-size: 22px; } .cbf-card__score { font-size: 36px; }
+  .cbf-tally__row { font-size: 20px; padding: 6px 8px; } .cbf-tally__row b { font-size: 24px; } .cbf-tally__row small { font-size: 16px; }
+  .cbf-star { width: 56px; height: 56px; } .cbf-star:nth-child(2) { width: 66px; height: 66px; }
+  .uk-sheet, .cbf-sheet { font-size: 18px; }
+  #cb-pause, .uk-sheet#cb-pause { width: min(80vw, 760px); }
+  #cb-howto { width: min(80vw, 860px); }
+  #cb-howto .uk-step__text { font-size: 24px; }
+  .cbf-h2 { font-size: 36px; }
+  #cbf-map > * { width: min(100%, 1120px); }
+  .cbf-level b { font-size: 26px; } .cbf-level__stars { height: 16px; } .cbf-level__stars i { width: 16px; height: 16px; }
 }
 @media (max-width: 420px) {
   .cbf-sheet, .uk-sheet { padding: var(--space-4); }

@@ -98,6 +98,32 @@
   --cbf-net-pole: #D9483B;        /* pole stripes on cream */
   --cbf-smoke: #FFF4E0;           /* felt smoke puff, 85 % */
 
+  /* color v2 (THE-522): the new fort pieces. The drum is a target, so it takes target dyes (tomato hoop, robin ring). */
+  --cbf-drum-hoop: #C8553D;       /* barber-striped with cream */
+  --cbf-drum-hoop-deep: #8E3524;
+  --cbf-drum-head: #F3E6C8;       /* the skin */
+  --cbf-drum-head-deep: #D8C49E;
+  --cbf-drum-ring: #5F9EA6;       /* the painted ring round the star */
+  --cbf-drum-lug: #EDB22C;        /* 8 brass lugs (6 after the dent) */
+  --cbf-pine: #DDB57E;            /* pine crate (HP 1): pale, dark end battens */
+  --cbf-pine-deep: #A98049;
+  --cbf-pine-light: #F0D3A2;
+  --cbf-oak: #9C6A3C;             /* iron-banded crate (HP 2): dark oak + two iron bands */
+  --cbf-oak-deep: #6B4523;
+  --cbf-oak-light: #B9875A;
+  --cbf-podium: #E3CFA8;          /* the hill box: a show podium */
+  --cbf-podium-deep: #C4A97C;
+  --cbf-podium-lid: #A84A34;
+  --cbf-column: #FFF4E0;          /* bridge pillars: cream with curb-red spiral stripes */
+  --cbf-column-stripe: #B8342A;
+  --cbf-rope: #E8DCC0;            /* trapeze ropes, garland cords */
+
+  /* color v2: the three chapter lights for the same tent (troupe.js CHAPTERS holds the full recipe; DESIGN.md §14) */
+  --cbf-ch-matinee-wall: #5A1E16;  --cbf-ch-matinee-stripe-a: #8A3324; --cbf-ch-matinee-stripe-b: #C4A97C; --cbf-ch-matinee-floor: #D6B07A;
+  --cbf-ch-sunset-wall: #6A2A1A;   --cbf-ch-sunset-stripe-a: #A13E26;  --cbf-ch-sunset-stripe-b: #DDA062;  --cbf-ch-sunset-floor: #D9A26A;
+  --cbf-ch-night-wall: #1E0C0C;    --cbf-ch-night-stripe-a: #4A1C18;   --cbf-ch-night-stripe-b: #5C5042;   --cbf-ch-night-floor: #A88B62;
+  --cbf-flash: #FFE6B0;            /* the clear flash (matinee; sunset #FFD49A, night #FFF0C8) */
+
   /* kit plumbing names (sheets, toggles, toast); skin.css restyles the shapes */
   --color-bg: #5A1E16;
   --color-bg-2: #8A3324;
@@ -158,8 +184,11 @@
   --plaque-h: 34px;
 
   /* canvas sizes (world units unless noted) */
-  --cbf-world-w: 640;
-  --cbf-world-h: 480;
+  --cbf-world-w: 640;            /* v1 only; v2 width is per level (spec §A2: the structure's far edge + 300) */
+  --cbf-world-h: 720;            /* v2: the camera always shows 720 units of height; floor at y 680, cannon at x 140 */
+  --cbf-floor-y: 680;
+  --cbf-aim-cannon-x: 0.18;      /* aim frame: the cannon 18 % in from the left (never under the rail: >= rail edge + 80 px) */
+  --cbf-flag-band: 0.34 0.86;    /* the fort flag's y band (fraction of the height), clear of the top-right buttons */
   --cbf-face-loaded-min: 56px;   /* screen px floor */
   --cbf-face-flight-min: 44px;   /* screen px floor (48 if the sign-off likeness check fails) */
   --cbf-aim-w: 6px;              /* aim stitch width, screen px at any scale */
@@ -215,3 +244,15 @@
 /* contrast: --cbf-cream on --cbf-tent-dark >= 4.5 */
 /* contrast: --cbf-stone on --cbf-tent-deep >= 3 */
 /* contrast: --cbf-cream on --cbf-seat-cobalt >= 4.5 */
+/* v2: the new pieces against the walls they stand in front of (matinee is the lightest wall, so it is the hard case;
+   sunset and night walls are darker) and the drum's own reading cues. */
+/* contrast: --cbf-drum-head on --cbf-tent-deep >= 3 */
+/* contrast: --cbf-pine on --cbf-tent-deep >= 3 */
+/* contrast: --cbf-column on --cbf-tent-deep >= 3 */
+/* contrast: --cbf-podium on --cbf-tent-deep >= 3 */
+/* contrast: --cbf-tin-rim on --cbf-ch-sunset-wall >= 3 */
+/* contrast: --cbf-drum-head on --cbf-ch-sunset-wall >= 3 */
+/* contrast: --cbf-tin-rim on --cbf-ch-night-wall >= 3 */
+/* contrast: --cbf-stone on --cbf-ch-night-wall >= 3 */
+/* contrast: --cbf-oak-light on --cbf-ch-night-wall >= 3 */
+/* contrast: --cbf-ink on --cbf-ch-night-floor >= 4.5 */

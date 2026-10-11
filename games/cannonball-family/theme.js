@@ -41,6 +41,7 @@ window.THEME = {
     practice: "Practice",
     share: "Share",
     shareCopied: "Copied! Paste it anywhere.",
+    migrationNotice: "New rules: your stars restart.", // spec v2 §H1, shown once on the curtain call after a save migrates
     demoGoal: "Knock down every tin",
     demoRule: "One shot each. If the family runs out, the tins win",
     demoSkip: "Tap to skip",
@@ -52,7 +53,10 @@ window.THEME = {
     reducedMotion: "Reduced motion",
     howTo1: "Pull back from anywhere, then let go.",
     howTo2: "Knock down every tin. One shot per member.",
-    howTo3: "Stars are the members who didn't need to fly.",
+    howTo3: "Drums take two hits. The first dents it, the second bursts it.", // spec v2 §D
+    howTo4: "Crates break open and drop what's on them.", // spec v2 §D
+    howTo5: "Hold the binoculars (or V) to peek at the fort before you aim.", // spec v2 §C3
+    howTo6: "Stars come from your score, not who stayed home.", // spec v2 §E2
     about: "About",
     privacyLine: "Your family's names and photos are saved only on this device. They are never uploaded, and they never appear in a share line.",
     madeBy: "Made by The Game Company",

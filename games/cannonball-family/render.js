@@ -3,19 +3,37 @@
 import { FIELD, CANNON, TIN_R, FLYER_R } from "./sim.js";
 import { arcPoints } from "./aim.js";
 import { CBF } from "./troupe.js";
+import { CAM_Y } from "./camera.js";
 
-export const WORLD_W = FIELD.r - FIELD.l, WORLD_H = 480;
+export const WORLD_H = 720; // spec v2 §A1: the camera always shows this many world units of height
 const MAX_SCALE = 1.5; // spec §6 scale cap
 const FACE_LOADED = 92, FACE_FLIGHT = 72; // world units (= the r 36 collider's diameter for flight)
 // CSS px floors (spec §6; the flight floor raised 44 -> 48 per THE-474/THE-453's likeness check: a fresh
 // matcher on 6 real people scored 44px at 4/6 matched, 48px at 6/6, both centre- and face-crop). Exported so
 // tests can check the real constant, not a copy of the number.
 export const FACE_LOADED_MIN = 56, FACE_FLIGHT_MIN = 48;
+// D2-5 (THE-595): the altitude marker's own trigger floor in CSS px - see its use below. The sprite's own
+// half-size can exceed this at a tall viewport, in which case that (size / 2) wins instead.
+export const HIGH_FLYER_MARKER_MIN = 40;
 
-// The world (640 × 480) scaled uniformly into the canvas and centred. view maps world → CSS px.
+// scale is driven by viewport height alone (spec A1: "visible width = 720 x the viewport's aspect ratio"), so
+// a camera x pan never changes it — only cssH and zoom (<1 = zoomed out, showing more than 720 units) do.
+export function scaleForHeight(cssH, zoom = 1) {
+  return Math.min(cssH / (WORLD_H / zoom), MAX_SCALE);
+}
+
+// Maps a camera { x, y, zoom } (world units, world units, scale factor) to CSS px: cam.x/y land at the
+// viewport's centre. view maps world -> CSS px via { scale, ox, oy }.
+export function viewFromCamera(cam, cssW, cssH) {
+  const scale = scaleForHeight(cssH, cam.zoom);
+  return { scale, ox: cssW / 2 - cam.x * scale, oy: cssH / 2 - cam.y * scale };
+}
+
+// The decorative screens (title, map, result) have no sim to frame, so they get a fixed camera over a nominal
+// box rather than gameplay's own (game.js only builds a real camera for cb-play).
+const DECOR_CAM = { x: 640, y: CAM_Y, zoom: 1 };
 export function fitView(cssW, cssH) {
-  const scale = Math.min(cssW / WORLD_W, cssH / WORLD_H, MAX_SCALE);
-  return { scale, ox: (cssW - WORLD_W * scale) / 2, oy: (cssH - WORLD_H * scale) / 2 };
+  return viewFromCamera(DECOR_CAM, cssW, cssH);
 }
 
 export function screenToWorld(view, x, y) {
@@ -83,15 +101,26 @@ export function flyingSlot(sim) {
 // px) draws the first-run demo's felt hand at the pull's current point (spec §5); null the rest of the time.
 // wobble: a rotation (radians) applied to every tin, for the demo's "the tins wobble once" opening beat.
 // tags: [{ x, y, scale, alpha }] (world units), the "+100" pop per downed target (DESIGN.md §9). photos:
-// loadPhotos()'s own array (or null), passed to memberFor for whichever member is drawn each frame.
-export function draw(ctx, sim, view, dpr, preview, cast, arcFrac = 1, hand = null, wobble = 0, tags = [], photos = null) {
+// loadPhotos()'s own array (or null), passed to memberFor for whichever member is drawn each frame. fortX:
+// the fort's own centre (game.js's fortCenterX()), for the chapter backdrop's spotlight aim and the off-screen
+// fort flag (spec v2 §C2/§C7, §F3/§G4 L1-L2, moved into S2 by the S1 feel check on THE-527); level: the
+// current level number (or 1), for the chapter palette. trace: [{x,y}] world points, the previous shot's real
+// flight path, shown as faint tacking dots while aiming the next one (spec C7, new) - game.js already clears
+// it to [] once that next shot fires, so draw() just renders whatever it's handed.
+export function draw(ctx, sim, view, dpr, preview, cast, arcFrac = 1, hand = null, wobble = 0, tags = [], photos = null, fortX = null, level = 1, trace = [], flightTrail = []) {
   const cssW = ctx.canvas.width / dpr, cssH = ctx.canvas.height / dpr;
   CBF.tokens(); // refresh the palette from tokens.css (cheap; a no-op once nothing changes)
 
-  // Pass 1: the big top, full-bleed behind the world (spec §6: never black bars).
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const floorCss = view.oy + FIELD.floor * view.scale;
-  CBF.tent(ctx, cssW, cssH, { floorY: floorCss, spot: [view.ox + 480 * view.scale, view.oy + 220 * view.scale, 260 * view.scale] });
+  // Pass 1: the chapter backdrop, full-bleed behind the world (spec §6: never black bars; §F3/§G4 L1-L2 parallax).
+  // Drawn under the same world transform as pass 2 (D1-A, THE-595): backdrop()/ring() place tiles and the ring
+  // floor at real world coordinates, so a dpr-only transform left them stuck near CSS-px-as-world-units while
+  // the camera panned past them, smearing into near-white canvas past cam.x ~ 1,000.
+  ctx.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.ox, dpr * view.oy);
+  const chapter = CBF.chapterFor(level);
+  const leftWorldX = screenToWorld(view, 0, 0).x, visW = cssW / view.scale, visH = cssH / view.scale;
+  const beams = [{ x: CANNON.x + 20, w: 300 }, { x: fortX ?? CANNON.x + 900, w: 460 }];
+  CBF.backdrop(ctx, chapter, { x: leftWorldX, y: 0, zoom: 1 }, { w: visW, h: visH }, sim.step / 120, { beams, floorY: FIELD.floor });
+  CBF.ring(ctx, chapter, leftWorldX, leftWorldX + visW, FIELD.floor);
 
   // Pass 2: the world (ledges, tins, stones, the cannon, the net, the stitch and the trail), at world scale.
   ctx.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.ox, dpr * view.oy);
@@ -99,15 +128,35 @@ export function draw(ctx, sim, view, dpr, preview, cast, arcFrac = 1, hand = nul
   for (const L of sim.ledges) {
     if (L.off) continue; // a swung plank or a given-way touch shelf has no collider and no shelf left to draw
     if (L.plank) CBF.plank(ctx, L.x0, L.top, L.x1 - L.x0, 1, 0, FIELD.floor, k);
+    else if (L.crate) CBF.crate(ctx, L.x0, L.top, L.x1 - L.x0, L.h, { k, iron: L.iron, hp: L.hp });
     else CBF.ledge(ctx, L.x0, L.top, L.x1 - L.x0, FIELD.floor, k);
   }
   for (const s of sim.stones) CBF.stone(ctx, s.x, s.y, s.r, Math.round(s.x + s.y), k);
+  // A burst drum leaves sim.world (sim.js's burstDrum), so it's simply not drawn once d.down is true - the
+  // burst animation itself (torn skin, felt fluff) is S5's juice pass, not logic this slice needs.
+  for (const d of sim.drums) {
+    if (d.down) continue;
+    CBF.drum(ctx, d.x, d.y, d.r, d.hp >= 2 ? "whole" : "dent", k);
+  }
   // A downed tin keeps falling and rolling in the physics world (markDown only flags it; it's never removed
   // from sim.world), so drawing it at its current t.x/t.y the same as a standing one lets that tumble read on
   // screen — the feel-check's payoff of a knock-down, where popping it on the counting frame had none
   // (DESIGN.md §5 feel-check item 2). band: true switches the tin to a label band (item 3: a blind read called
   // the plain lid "cannonballs" for 2 of 3 tins; the band read as "tins" 2 of 2).
   for (const t of sim.tins) CBF.tin(ctx, t.x, t.y, TIN_R, CBF.tins()[t.ledge % CBF.tins().length], k, { band: true, rot: wobble });
+
+  // The last-shot tacking-dot trace (spec C7): the same stitched trail() the live flyer leaves (spec G5),
+  // faded, since this is a record of what happened, not a live effect - a lower globalAlpha over trail()'s own
+  // fixed colour is enough, no new art needed.
+  if (trace.length >= 2) {
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    CBF.trail(ctx, trace.map((p) => [p.x, p.y]), { k });
+    ctx.restore();
+  }
+  // The live flyer's own felt streamer trail (spec G5): full alpha, drawn only while sim.phase is "flight" -
+  // game.js hands it the in-progress shotPath, the same array trace above is built from once the shot resolves.
+  if (flightTrail.length >= 2) CBF.trail(ctx, flightTrail.map((p) => [p.x, p.y]), { k });
 
   // "+100" tags (DESIGN.md §9): CBF.tag's own ctx.scale(1/k, 1/k) already floors its size in CSS px the same
   // way a head/flyer does; the pop/float scale is applied as an extra factor around that call, since tag()
@@ -143,10 +192,35 @@ export function draw(ctx, sim, view, dpr, preview, cast, arcFrac = 1, hand = nul
     const size = Math.max(FACE_FLIGHT * k, FACE_FLIGHT_MIN);
     const va = Math.atan2(sim.flyer.vy, sim.flyer.vx);
     CBF.flyer(ctx, p.x, p.y, { m: memberFor(cast, flownSlot ? flownSlot.member : 0, photos), size, pose: "flight", va, knack: flownSlot && flownSlot.knack });
+    // Altitude marker (spec C5): past y = -600 the camera's zoom-out floors at 0.75x rather than chasing the
+    // flyer any further, so once it actually clips the top edge a small felt pennant tracks its x instead -
+    // a plain shape, not a new CBF art function, since this is a functional indicator, not a character.
+    // D2-5 (THE-595): the trigger has to clear the sprite's own half-size (size/2), not a flat 40 - at a tall
+    // enough viewport (scaleForHeight can reach MAX_SCALE 1.5, so size up to 108) the flyer's own sprite starts
+    // clipping the top edge before a flat 40px trigger would, leaving it there with no marker for a few frames.
+    if (p.y < Math.max(HIGH_FLYER_MARKER_MIN, size / 2)) {
+      ctx.save();
+      ctx.fillStyle = "rgba(246,233,201,.95)";
+      ctx.beginPath();
+      ctx.moveTo(p.x, 8); ctx.lineTo(p.x - 7, 22); ctx.lineTo(p.x + 7, 22);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
   } else if ((sim.phase === "bow" || sim.phase === "won" || sim.phase === "lost") && sim.pose) {
     const p = worldToScreen(view, 320, FIELD.floor - 20);
     const size = Math.max(FACE_LOADED * k, FACE_LOADED_MIN);
     CBF.flyer(ctx, p.x, p.y, { m: memberFor(cast, flownSlot ? flownSlot.member : 0, photos), size, pose: sim.pose });
+  }
+
+  // The off-screen fort flag (spec §C2, moved into S2 by the S1 feel check on THE-527): shown only while the
+  // fort's own centre sits past the right edge, pinned there with the remaining distance in "metres" (100
+  // world units = 1 m, troupe.js's own fortFlag() convention).
+  if (fortX !== null && sim.phase !== "won" && sim.phase !== "lost") {
+    const fortScreenX = worldToScreen(view, fortX, 0).x;
+    if (fortScreenX > cssW - 10) {
+      CBF.fortFlag(ctx, cssW - 6, cssH * 0.3, (fortX - CANNON.x) / 100, { t: sim.step / 120 });
+    }
   }
 
   // The first-run demo's felt hand (spec §5), at the synthetic pull's current screen point.

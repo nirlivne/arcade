@@ -21,6 +21,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; }
    title screen, invisible to the eye but real to a pointer (CTO review: an earlier, ungated version of this
    rule did exactly that). */
 #cb-family[open] { display: flex; flex-direction: column; }
+/* D2-4 (THE-595): .cb-app's touch-action: none (above; a pull must be able to start anywhere on the world
+   canvas) isn't scoped to the canvas alone, so it also silenced a touch swipe inside any dialog - at 844x390
+   the family sheet's own content (name field, member list, "Clear photos") runs taller than the sheet's own
+   max-height (skin.css), so reaching past its sticky Save needed a real scroll gesture that touch-action: none
+   was blocking. Every sheet gets this back, not just the family one: any dialog can run long on a short phone. */
+.uk-sheet, .cbf-sheet { touch-action: pan-y; }
 .cb-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
 /* #cbf-call/#cbf-fail/#cbf-daily's own grid-template-rows (skin.css) gives .cbf-stage's row real track height
    (minmax(0, 1fr)), but an auto-height grid item with only an absolutely-positioned child (the canvas) has no
@@ -34,3 +40,5 @@ html, body { margin: 0; height: 100%; overflow: hidden; }
 /* The theme's cover image (theme.js images.cover, game.js themeReady). The title's hero box has no height of its own
    (the skin gives its rows to the banner and patches), so the cover floats in its top-left corner, out of the flow. */
 .cbf-hero__cover { position: absolute; top: 0; left: 0; width: min(24vw, 200px); height: min(24vw, 200px); object-fit: contain; }
+/* THE-523 / spec v2 §A3 placeholder portrait-blocking card: replaced by the designer's .cbf-turn (skin.css,
+   DESIGN.md §19) on D2-2 (THE-595). */

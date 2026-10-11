@@ -3,7 +3,7 @@
 // no merges. Circles only; planks topple by rule in sim.js, never as rigid bodies. Pure: no DOM, no clock, no
 // unseeded RNG. The caller steps it with a fixed dt (1/120 s).
 
-export const GRAVITY = 900;
+export const GRAVITY = 540; // THE-523 / spec v2 §B: lower gravity gives the longer flight time a far shot needs
 const MAX_V = 1400; // 1400 / 120 = 11.7 px per step, below the smallest tin radius (20), so no tunnelling
 // SLEEP_T 0.1 s (bloop used 0.5 s): a tower woken at rest must settle and freeze within 1 px, and it can't creep
 // for the half-second it takes to sleep. MU caps pair friction; SURFACE_DAMP removes that share of the tangential

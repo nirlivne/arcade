@@ -105,6 +105,7 @@
       const s = Math.sign(x);
       if (expr === 'bow') { ctx.beginPath(); ctx.arc(x, ey + 3, 4.6, Math.PI * 1.12, Math.PI * 1.88); line(ctx, T.ink, 2.8, k); }
       else if (expr === 'whee') { blob(ctx, x, ey - 1, 6.4, 7, 3 + x, 0.3); felt(ctx, T.tooth, k, { shadow: false }); ctx.beginPath(); ctx.arc(x + 1, ey - 1.5, 3.5, 0, 7); ctx.fillStyle = T.ink; ctx.fill(); ctx.beginPath(); ctx.arc(x, ey - 3, 1.1, 0, 7); ctx.fillStyle = T.cream; ctx.fill(); }
+      else if (expr === 'blink') { ctx.beginPath(); ctx.arc(x, ey - 1.5, 4.3, Math.PI * 0.15, Math.PI * 0.85); line(ctx, T.ink, 2.4, k); } // v2 blink (120 ms, every 2.5-5 s; 'ready' otherwise)
       else { const px = expr === 'shrug' ? 2.4 : 0; ctx.beginPath(); ctx.arc(x + px, ey, 4.3, 0, 7); ctx.fillStyle = T.ink; ctx.fill(); ctx.beginPath(); ctx.arc(x + px - 1.4, ey - 1.5, 1.35, 0, 7); ctx.fillStyle = 'rgba(255,244,224,.9)'; ctx.fill(); }
       let y = ey - 9, tilt = 0; // brows: up for whee, one raised for shrug
       if (expr === 'whee') y -= 4; if (expr === 'bow') y -= 1.5; if (expr === 'shrug' && s > 0) { y -= 4; tilt = -1.2; } if (expr === 'shrug' && s < 0) tilt = 0.8;
@@ -124,7 +125,7 @@
     if (key === 'crest') { const y = expr === 'bow' || expr === 'whee' ? 11 : 13; ctx.beginPath(); ctx.moveTo(0, y - 3); ctx.bezierCurveTo(-6, y - 6, -15, y - 4, -15, y + 2); ctx.bezierCurveTo(-10, y + 1, -5, y + 3, 0, y + 1); ctx.bezierCurveTo(5, y + 3, 10, y + 1, 15, y + 2); ctx.bezierCurveTo(15, y - 4, 6, y - 6, 0, y - 3); ctx.closePath(); felt(ctx, L.hair, k); }
     if (key === 'curls') { [-10, 10].forEach((x) => { const s = Math.sign(x); ctx.beginPath(); ctx.moveTo(x - 7.5 * s, ey - 4); ctx.quadraticCurveTo(x, ey - 6.5, x + 9 * s, ey - 7.5); ctx.quadraticCurveTo(x + 8 * s, ey + 6.5, x, ey + 6.5); ctx.quadraticCurveTo(x - 8 * s, ey + 6, x - 7.5 * s, ey - 4); ctx.closePath(); line(ctx, T.jamRed, 2.4, k); }); ctx.beginPath(); ctx.moveTo(-3, ey - 2); ctx.quadraticCurveTo(0, ey - 4, 3, ey - 2); line(ctx, T.jamRed, 2.2, k); }
     if (key === 'tweed') { ctx.save(); ctx.beginPath(); ctx.ellipse(0, 2, 27, 31, 0, 0, 7); ctx.clip(); ctx.beginPath(); ctx.moveTo(-28, 8); ctx.quadraticCurveTo(-24, 36, 0, 36); ctx.quadraticCurveTo(24, 36, 28, 8); ctx.lineTo(28, 22); ctx.quadraticCurveTo(20, 28, 0, 28); ctx.quadraticCurveTo(-20, 28, -28, 22); ctx.closePath(); felt(ctx, L.hair, k, { shadow: false }); ctx.restore();
-      if (expr === 'ready' || expr === 'shrug') { ctx.beginPath(); ctx.moveTo(-9, 18); ctx.quadraticCurveTo(0, 14, 9, 18); ctx.quadraticCurveTo(0, 22, -9, 18); ctx.closePath(); felt(ctx, L.hair, k); } }
+      if (expr === 'ready' || expr === 'shrug' || expr === 'blink') { ctx.beginPath(); ctx.moveTo(-9, 18); ctx.quadraticCurveTo(0, 14, 9, 18); ctx.quadraticCurveTo(0, 22, -9, 18); ctx.closePath(); felt(ctx, L.hair, k); } }
     if (prop) [[-17, 13], [-13, 16], [-20, 16], [17, 13], [13, 16], [20, 16]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 1, 0, 7); ctx.fillStyle = '#9A5A3A'; ctx.fill(); });
     if (key === 'phones') { ctx.beginPath(); ctx.moveTo(-14, -18); ctx.bezierCurveTo(4, -20, 26, -18, 30, -6); ctx.bezierCurveTo(31, 2, 29, 8, 26, 10); ctx.bezierCurveTo(22, 0, 12, -6, 2, -8); ctx.bezierCurveTo(-4, -10, -10, -12, -14, -18); ctx.closePath(); felt(ctx, L.hair, k); ctx.beginPath(); ctx.moveTo(-6, -15); ctx.bezierCurveTo(8, -16, 22, -12, 27, 2); stitch(ctx, 'rgba(255,244,224,.35)', k, 1.2, [3, 3]); }
   }
@@ -533,6 +534,356 @@
     return c;
   }
 
+  // ================================================================ v2 (THE-522): forts, chapter backdrops, effects
+  // World v2 (spec §A2): 720 high, floor at y 680, cannon at x 140. Everything here is render only, like v1: no sim
+  // reads, deterministic per seed, world units unless a comment says "screen px". DESIGN.md §14-§20 is the prose.
+  // New target/fort colours live in tokens.css (--cbf-drum-*, --cbf-pine*, --cbf-oak*, --cbf-podium*); T falls back here.
+  Object.assign(T, {
+    drumHoop: '#C8553D', drumHoopDeep: '#8E3524', drumHead: '#F3E6C8', drumHeadDeep: '#D8C49E', drumRing: '#5F9EA6', drumLug: '#EDB22C',
+    pine: '#DDB57E', pineDeep: '#A98049', pineLight: '#F0D3A2', oak: '#9C6A3C', oakDeep: '#6B4523', oakLight: '#B9875A',
+    podium: '#E3CFA8', podiumDeep: '#C4A97C', podiumLid: '#A84A34', column: '#FFF4E0', columnStripe: '#B8342A', rope: '#E8DCC0',
+  });
+
+  // ---------------------------------------------------------------- chapter backdrops (spec §F3, §G4)
+  // The same felt big top under three lights. Palettes + the 3 parallax layers: L1 tent wall (0.2x), L2 bunting + crowd
+  // (0.5x), L3 spotlights + bokeh (1x). grade = a colour wash over the SCENE (post pass, or 2D 'multiply'/'soft-light'
+  // fill on the fallback) so the felt pieces sit in the chapter's light. Seat colours never appear in a backdrop.
+  const CHAPTERS = {
+    matinee: { name: 'Matinee', levels: [1, 10],
+      stripeA: '#8A3324', stripeB: '#C4A97C', wall: '#5A1E16', wallLow: '#3C120C', valanceA: '#8A3324', valanceB: '#FFF4E0', pole: '#B57A44',
+      bunting: ['#FFF4E0', '#EDB22C', '#A84A34', '#E3CFA8'], bulbs: false, crowd: '#3C120C', crowdA: 0.5, rail: '#7E5028',
+      beam: '#FFECBE', beamA: 0.14, bokeh: ['#FFECBE', '#FFF4E0'], bokehA: [0.08, 0.2], bokehN: 24,
+      floor: '#D6B07A', floorDeep: '#B08850', floorLight: 'rgba(255,240,210,.5)', curb: '#B8342A', curbBase: '#FFF4E0',
+      grade: null, vignette: 0.35, grain: 0.012, flash: '#FFE6B0' },
+    sunset: { name: 'Sunset show', levels: [11, 20],
+      stripeA: '#A13E26', stripeB: '#DDA062', wall: '#6A2A1A', wallLow: '#431710', valanceA: '#A13E26', valanceB: '#FFE2B8', pole: '#B57A44',
+      bunting: ['#FFE2B8', '#EDB22C', '#C8553D', '#F0B880'], bulbs: false, crowd: '#3A140C', crowdA: 0.55, rail: '#7E5028',
+      beam: '#FFB86A', beamA: 0.2, bokeh: ['#FFC27A', '#FF9A6A', '#FFE2B8'], bokehA: [0.12, 0.3], bokehN: 32,
+      floor: '#D9A26A', floorDeep: '#A9733F', floorLight: 'rgba(255,226,184,.5)', curb: '#B8342A', curbBase: '#FFE9CC',
+      grade: { col: '#FF9A50', a: 0.12, mode: 'soft-light' }, vignette: 0.42, grain: 0.012, flash: '#FFD49A',
+      sun: { from: 'left', col: '#FFB86A', a: 0.22 } },  // low warm light raking in from the left (the open tent flap)
+    night: { name: 'Night show', levels: [21, 30],
+      stripeA: '#4A1C18', stripeB: '#5C5042', wall: '#1E0C0C', wallLow: '#120607', valanceA: '#4A1C18', valanceB: '#C9BFA8', pole: '#5E3A1C',
+      bunting: ['#FFE08A', '#FFF4E0'], bulbs: true, crowd: '#0B0405', crowdA: 0.7, rail: '#3A2412',
+      beam: '#EAF2FF', beamA: 0.22, bokeh: ['#FFE08A', '#EAF2FF', '#FFB86A'], bokehA: [0.16, 0.4], bokehN: 40,
+      floor: '#A88B62', floorDeep: '#6E5636', floorLight: 'rgba(255,236,200,.3)', curb: '#8E2A22', curbBase: '#CFC3AA',
+      grade: { col: '#26345A', a: 0.2, mode: 'multiply' }, vignette: 0.55, grain: 0.015, flash: '#FFF0C8' },
+  };
+  const chapterFor = (level) => (level >= 21 ? 'night' : level >= 11 ? 'sunset' : 'matinee'); // daily: its seed picks one
+  const LAYERS = [ // parallax factor, tile width (world units; 0 = not a tile, drawn live), the layer's world-y span
+    { id: 'wall', f: 0.2, tile: 960, y0: -360, y1: 720 },
+    { id: 'crowd', f: 0.5, tile: 1200, y0: -360, y1: 720 },
+    { id: 'lights', f: 1, tile: 0, y0: -360, y1: 720 },
+  ];
+  const CH = (c) => (typeof c === 'string' ? CHAPTERS[c] : c) || CHAPTERS.matinee;
+
+  // L1 wall, drawn into a tile whose local y = world y - y0 (so y0 = -360 sits at 0). Tileable at 960.
+  function wallLayer(ctx, C, TW = 960, y0 = -360, y1 = 720) {
+    const H = y1 - y0, Y = (wy) => wy - y0; C = CH(C);
+    ctx.fillStyle = C.stripeA; ctx.fillRect(0, 0, TW, H);
+    for (let x = 0; x < TW; x += 160) { // canvas stripes: 80 wide at the floor, pinched to 56 at the top (the big top's taper)
+      ctx.beginPath(); ctx.moveTo(x + 92, 0); ctx.lineTo(x + 148, 0); ctx.lineTo(x + 160, H); ctx.lineTo(x + 80, H); ctx.closePath(); ctx.fillStyle = C.stripeB; ctx.fill();
+      [[x + 92, x + 80], [x + 148, x + 160]].forEach(([a, b]) => { ctx.beginPath(); ctx.moveTo(a, 0); ctx.lineTo(b, H); stitch(ctx, 'rgba(255,244,224,.28)', 1, 1.6, [6, 5]); });
+    }
+    let g = ctx.createLinearGradient(0, 0, 0, H); // the wall darkens toward the ring (where the forts stand) and up into the peak
+    // the fort band (world y 360-680) must stay dark: the tins' light rims are what read against it
+    if (C.sun) { const sg = ctx.createLinearGradient(0, 0, 0, Y(380)); sg.addColorStop(0, hexA(C.sun.col, C.sun.a)); sg.addColorStop(0.7, hexA(C.sun.col, C.sun.a * 0.6)); sg.addColorStop(1, hexA(C.sun.col, 0)); ctx.fillStyle = sg; ctx.fillRect(0, 0, TW, Y(380)); }
+    g.addColorStop(0, hexA(C.wallLow, 0.75)); g.addColorStop(Y(-60) / H, hexA(C.wall, 0.25)); g.addColorStop(Y(200) / H, hexA(C.wall, 0.3));
+    g.addColorStop(Y(400) / H, hexA(C.wall, 0.7)); g.addColorStop(Y(560) / H, hexA(C.wallLow, 0.88)); g.addColorStop(1, hexA(C.wallLow, 0.95)); ctx.fillStyle = g; ctx.fillRect(0, 0, TW, H);
+    [240, 720].forEach((px) => { woodRectCol(ctx, px - 11, 0, 22, H, C.pole); ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); stitch(ctx, 'rgba(255,244,224,.3)', 1, 1.4, [5, 4]);
+      for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(px - 13, Y(110) + i * 6); ctx.lineTo(px + 13, Y(104) + i * 6); line(ctx, T.rope, 2.4, 1); } });
+    for (let x = 0; x < TW; x += 60) { const a = (x / 60) % 2 === 0; ctx.beginPath(); ctx.moveTo(x, Y(-14)); ctx.lineTo(x + 60, Y(-14)); ctx.lineTo(x + 60, Y(6)); ctx.quadraticCurveTo(x + 30, Y(44), x, Y(6)); ctx.closePath(); felt(ctx, a ? C.valanceA : C.valanceB, 1, { fibre: false });
+      ctx.beginPath(); ctx.moveTo(x + 6, Y(10)); ctx.quadraticCurveTo(x + 30, Y(38), x + 54, Y(10)); stitch(ctx, a ? 'rgba(255,244,224,.6)' : 'rgba(138,51,36,.5)', 1, 1.4, [4, 3]); }
+    ctx.save(); ctx.globalAlpha = 0.7; ctx.fillStyle = ctx.createPattern(fibres(), 'repeat'); ctx.fillRect(0, 0, TW, H); ctx.restore();
+  }
+  // L2 bunting + crowd on a transparent tile, tileable at 1200. Two garlands (period 600), three tiers of felt heads.
+  function crowdLayer(ctx, C, TW = 1200, y0 = -360) {
+    const Y = (wy) => wy - y0; C = CH(C); const r = rng(17);
+    ctx.save(); ctx.globalAlpha = C.crowdA; // the stands: three tiers of felt heads + shoulders, one rail in front
+    [[598, 16, 0], [632, 18, 17], [664, 20, 6]].forEach(([wy, hr, off]) => { for (let x = off; x < TW + 40; x += 36 + hr * 0.2) { const jx = x + (r() - 0.5) * 8, jy = Y(wy) + (r() - 0.5) * 6, s = hr * (0.85 + r() * 0.3);
+      ctx.beginPath(); ctx.ellipse(jx % TW, jy + s * 1.3, s * 1.25, s * 0.9, 0, 0, 7); ctx.fillStyle = C.crowd; ctx.fill();
+      ctx.beginPath(); ctx.arc(jx % TW, jy, s, 0, 7); ctx.fill();
+      if (r() < 0.12) { ctx.beginPath(); ctx.moveTo(jx % TW + s * 0.6, jy); ctx.lineTo(jx % TW + s * 1.1, jy - s * 2.2); ctx.lineWidth = s * 0.45; ctx.lineCap = 'round'; ctx.strokeStyle = C.crowd; ctx.stroke(); } } }); // a waving arm
+    ctx.restore();
+    ctx.fillStyle = hexA(C.rail, 0.85); ctx.fillRect(0, Y(662), TW, 9); ctx.beginPath(); ctx.moveTo(0, Y(666.5)); ctx.lineTo(TW, Y(666.5)); stitch(ctx, 'rgba(255,244,224,.25)', 1, 1.2, [5, 4]);
+    [[96, 58, 0, 1], [178, 40, 300, 0.78]].forEach(([wy, sag, off, sc]) => { for (let x0 = off - 600; x0 < TW; x0 += 600) { // the garlands
+      const P = (t) => [x0 + 600 * t, Y(wy) + sag * 4 * t * (1 - t)];
+      ctx.beginPath(); for (let i = 0; i <= 30; i++) { const [px, py] = P(i / 30); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } line(ctx, T.rope, 2, 1);
+      const n = 14; for (let i = 1; i < n; i++) { const t = i / n, [px, py] = P(t), col = C.bunting[i % C.bunting.length];
+        if (C.bulbs) { const gg = ctx.createRadialGradient(px, py + 6, 1, px, py + 6, 20 * sc); gg.addColorStop(0, hexA(col, 0.55)); gg.addColorStop(1, hexA(col, 0)); ctx.fillStyle = gg; ctx.fillRect(px - 22, py - 16, 44, 44); ctx.beginPath(); ctx.ellipse(px, py + 6, 4.5 * sc, 6 * sc, 0, 0, 7); ctx.fillStyle = col; ctx.fill(); }
+        else { ctx.beginPath(); ctx.moveTo(px - 15 * sc, py); ctx.lineTo(px + 15 * sc, py); ctx.lineTo(px, py + 38 * sc); ctx.closePath(); felt(ctx, col, 1, { fibre: false }); ctx.beginPath(); ctx.moveTo(px - 10 * sc, py + 4 * sc); ctx.lineTo(px, py + 30 * sc); ctx.lineTo(px + 10 * sc, py + 4 * sc); stitch(ctx, col === C.bunting[0] ? 'rgba(138,51,36,.45)' : 'rgba(255,244,224,.55)', 1, 1.1, [3, 2.5]); } } } });
+  }
+  // build a layer tile once per chapter (s = px per world unit; the GL pass uploads it as a REPEAT texture)
+  const tileCache = {};
+  function backdropTile(chapter, layer, s = 1) {
+    const L = LAYERS.find((l) => l.id === layer), key = `${typeof chapter === 'string' ? chapter : chapter.name}:${layer}:${s}`; if (!L || !L.tile) return null;
+    if (tileCache[key]) return tileCache[key];
+    const c = document.createElement('canvas'); c.width = Math.round(L.tile * s); c.height = Math.round((L.y1 - L.y0) * s); const x = c.getContext('2d'); x.scale(s, s);
+    if (layer === 'wall') wallLayer(x, chapter, L.tile, L.y0, L.y1); else crowdLayer(x, chapter, L.tile, L.y0);
+    return (tileCache[key] = c);
+  }
+  // L3 (1x, live): spotlight beams from above the frame to a pool on the ring. beams = [{ x, w }] in world units
+  // (one on the cannon, one on the fort, spec §G4). t = seconds (a 7 s, ±2.5 deg sway; still when o.still).
+  function spotlights(ctx, C, beams, t = 0, o = {}) {
+    C = CH(C); const floorY = o.floorY ?? 680, top = o.top ?? -360;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    beams.forEach((b, i) => { const sw = o.still ? 0 : Math.sin(t * 0.9 + i * 2.1) * 0.044, cx = b.x + Math.tan(sw) * (floorY - top), w = b.w || 360;
+      const g = ctx.createLinearGradient(0, top, 0, floorY); g.addColorStop(0, hexA(C.beam, C.beamA * 1.2)); g.addColorStop(0.55, hexA(C.beam, C.beamA * 0.6)); g.addColorStop(1, hexA(C.beam, C.beamA * 0.3)); // dim at the fort: a halo, never a wash behind the tins
+      ctx.beginPath(); ctx.moveTo(b.x - 16, top); ctx.lineTo(b.x + 16, top); ctx.lineTo(cx + w / 2, floorY); ctx.lineTo(cx - w / 2, floorY); ctx.closePath(); ctx.fillStyle = g; ctx.fill();
+      const p = ctx.createRadialGradient(cx, floorY, 4, cx, floorY, w * 0.6); p.addColorStop(0, hexA(C.beam, C.beamA * 1.6)); p.addColorStop(1, hexA(C.beam, 0));
+      ctx.save(); ctx.translate(cx, floorY); ctx.scale(1, 0.16); ctx.translate(-cx, -floorY); ctx.fillStyle = p; ctx.beginPath(); ctx.arc(cx, floorY, w * 0.6, 0, 7); ctx.fill(); ctx.restore(); });
+    ctx.restore();
+  }
+  // L3 bokeh: soft discs drifting up 6-14 u/s with a sway, wrapping inside [x0, x1] x [-360, 640]. Deterministic per seed.
+  // (The GL path draws the same list as additive point sprites; bokehList() is the shared source.)
+  function bokehList(C, x0, x1, t = 0, seed = 9) {
+    C = CH(C); const r = rng(seed), n = Math.round(C.bokehN * (x1 - x0) / 1280), out = [];
+    for (let i = 0; i < n; i++) { const bx = x0 + r() * (x1 - x0), by0 = -360 + r() * 1000, v = 6 + r() * 8, rad = 4 + r() * 10, a = C.bokehA[0] + r() * (C.bokehA[1] - C.bokehA[0]), col = C.bokeh[Math.floor(r() * C.bokeh.length)], ph = r() * 7;
+      const y = -360 + ((((by0 + 360) - v * t) % 1000) + 1000) % 1000; out.push({ x: bx + Math.sin(t * 0.6 + ph) * 10, y, r: rad, a, col }); }
+    return out;
+  }
+  function bokeh(ctx, C, x0, x1, t = 0, seed = 9) {
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const b of bokehList(C, x0, x1, t, seed)) { const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r); g.addColorStop(0, hexA(b.col, b.a)); g.addColorStop(0.7, hexA(b.col, b.a * 0.8)); g.addColorStop(1, hexA(b.col, 0)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill(); }
+    ctx.restore();
+  }
+  // the ring floor in world space: sawdust from floorY down to `bottom`, the striped curb on top. A 480-wide sawdust tile
+  // as a pattern anchored at world x 0, so it scrolls with the scene without re-seeding.
+  const ringCache = {};
+  function ring(ctx, C, x0, x1, floorY = 680, bottom = 1000) {
+    C = CH(C); const key = C.floor;
+    if (!ringCache[key]) { const c = document.createElement('canvas'); c.width = 480; c.height = 240; const x = c.getContext('2d'); x.fillStyle = C.floor; x.fillRect(0, 0, 480, 240); const rr = rng(11);
+      for (let i = 0; i < 1900; i++) { x.fillStyle = rr() < 0.5 ? hexA(C.floorDeep, 0.55) : C.floorLight; x.fillRect(rr() * 480, rr() * 240, 1.5 + rr() * 2.5, 1 + rr()); } ringCache[key] = c; }
+    ctx.save(); const p = ctx.createPattern(ringCache[key], 'repeat'); p.setTransform(new DOMMatrix().translate(0, floorY)); ctx.fillStyle = p; ctx.fillRect(x0, floorY, x1 - x0, bottom - floorY);
+    ctx.beginPath(); ctx.rect(x0, floorY - 10, x1 - x0, 16); ctx.fillStyle = C.curbBase; ctx.fill(); ctx.clip(); ctx.fillStyle = C.curb;
+    for (let x = Math.floor(x0 / 36) * 36 - 36; x < x1 + 36; x += 36) { ctx.beginPath(); ctx.moveTo(x, floorY - 10); ctx.lineTo(x + 18, floorY - 10); ctx.lineTo(x + 26, floorY + 6); ctx.lineTo(x + 8, floorY + 6); ctx.closePath(); ctx.fill(); }
+    ctx.restore(); ctx.fillStyle = 'rgba(20,6,4,.3)'; ctx.fillRect(x0, floorY + 6, x1 - x0, 4);
+  }
+  // the full backdrop on the 2D fallback path (and the harness): L1 + L2 tiles at their parallax, L3 live.
+  // cam = { x, y, zoom } (world units at the view's left edge / top edge); view = { w, h } in world units at zoom 1.
+  function backdrop(ctx, chapter, cam, view, t = 0, o = {}) {
+    const z = cam.zoom || 1, vw = view.w / z, vh = view.h / z;
+    for (const L of LAYERS.slice(0, 2)) { const tile = backdropTile(chapter, L.id, o.s || 1), s = o.s || 1, lx = cam.x * L.f; // layer-space left edge
+      ctx.save(); ctx.translate(cam.x - lx, 0); const start = Math.floor(lx / L.tile) * L.tile;
+      for (let x = start; x < lx + vw + L.tile; x += L.tile) ctx.drawImage(tile, x, L.y0, L.tile, (L.y1 - L.y0));
+      ctx.restore(); }
+    if (o.lights !== false) { spotlights(ctx, chapter, o.beams || [], t, o); if (o.bokeh !== false) bokeh(ctx, chapter, cam.x - 60, cam.x + vw + 60, o.still ? 0 : t); }
+    return vh;
+  }
+  // the chapter grade over the scene (2D fallback; the GL post pass applies the same colour/alpha/mode)
+  function grade(ctx, chapter, w, h) { const g = CH(chapter).grade; if (!g) return; ctx.save(); ctx.globalCompositeOperation = g.mode; ctx.globalAlpha = g.a * (g.mode === 'multiply' ? 1 : 1); ctx.fillStyle = g.col; ctx.fillRect(0, 0, w, h); ctx.restore(); }
+  function hexA(hex, a) { if (hex.startsWith('rgba')) return hex; const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+  function woodRectCol(ctx, x, y, w, h, col) { ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.fillStyle = col; ctx.fill(); ctx.fillStyle = 'rgba(20,6,4,.22)'; ctx.fillRect(x + w * 0.62, y, w * 0.38, h); ctx.restore(); }
+
+  // ---------------------------------------------------------------- the drum (spec §D: 2 hits, 300 points)
+  // A circus bass drum seen head-on (it rolls, like the tins, so it is drawn end-on): tomato-and-cream barber hoop,
+  // 8 brass lugs, a cream skin head with a robin-blue painted ring and a gold felt star. The star says "big target";
+  // no tin has one. state: 'whole' | 'dent' (after hit 1) | 'burst' (t 0..1 over 0.25 s, then it is removed).
+  function drum(ctx, x, y, r = 34, state = 'whole', k = 1, o = {}) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(o.rot || 0); const kk = k * r / 34, t = o.t ?? 0;
+    if (state === 'burst') { ctx.globalAlpha = 1 - Math.max(0, t - 0.55) / 0.45; ctx.scale(1 + 0.1 * t, 1 + 0.1 * t); }
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); felt(ctx, T.drumHoop, kk, { fibre: false });                       // hoop
+    ctx.save(); ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.arc(0, 0, r * 0.8, 0, 7, true); ctx.clip('evenodd');      // barber stripes on the hoop
+    for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.78, Math.sin(a) * r * 0.78); ctx.lineTo(Math.cos(a + 0.2) * r * 1.02, Math.sin(a + 0.2) * r * 1.02); ctx.lineTo(Math.cos(a + 0.36) * r * 1.02, Math.sin(a + 0.36) * r * 1.02); ctx.lineTo(Math.cos(a + 0.16) * r * 0.78, Math.sin(a + 0.16) * r * 0.78); ctx.closePath(); ctx.fillStyle = T.cream; ctx.fill(); }
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(0, 0, r, Math.PI * 1.05, Math.PI * 1.6); line(ctx, 'rgba(255,255,255,.55)', r * 0.06, k);  // lit edge
+    ctx.beginPath(); ctx.arc(0, 0, r - 0.5, 0, 7); line(ctx, T.drumHoopDeep, r * 0.05, k);
+    const lugs = state === 'dent' ? [0, 1, 2, 4, 5, 7] : [0, 1, 2, 3, 4, 5, 6, 7];
+    lugs.forEach((i) => { const a = i * Math.PI / 4 + Math.PI / 8; ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.9, Math.sin(a) * r * 0.9, r * 0.075, 0, 7); ctx.fillStyle = T.drumLug; ctx.fill(); ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.9 - r * 0.02, Math.sin(a) * r * 0.9 - r * 0.02, r * 0.03, 0, 7); ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.fill(); });
+    const R = r * 0.76;
+    if (state === 'burst') { // the head tears: a dark hole and six felt flaps folding out
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, 7); ctx.fillStyle = '#2A1A12'; ctx.fill();
+      for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 + 0.3, s = 1 - t * 0.6; ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(R * 0.98, -R * 0.42); ctx.lineTo(R * (0.98 - 0.7 * s), -R * 0.06); ctx.lineTo(R * (0.98 - 0.62 * s), R * 0.1); ctx.lineTo(R * 0.98, R * 0.42); ctx.closePath(); felt(ctx, T.drumHead, kk, { fibre: false }); ctx.restore(); }
+      ctx.restore(); return;
+    }
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, 7); felt(ctx, T.drumHead, kk);                                         // the skin
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.74, 0, 7); line(ctx, T.drumRing, r * 0.09, k);                          // painted ring
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.74, 0, 7); stitch(ctx, 'rgba(255,244,224,.7)', k, r * 0.025, [r * 0.07, r * 0.05]);
+    if (state === 'dent') { // hit 1: the skin sags (a crescent shadow), the star crumples, a darned crack, two lugs gone
+      ctx.save(); ctx.beginPath(); ctx.arc(0, 0, R, 0, 7); ctx.clip();
+      ctx.beginPath(); ctx.ellipse(-R * 0.12, -R * 0.1, R * 0.66, R * 0.52, -0.5, 0, 7); ctx.fillStyle = 'rgba(110,84,70,.28)'; ctx.fill();
+      ctx.beginPath(); ctx.ellipse(-R * 0.2, -R * 0.2, R * 0.5, R * 0.36, -0.5, Math.PI * 0.95, Math.PI * 1.9); line(ctx, 'rgba(255,255,255,.55)', r * 0.04, k); ctx.restore();
+      ctx.save(); ctx.rotate(0.35); ctx.scale(0.86, 0.72); starPath(ctx, 0, 0, R * 0.46); felt(ctx, T.star, kk, { fibre: false }); ctx.restore();
+      ctx.beginPath(); ctx.moveTo(-R * 0.62, -R * 0.38); ctx.lineTo(-R * 0.28, -R * 0.12); ctx.lineTo(-R * 0.36, R * 0.06); ctx.lineTo(R * 0.02, R * 0.2); ctx.lineTo(R * 0.12, R * 0.5);
+      line(ctx, '#2A1A12', r * 0.06, k);
+      for (let i = 0; i < 5; i++) { const px = -R * 0.55 + i * R * 0.15, py = -R * 0.32 + i * R * 0.18; ctx.beginPath(); ctx.moveTo(px - R * 0.07, py - R * 0.06); ctx.lineTo(px + R * 0.07, py + R * 0.06); line(ctx, T.cream, r * 0.03, k); } // darning
+    } else { starPath(ctx, 0, 0, R * 0.46); felt(ctx, T.star, kk, { fibre: false }); starPath(ctx, 0, 0, R * 0.32); stitch(ctx, T.starDeep, k, r * 0.025, [r * 0.06, r * 0.05]); }
+    ctx.restore();
+  }
+
+  // ---------------------------------------------------------------- crate shelves (spec §D: HP 1 pine, HP 2 iron-banded)
+  // A static box made of planks. (x, y) = top-left, w x h world units (shelves are 18-48 tall). o.iron = banded,
+  // o.hp = hits left (iron at 1: one band snapped + a cracked slat), o.broken = 0..1 (the break, ~0.45 s, then removed;
+  // the splinters are fx particles). Pine = pale with dark end battens; iron = dark oak with two iron bands + rivets.
+  function crate(ctx, x, y, w, h, o = {}) {
+    const k = o.k || 1, iron = !!o.iron, face = iron ? T.oak : T.pine, deep = iron ? T.oakDeep : T.pineDeep, light = iron ? T.oakLight : T.pineLight;
+    const bt = o.broken ?? 0;
+    if (bt > 0) { // two halves, jagged at the middle, tipping apart and dropping (alpha out over the last 30 %)
+      ctx.save(); ctx.globalAlpha = 1 - Math.max(0, bt - 0.7) / 0.3;
+      [-1, 1].forEach((d) => { ctx.save(); const cx = x + w / 2 + d * (w / 4 + bt * 40), cy = y + h / 2 + 260 * bt * bt; ctx.translate(cx, cy); ctx.rotate(d * bt * 0.9);
+        ctx.beginPath(); const hw = w / 2;
+        if (d < 0) { ctx.moveTo(-hw / 2, -h / 2); ctx.lineTo(hw / 2, -h / 2); ctx.lineTo(hw / 2 - 6, -h / 6); ctx.lineTo(hw / 2 + 4, h / 6); ctx.lineTo(hw / 2 - 4, h / 2); ctx.lineTo(-hw / 2, h / 2); }
+        else { ctx.moveTo(hw / 2, -h / 2); ctx.lineTo(-hw / 2, -h / 2); ctx.lineTo(-hw / 2 - 6, -h / 6); ctx.lineTo(-hw / 2 + 4, h / 6); ctx.lineTo(-hw / 2 - 4, h / 2); ctx.lineTo(hw / 2, h / 2); }
+        ctx.closePath(); ctx.save(); ctx.clip(); crateFace(ctx, -hw / 2, -h / 2, hw, h, face, deep, light, iron, k, 2); ctx.restore(); ctx.restore(); });
+      ctx.restore(); return;
+    }
+    ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, w, h, 3); ctx.shadowColor = 'rgba(20,6,4,.45)'; ctx.shadowBlur = 8 * k; ctx.shadowOffsetY = 3 * k; ctx.fillStyle = face; ctx.fill(); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, w, h, 3); ctx.clip(); crateFace(ctx, x, y, w, h, face, deep, light, iron, k, o.hp ?? (iron ? 2 : 1)); ctx.restore();
+  }
+  function crateFace(ctx, x, y, w, h, face, deep, light, iron, k, hp) {
+    ctx.fillStyle = face; ctx.fillRect(x, y, w, h);
+    const n = Math.max(1, Math.round(h / 14)), sh = h / n; // horizontal slats with dark gaps and a lit top edge
+    for (let i = 0; i < n; i++) { const sy = y + i * sh; ctx.fillStyle = 'rgba(255,255,255,.14)'; ctx.fillRect(x, sy + 1, w, 2); if (i) { ctx.fillStyle = deep; ctx.fillRect(x, sy - 1, w, 2); } }
+    const rr = rng(Math.round(x * 3 + y)); ctx.strokeStyle = hexA(deep, 0.35); ctx.lineWidth = 1; // grain
+    for (let i = 0; i < w / 16; i++) { const gy = y + rr() * h, gx = x + rr() * w; ctx.beginPath(); ctx.moveTo(gx - 22, gy); ctx.quadraticCurveTo(gx, gy - 1.5, gx + 26, gy); ctx.stroke(); }
+    [x, x + w - 10].forEach((bx) => { ctx.fillStyle = deep; ctx.fillRect(bx, y, 10, h); ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(bx + 1, y, 2, h); }); // end battens
+    if (h >= 34 && !iron) { ctx.beginPath(); ctx.moveTo(x + 10, y + 3); ctx.lineTo(x + w - 10, y + h - 3); ctx.moveTo(x + 10, y + h - 3); ctx.lineTo(x + w - 10, y + 3); line(ctx, deep, 4, k); }
+    ctx.beginPath(); ctx.rect(x + 14, y + 4, w - 28, h - 8); stitch(ctx, iron ? 'rgba(255,244,224,.35)' : 'rgba(126,80,40,.55)', k, 1.2, [4, 3]);
+    if (iron) [0.22, 0.78].forEach((f, j) => { const bx = x + w * f - 5, snapped = hp <= 1 && j === 1;
+      if (snapped) { ctx.fillStyle = T.iron; ctx.fillRect(bx, y, 10, h * 0.32); ctx.fillRect(bx, y + h * 0.66, 10, h * 0.34); ctx.beginPath(); ctx.moveTo(bx + 10, y + h * 0.32); ctx.lineTo(bx + 16, y + h * 0.44); line(ctx, T.iron, 4, k); }
+      else { ctx.fillStyle = T.iron; ctx.fillRect(bx, y, 10, h); ctx.fillStyle = T.ironLight; ctx.fillRect(bx + 1.5, y, 2, h); }
+      for (let i = 0; i < 3; i++) { const ry = y + h * (0.18 + i * 0.32); if (snapped && i === 1) continue; ctx.beginPath(); ctx.arc(bx + 5, ry, 2.2, 0, 7); ctx.fillStyle = T.ironLight; ctx.fill(); ctx.beginPath(); ctx.arc(bx + 4.4, ry - 0.6, 0.9, 0, 7); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fill(); } });
+    if (iron && hp <= 1) { ctx.beginPath(); ctx.moveTo(x + w * 0.5, y); ctx.lineTo(x + w * 0.56, y + h * 0.4); ctx.lineTo(x + w * 0.5, y + h * 0.6); ctx.lineTo(x + w * 0.6, y + h); line(ctx, '#2A1A12', 2.6, k); }
+  }
+
+  // ---------------------------------------------------------------- static fort pieces (spec §F1)
+  // HILL BOX (archetype 5): a circus show podium, 150-260 high. Rust felt lid with a cream scallop drape, a canvas body in
+  // a wood frame, a gold felt star medallion. (x, y) = top-left of the collider; the drape hangs inside it.
+  function hillBox(ctx, x, y, w, h, k = 1) {
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.shadowColor = 'rgba(20,6,4,.45)'; ctx.shadowBlur = 10 * k; ctx.shadowOffsetY = 4 * k; ctx.fillStyle = T.podium; ctx.fill(); ctx.restore();
+    ctx.beginPath(); ctx.rect(x, y, w, h); felt(ctx, T.podium, k, { shadow: false });
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = 'rgba(196,169,124,.45)'; ctx.fillRect(x + w * (0.2 + i * 0.3), y + 20, w * 0.1, h - 20); } // canvas panels
+    ctx.save(); ctx.lineWidth = 12; ctx.strokeStyle = T.wood; ctx.strokeRect(x + 6, y + 6, w - 12, h - 12); ctx.restore();
+    ctx.beginPath(); ctx.rect(x + 16, y + 30, w - 32, h - 46); stitch(ctx, 'rgba(138,51,36,.55)', k, 1.6, [5, 4]);
+    const mr = Math.min(w, h) * 0.2, my = y + 30 + (h - 46) / 2; ctx.beginPath(); ctx.arc(x + w / 2, my, mr, 0, 7); felt(ctx, T.podiumLid, k); starPath(ctx, x + w / 2, my, mr * 0.72); felt(ctx, T.star, k, { fibre: false });
+    ctx.beginPath(); ctx.arc(x + w / 2, my, mr * 0.86, 0, 7); stitch(ctx, T.cream, k, 1.4, [3, 2.5]);
+    ctx.beginPath(); ctx.roundRect(x - 4, y, w + 8, 16, 4); felt(ctx, T.podiumLid, k); // lid
+    for (let sx = x; sx < x + w - 1; sx += 28) { const sw = Math.min(28, x + w - sx); ctx.beginPath(); ctx.moveTo(sx, y + 14); ctx.lineTo(sx + sw, y + 14); ctx.quadraticCurveTo(sx + sw / 2, y + 36, sx, y + 14); ctx.closePath(); felt(ctx, T.cream, k, { fibre: false }); }
+    ctx.beginPath(); ctx.moveTo(x, y + 8); ctx.lineTo(x + w, y + 8); stitch(ctx, T.cream, k, 1.4, [4, 3]);
+  }
+  // STONE WALL (archetype 6): felt stones in courses, 200-350 high. (x, y) = top-left.
+  function stoneWall(ctx, x, y, w, h, k = 1, seed = 3) {
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.shadowColor = 'rgba(20,6,4,.5)'; ctx.shadowBlur = 10 * k; ctx.shadowOffsetY = 4 * k; ctx.fillStyle = T.stoneDeep; ctx.fill(); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); const r = rng(seed), ch = 34;
+    for (let row = 0, yy = y; yy < y + h; row++, yy += ch) { let xx = x - (row % 2 ? ch * 0.7 : 0);
+      while (xx < x + w) { const sw = ch * (1.1 + r() * 0.7); ctx.beginPath(); ctx.roundRect(xx + 2, yy + 2, sw - 4, ch - 4, 9); felt(ctx, r() < 0.35 ? shade(T.stone, -0.08) : r() < 0.5 ? shade(T.stone, 0.06) : T.stone, k * 0.8, { shadow: false });
+        ctx.beginPath(); ctx.moveTo(xx + 6, yy + 6); ctx.lineTo(xx + sw - 8, yy + 6); line(ctx, 'rgba(255,255,255,.16)', 2, k);
+        if (r() < 0.25) { ctx.beginPath(); ctx.moveTo(xx + sw * 0.3, yy + 8); ctx.lineTo(xx + sw * 0.45, yy + ch * 0.5); ctx.lineTo(xx + sw * 0.4, yy + ch - 8); stitch(ctx, 'rgba(42,26,18,.5)', k, 1.6, [3, 2.5]); }
+        xx += sw; } }
+    ctx.restore();
+    ctx.beginPath(); ctx.roundRect(x - 6, y - 10, w + 12, 16, 6); felt(ctx, shade(T.stone, 0.1), k); // capstone
+    ctx.beginPath(); ctx.moveTo(x, y - 2); ctx.lineTo(x + w, y - 2); stitch(ctx, 'rgba(42,26,18,.4)', k, 1.4, [4, 3]);
+  }
+  // BRIDGE PILLAR (archetype 7): a striped circus column with a wood capital and plinth. (x, y) = top-left.
+  function pillar(ctx, x, y, w, h, k = 1) {
+    ctx.save(); ctx.beginPath(); ctx.rect(x + 4, y + 12, w - 8, h - 24); ctx.shadowColor = 'rgba(20,6,4,.45)'; ctx.shadowBlur = 8 * k; ctx.shadowOffsetY = 3 * k; ctx.fillStyle = T.column; ctx.fill(); ctx.clip();
+    ctx.shadowColor = 'transparent'; ctx.fillStyle = T.columnStripe; for (let sy = y - w; sy < y + h + w; sy += 40) { ctx.beginPath(); ctx.moveTo(x, sy); ctx.lineTo(x + w, sy - w * 0.6); ctx.lineTo(x + w, sy - w * 0.6 + 18); ctx.lineTo(x, sy + 18); ctx.closePath(); ctx.fill(); }
+    ctx.fillStyle = 'rgba(20,6,4,.18)'; ctx.fillRect(x + w * 0.62, y, w, h); ctx.restore();
+    woodRect(ctx, x - 4, y, w + 8, 14, 4, k); woodRect(ctx, x - 6, y + h - 14, w + 12, 14, 4, k);
+    ctx.beginPath(); ctx.moveTo(x, y + 7); ctx.lineTo(x + w, y + 7); stitch(ctx, 'rgba(255,244,224,.6)', k, 1.3, [4, 3]);
+  }
+  // TRAPEZE LEDGE (archetype 8): a narrow board on two ropes rising out of the top of the frame, a scalloped
+  // valance under it. (x, y) = top-left of the board, w = board width; o.top = where the ropes start (world y).
+  function trapeze(ctx, x, y, w, k = 1, o = {}) {
+    const top = o.top ?? -400, sway = o.sway || 0;
+    [x + 8, x + w - 8].forEach((rx) => { ctx.beginPath(); ctx.moveTo(rx + sway, top); ctx.lineTo(rx, y + 2); line(ctx, T.rope, 4, k); ctx.beginPath(); ctx.moveTo(rx + sway, top); ctx.lineTo(rx, y + 2); stitch(ctx, 'rgba(126,80,40,.6)', k, 1.4, [3, 4]); });
+    for (let sx = x; sx < x + w - 1; sx += 20) { const sw = Math.min(20, x + w - sx), i = Math.round((sx - x) / 20); ctx.beginPath(); ctx.moveTo(sx, y + 10); ctx.lineTo(sx + sw, y + 10); ctx.quadraticCurveTo(sx + sw / 2, y + 30, sx, y + 10); ctx.closePath(); felt(ctx, i % 2 ? T.cream : T.tent, k, { fibre: false }); }
+    woodRect(ctx, x, y, w, 12, 4, k); ctx.beginPath(); ctx.moveTo(x + 6, y + 6); ctx.lineTo(x + w - 6, y + 6); stitch(ctx, 'rgba(255,244,224,.6)', k, 1.4, [5, 4]);
+    [x + 8, x + w - 8].forEach((rx) => { ctx.beginPath(); ctx.arc(rx, y + 3, 4.5, 0, 7); felt(ctx, T.iron, k, { fibre: false }); });
+  }
+
+  // ---------------------------------------------------------------- camera UI drawn on the canvas (spec §C2, §C5)
+  // THE FORT FLAG: a cream felt pennant pinned to the RIGHT edge, pointing right at the fort, with a tin and the
+  // distance. Screen px: (x, y) = the pennant's tip (x = the right safe edge - 6). dist = metres (100 world units = 1 m).
+  function fortFlag(ctx, x, y, dist, o = {}) {
+    const t = o.t || 0, wave = o.still ? 0 : Math.sin(t * 5) * 1.6, w = 104, h = 40; ctx.save(); ctx.translate(x, y);
+    ctx.beginPath(); ctx.moveTo(-w, -h / 2); ctx.lineTo(-20, -h / 2 + wave * 0.5); ctx.lineTo(0, wave); ctx.lineTo(-20, h / 2 + wave * 0.5); ctx.lineTo(-w, h / 2); ctx.closePath(); felt(ctx, T.cream, 1, { fibre: false });
+    ctx.beginPath(); ctx.moveTo(-w + 5, -h / 2 + 5); ctx.lineTo(-22, -h / 2 + 5 + wave * 0.5); ctx.lineTo(-7, wave); ctx.lineTo(-22, h / 2 - 5 + wave * 0.5); ctx.lineTo(-w + 5, h / 2 - 5); ctx.closePath(); stitch(ctx, 'rgba(138,51,36,.55)', 1, 1.4, [3.5, 2.8]);
+    ctx.fillStyle = T.wood; ctx.fillRect(-w - 6, -h / 2 - 4, 6, h + 8);
+    tin(ctx, -w + 20, 0, 11, o.col || T.tinTomato, 1);
+    ctx.font = '17px "Alfa Slab One"'; ctx.fillStyle = T.tent; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`${Math.round(dist)} m`, -w / 2 + 6, 1.5 + wave * 0.3);
+    ctx.restore();
+  }
+  // the top-edge marker when the flyer is above y -600 (spec §C5): a cream felt drop pointing up with the member's head.
+  // Screen px: (x, y) = the point (y = top safe edge + 6).
+  function skyMarker(ctx, x, y, o = {}) {
+    ctx.save(); ctx.translate(x, y); ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(14, 10, 24, 18, 24, 32); ctx.arc(0, 32, 24, 0, Math.PI); ctx.bezierCurveTo(-24, 18, -14, 10, 0, 0); ctx.closePath(); felt(ctx, T.cream, 1, { fibre: false });
+    ctx.beginPath(); ctx.arc(0, 32, 19, 0, 7); stitch(ctx, 'rgba(138,51,36,.5)', 1, 1.3, [3, 2.5]); ctx.restore();
+    head(ctx, x, y + 34, { ...o, size: 22, expr: 'whee' });
+  }
+  // THE PEEK PATCH art (how-to + cover; the HUD button is DOM .cbf-peek with the same drawing as an SVG in skin.css):
+  // navy felt binoculars with cream lens rings. (x, y) = centre, s = width in px.
+  function binoculars(ctx, x, y, s = 44, o = {}) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(s / 44, s / 44); ctx.rotate(o.rot || 0);
+    [-1, 1].forEach((d) => { ctx.beginPath(); ctx.roundRect(d * 11 - 8, -14, 16, 22, 5); felt(ctx, T.navy, 1, { fibre: false }); ctx.beginPath(); ctx.arc(d * 11, 9, 10, 0, 7); felt(ctx, T.navy, 1, { fibre: false });
+      ctx.beginPath(); ctx.arc(d * 11, 9, 7, 0, 7); ctx.fillStyle = T.lens; ctx.fill(); ctx.beginPath(); ctx.arc(d * 11, 9, 7, 0, 7); line(ctx, T.cream, 2.2, 1); ctx.beginPath(); ctx.arc(d * 11 - 2.4, 6.6, 2, 0, 7); ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fill(); });
+    ctx.beginPath(); ctx.roundRect(-5, -8, 10, 9, 3); felt(ctx, T.navyLight, 1, { fibre: false }); ctx.beginPath(); ctx.arc(0, -11, 3, 0, 7); ctx.fillStyle = T.star; ctx.fill();
+    ctx.restore();
+  }
+
+  // THE SHINE SWEEP (spec §G6): a cream band at 20 deg crossing a circle of radius r (the loaded face, a stamped star).
+  // t = 0..1 over 0.5 s. Draw it right after the face/star, in the same transform.
+  function shine(ctx, x, y, r, t) {
+    if (t <= 0 || t >= 1) return; ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.clip(); ctx.translate(x, y); ctx.rotate(0.35);
+    const bx = -r * 1.6 + t * r * 3.2, g = ctx.createLinearGradient(bx - r * 0.35, 0, bx + r * 0.35, 0);
+    g.addColorStop(0, 'rgba(255,244,224,0)'); g.addColorStop(0.5, 'rgba(255,244,224,.45)'); g.addColorStop(1, 'rgba(255,244,224,0)');
+    ctx.fillStyle = g; ctx.fillRect(-r * 2, -r * 2, r * 4, r * 4); ctx.restore();
+  }
+
+  // ---------------------------------------------------------------- effects palette (spec §G; DESIGN.md §16 is the table)
+  // Particle sizes are CSS px at zoom 1 (the GL batch scales by dpr). Colours: a piece's own dye where it has one.
+  const FXP = {
+    fluff: { n: [6, 10], size: [5, 9], cols: (dye) => [dye, dye, T.cream, shade(dye, 0.25)], life: [0.5, 0.8], drag: 0.35, g: 220 },  // felt fluff, per tin down (drum burst: 14, drum dyes)
+    splinter: { n: [10, 14], size: [3, 14], aspect: 4, cols: (iron) => (iron ? [T.oak, T.oakDeep, T.oakLight, T.iron] : [T.pine, T.pineDeep, T.pineLight]), life: [0.6, 0.9], g: 900, spin: 9 },
+    sparks: { n: 24, size: [2, 4], cols: [T.star, T.cream, '#FFD27A'], life: [0.25, 0.45], g: 300, additive: true },             // fire: 24; stone hit: 8
+    smoke: { n: 7, size: [14, 30], cols: [T.smoke], alpha: 0.7, life: [0.5, 0.9], grow: 1.8, rise: 30 },                       // muzzle smoke (felt puffs)
+    dust: { n: 8, size: [6, 14], cols: (C) => [CH(C).floorDeep, CH(C).floor], alpha: 0.6, life: [0.4, 0.6] },                      // landing dust, the chapter's sawdust
+    streamer: { width: 5, len: 12, cols: (seat) => [seat, T.cream], every: 0.03 },                                                // the felt streamer behind the flyer (2 ribbons)
+    confetti: { n: 80, size: [6, 10], aspect: 0.55, cols: [T.cream, T.star, T.tinTomato, T.tinRobin, T.tinPea, T.tinMustard, T.tentLight], g: 700, drag: 0.3, sway: 1, flip: 1 },
+    flash: (C) => CH(C).flash, grain: (C) => CH(C).grain, vignette: (C) => CH(C).vignette,
+    ring: { width: 0.06, fire: 0.5, impact: [0.25, 0.6], burst: 0.8, life: 0.7, max: 4 },
+    ca: { fire: 0.8, burst: 1.2, clear: 1.6, decay: 2.5 }, flashAmt: { clear: 0.6, decay: 2.6 },
+  };
+
+  // ---------------------------------------------------------------- how-to pictures (spec §I) + their felt arrows
+  // howto(ctx, kind, W, H): kind = pull | goal | drum | crates | peek | stars. Draws the whole 16:10 picture on the
+  // dark tent felt, at any W (designed at 320 x 200; everything scales). Call CBF.tokens() first.
+  function arrowStitch(ctx, x0, y, x1, col = T.cream) { ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1 - 6, y); stitch(ctx, col, 1, 2.4, [5, 4]); ctx.beginPath(); ctx.moveTo(x1 - 12, y - 7); ctx.lineTo(x1, y); ctx.lineTo(x1 - 12, y + 7); line(ctx, col, 2.6, 1); }
+  function hitTag(ctx, x, y, n) { ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); felt(ctx, T.cream, 1, { fibre: false }); ctx.font = '15px "Alfa Slab One"'; ctx.fillStyle = T.tent; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(n), x, y + 1); }
+  function howto(ctx, kind, W, H) {
+    ctx.save(); ctx.scale(W / 320, H / 200); const w = 320, h = 200;
+    ctx.fillStyle = T.tentDeep; ctx.fillRect(0, 0, w, h); ctx.fillStyle = ctx.createPattern(fibres(), 'repeat'); ctx.fillRect(0, 0, w, h);
+    const floor = (fy) => { ring(ctx, 'matinee', 0, w, fy, h); };
+    if (kind === 'pull') { floor(170); ctx.save(); ctx.translate(70, 150); ctx.scale(0.62, 0.62); cannon(ctx, 0, -32, -0.62, 70, {}); ctx.restore();
+      const pts = arc(70 + Math.cos(-0.62) * 52, 130 + Math.sin(-0.62) * 52, -0.62, 300, 540, 60, 1 / 60); aimStitch(ctx, pts, 0.6, { k: 1.4 });
+      pullCue(ctx, [210, 110], [170, 150], 1.4); hand(ctx, 170, 150, true, 1.1); }
+    else if (kind === 'goal') { floor(170); ledge(ctx, 120, 118, 170, 170); const cols = tins();
+      [[140, 98], [180, 98], [220, 98], [160, 62], [200, 62]].forEach(([tx, ty], i) => tin(ctx, tx, ty, 18, cols[i % cols.length], 1)); drum(ctx, 262, 84, 32, 'whole', 1);
+      flyer(ctx, 72, 62, { size: 30, pose: 'flight', va: 0.1, trail: false }); }
+    else if (kind === 'drum') { floor(160); [[52, 'whole'], [160, 'dent'], [268, 'burst']].forEach(([dx, st], i) => { drum(ctx, dx, 112, 34, st, 1, { t: 0.35 }); if (i) hitTag(ctx, dx - 54, 66, i); });
+      arrowStitch(ctx, 94, 112, 120); arrowStitch(ctx, 202, 112, 228); const r = rng(4); // felt fluff round the burst
+      for (let i = 0; i < 9; i++) { const a = r() * 7, d = 40 + r() * 16; blob(ctx, 268 + Math.cos(a) * d, 112 + Math.sin(a) * d, 4, 3, 60 + i, 0.6, 8); felt(ctx, i % 3 ? T.drumHead : T.drumHoop, 1, { fibre: false }); } }
+    else if (kind === 'crates') { floor(176); // pine (1 hit) on the left, iron (2 hits) on the right, tins on each
+      crate(ctx, 22, 110, 120, 30, {}); const c = tins(); [44, 82, 120].forEach((tx, i) => tin(ctx, tx, 92, 17, c[i], 1)); hitTag(ctx, 82, 56, 1);
+      crate(ctx, 178, 110, 120, 30, { iron: true, hp: 1 }); [200, 238, 276].forEach((tx, i) => tin(ctx, tx, 92, 17, c[i + 2], 1)); hitTag(ctx, 238, 56, 2);
+      ctx.font = '700 12px "Atkinson Hyperlegible"'; ctx.fillStyle = T.cream; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('pine', 82, 30); ctx.fillText('iron bands', 238, 30); }
+    else if (kind === 'peek') { // the aim frame (left, solid) -> the fort frame (right, stitched), the patch between
+      floor(168); cannon(ctx, 40, 128, -0.7, 48, {}); ledge(ctx, 236, 120, 70, 168); [252, 284].forEach((tx, i) => tin(ctx, tx, 103, 14, tins()[i + 1], 1)); drum(ctx, 268, 76, 18, 'whole', 1);
+      ctx.beginPath(); ctx.roundRect(10, 30, 120, 150, 10); stitch(ctx, 'rgba(255,244,224,.75)', 1, 2, [6, 4]);
+      ctx.beginPath(); ctx.roundRect(196, 30, 120, 150, 10); stitch(ctx, T.star, 1, 2.6, [6, 4]); arrowStitch(ctx, 136, 44, 190, T.star);
+      ctx.beginPath(); ctx.arc(160, 100, 26, 0, 7); felt(ctx, T.tentDeep, 1); ctx.beginPath(); ctx.arc(160, 100, 21, 0, 7); stitch(ctx, T.cream, 1, 1.6, [3.5, 3]); binoculars(ctx, 160, 99, 30); hand(ctx, 168, 112, true, 1.2); }
+    else if (kind === 'stars') { // a score strip filling past two notches: 1 star = cleared, 2 and 3 = score
+      const x0 = 30, x1 = 290, y = 120, fill = 0.86; ctx.beginPath(); ctx.roundRect(x0, y - 12, x1 - x0, 24, 12); felt(ctx, T.tentDark, 1, { fibre: false });
+      ctx.beginPath(); ctx.roundRect(x0, y - 12, (x1 - x0) * fill, 24, 12); felt(ctx, T.star, 1, { fibre: false }); ctx.beginPath(); ctx.roundRect(x0 + 4, y - 8, (x1 - x0) * fill - 8, 16, 8); stitch(ctx, T.starDeep, 1, 1.4, [4, 3]);
+      [[0.04, 'clear'], [0.5, 'S2'], [0.8, 'S3']].forEach(([f, lab], i) => { const sx = x0 + (x1 - x0) * f + (i ? 0 : 10); feltStar(ctx, sx, y - 44, i === 2 ? 22 : 18, true, 1); if (i) { ctx.fillStyle = T.cream; ctx.fillRect(sx - 1.5, y - 16, 3, 32); } });
+      ctx.font = '22px "Alfa Slab One"'; ctx.fillStyle = T.cream; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText('4,250', x1, y + 40);
+      ctx.font = '700 12px "Atkinson Hyperlegible"'; ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(255,244,224,.85)'; ctx.fillText('+1,000 for each member', x0, y + 34); ctx.fillText('who didn’t fly', x0, y + 50); }
+    ctx.restore();
+  }
+
 export const CBF = { T, SEAT_IDS, SEATS, LOOKS, CAST, KNACK_WORDS, tokens, tins, jams, shade, rng, fibres, blob, felt, stitch, line, starPath, feltStar,
   face, head, flyer, sticker, tin, jar, stone, chips, woodRect, ledge, plank, cannon, muzzle, loaded, fuse, spark, puff, aimStitch, trail, arc, pullCue, hand,
-    net, tent, sawdust, drapes, tag, knackTag, namePatch, banner, patch, flower, placeholderPhoto };
+    net, tent, sawdust, drapes, tag, knackTag, namePatch, banner, patch, flower, placeholderPhoto,
+  // v2 (THE-522)
+  CHAPTERS, LAYERS, chapterFor, wallLayer, crowdLayer, backdropTile, spotlights, bokehList, bokeh, ring, backdrop, grade, hexA,
+  drum, crate, hillBox, stoneWall, pillar, trapeze, fortFlag, skyMarker, binoculars, shine, FXP, howto };

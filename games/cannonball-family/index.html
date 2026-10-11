@@ -17,6 +17,32 @@
 <div class="cb-app cbf-app uk-root" id="cb-app">
 
   <canvas class="cb-world cbf-world" id="cb-world"></canvas>
+  <!-- THE-523 S4 / spec v2 §G1-G2: the GL compositor's own canvas, layered over #cb-world (which stays the
+       scene buffer gl.js uploads as a texture). Hidden by default; game.js shows it only once gl.js reports
+       state.ok, and hides it again on context loss or ?gl=0, so the game is never blocked on WebGL. -->
+  <canvas class="cb-world cbf-world" id="cb-gl" hidden></canvas>
+
+  <!-- THE-523 / spec v2 §A3, D2-2 (THE-595): shown whenever the viewport is portrait and "Play upright"
+       hasn't been tapped this session. The designer's own turn card (DESIGN.md §19), copied as-is from
+       design/cannonball-family/v2/screens.html (#cb-turn) per that section's own instruction, replacing the
+       S1 placeholder. Shown by skin.css alone (.cbf-app:not(.is-upright) > .cbf-turn), direct child of #cb-app. -->
+  <section class="cbf-turn" id="cb-turn" role="dialog" aria-modal="true" aria-labelledby="cb-turn-title">
+    <div class="cbf-turn__phone" aria-hidden="true"><svg viewBox="-60 -60 120 120">
+      <path class="cbf-turn__arrow" d="M-44 -30 A54 54 0 0 1 -30 -44" fill="none" stroke="#EDB22C" stroke-width="4" stroke-linecap="round"/>
+      <path class="cbf-turn__arrow" d="M-36 -48 L-28 -45 L-32 -37" fill="none" stroke="#EDB22C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <g class="cbf-turn__body">
+        <rect x="-24" y="-44" width="48" height="88" rx="10" fill="#26345A"/><rect x="-24" y="-44" width="48" height="88" rx="10" fill="none" stroke="#172240" stroke-width="3"/>
+        <rect x="-19" y="-36" width="38" height="68" rx="4" fill="#5A1E16"/>
+        <g clip-path="inset(0)"><path d="M-19 -36h8v68h-8zM-3 -36h8v68h-8zM13 -36h6v68h-6z" fill="#C4A97C" opacity=".55"/></g>
+        <rect x="-19" y="20" width="38" height="12" fill="#D6B07A"/><path d="M-19 20h38" stroke="#FFF4E0" stroke-width="2" stroke-dasharray="4 3"/>
+        <circle cx="-9" cy="14" r="5" fill="#26345A"/><circle cx="7" cy="12" r="4" fill="#6E9A55" stroke="#D8D2C6" stroke-width="1.5"/><circle cx="14" cy="12" r="4" fill="#C8553D" stroke="#D8D2C6" stroke-width="1.5"/>
+        <rect x="-21" y="-41" width="42" height="80" rx="8" fill="none" stroke="#FFF4E0" stroke-width="1.6" stroke-dasharray="4 3" opacity=".7"/>
+        <circle cy="38" r="2.4" fill="#FFF4E0" opacity=".8"/>
+      </g></svg></div>
+    <h2 class="cbf-turn__title" id="cb-turn-title">Turn your phone sideways</h2>
+    <p class="cbf-turn__sub">The big top is wider that way.</p>
+    <button class="uk-btn cbf-patch cbf-patch--ghost cbf-patch--sm" id="cb-btn-upright">Play upright</button>
+  </section>
 
   <section class="uk-screen cb-screen cbf-screen" id="cbf-title">
     <div class="cbf-hero" aria-hidden="true"></div>
@@ -110,8 +136,20 @@
           <p class="uk-step__text" data-theme-text="text.howTo2">Knock down every tin. One shot per member.</p>
         </div>
         <div class="uk-step">
+          <div class="uk-step__art"><canvas data-howto-art="drum" width="192" height="120"></canvas></div>
+          <p class="uk-step__text" data-theme-text="text.howTo3">Drums take two hits. The first dents it, the second bursts it.</p>
+        </div>
+        <div class="uk-step">
+          <div class="uk-step__art"><canvas data-howto-art="crate" width="192" height="120"></canvas></div>
+          <p class="uk-step__text" data-theme-text="text.howTo4">Crates break open and drop what's on them.</p>
+        </div>
+        <div class="uk-step">
+          <div class="uk-step__art"><canvas data-howto-art="peek" width="192" height="120"></canvas></div>
+          <p class="uk-step__text" data-theme-text="text.howTo5">Hold the binoculars (or V) to peek at the fort before you aim.</p>
+        </div>
+        <div class="uk-step">
           <div class="uk-step__art"><canvas data-howto-art="stars" width="192" height="120"></canvas></div>
-          <p class="uk-step__text" data-theme-text="text.howTo3">Stars are the members who didn't need to fly.</p>
+          <p class="uk-step__text" data-theme-text="text.howTo6">Stars come from your score, not who stayed home.</p>
         </div>
       </div>
       <div class="uk-dots"></div>
@@ -140,6 +178,9 @@
     <div class="cbf-hud">
       <ol class="cbf-rail" id="cb-rail" aria-label="Who flies next"></ol>
       <button class="uk-btn cbf-patch cbf-patch--icon cbf-pause" id="cb-btn-pause" aria-label="Pause">⏸</button>
+      <!-- Peek (spec C3): hold to pan to the fort, release to pan back - same gesture as holding V. A plain
+           key-cap glyph, not a new icon, since skin.css doesn't ship binoculars art for this release. -->
+      <button class="uk-btn cbf-patch cbf-patch--icon" id="cb-btn-peek" aria-label="Peek at the fort (hold)">V</button>
       <div class="cbf-hud__stats">
         <span class="cbf-plaque" id="cb-plaque-level"></span>
         <span class="cbf-plaque" id="cb-plaque-fuse"></span>
@@ -163,6 +204,9 @@
       <p class="cbf-card__who" id="cb-result-who"></p>
       <p class="cbf-card__score" id="cb-result-points"></p>
       <p class="cbf-card__sub" id="cb-share-msg" role="status"></p>
+      <!-- spec v2 §H1: the save migration's one-shot notice ("your stars restart"); empty and invisible every
+           other time (game.js only ever sets text here right after consumeMigrationNotice() returns true once). -->
+      <p class="cbf-card__sub" id="cb-result-migration" role="status"></p>
     </article>
     <div class="cbf-stage" id="cb-result-stage" aria-hidden="true">
       <canvas id="cb-result-canvas"></canvas>

@@ -42,19 +42,41 @@ function sanitiseSettings(raw) {
   };
 }
 
+// THE-523 S6 / spec v2 §H1: schema 2 replaces v1's scoring (drums, crates, §E), so a v1 save's best/stars are
+// reset, not migrated - carrying over a score or a star count earned under rules that no longer exist would be
+// meaningless. Everything else that isn't scoring (settings, the onboarding flag, the daily attempt) survives.
+// migrationNotice is a one-shot flag: true the instant a v1 save is read, so the curtain call can show "New
+// rules: your stars restart" once (game.js's save.consumeMigrationNotice()), then it's cleared and never set
+// again. A save that's already schema 2, or anything the wrong shape, never sets it.
+function freshSave() {
+  return { schema: 2, best: {}, stars: {}, daily: null, demoSeen: false, settings: sanitiseSettings(null), migrationNotice: false };
+}
+
 export function sanitise(raw) {
-  const out = { v: 1, best: {}, stars: {}, daily: null, demoSeen: false, settings: sanitiseSettings(null) };
-  if (!raw || typeof raw !== "object" || raw.v !== 1) return out;
-  for (const [level, score] of Object.entries(raw.best || {})) {
-    if (/^\d+$/.test(level) && Number.isInteger(score) && score >= 0) out.best[level] = score;
+  if (!raw || typeof raw !== "object") return freshSave();
+  if (raw.schema === 2) {
+    const out = freshSave();
+    for (const [level, score] of Object.entries(raw.best || {})) {
+      if (/^\d+$/.test(level) && Number.isInteger(score) && score >= 0) out.best[level] = score;
+    }
+    for (const [level, n] of Object.entries(raw.stars || {})) {
+      if (/^\d+$/.test(level) && Number.isInteger(n) && n >= 0 && n <= STAR_MAX) out.stars[level] = n;
+    }
+    out.daily = sanitiseDaily(raw.daily);
+    out.demoSeen = raw.demoSeen === true;
+    out.settings = sanitiseSettings(raw.settings);
+    out.migrationNotice = raw.migrationNotice === true;
+    return out;
   }
-  for (const [level, n] of Object.entries(raw.stars || {})) {
-    if (/^\d+$/.test(level) && Number.isInteger(n) && n >= 0 && n <= STAR_MAX) out.stars[level] = n;
+  if (raw.v === 1) {
+    const out = freshSave();
+    out.daily = sanitiseDaily(raw.daily);
+    out.demoSeen = raw.demoSeen === true;
+    out.settings = sanitiseSettings(raw.settings);
+    out.migrationNotice = true;
+    return out;
   }
-  out.daily = sanitiseDaily(raw.daily);
-  out.demoSeen = raw.demoSeen === true;
-  out.settings = sanitiseSettings(raw.settings);
-  return out;
+  return freshSave(); // wrong shape: never crashes, treated as fresh (spec H1)
 }
 
 export function createSave(storage, key = SAVE_KEY) {
@@ -99,6 +121,15 @@ export function createSave(storage, key = SAVE_KEY) {
   function settings() {
     return load().settings;
   }
+  // True exactly once, the first time it's called after a v1 -> schema 2 migration (spec H1); false forever
+  // after, on this device and every one after it.
+  function consumeMigrationNotice() {
+    const d = load();
+    if (!d.migrationNotice) return false;
+    d.migrationNotice = false;
+    write();
+    return true;
+  }
   function setSetting(key, value) {
     const d = load();
     d.settings = sanitiseSettings({ ...d.settings, [key]: value });
@@ -123,5 +154,5 @@ export function createSave(storage, key = SAVE_KEY) {
     d.daily.score = score;
     write();
   }
-  return { load, saveResult, best, starsOf, loadDaily, appendDailyShot, finishDaily, demoSeen, markDemoSeen, settings, setSetting };
+  return { load, saveResult, best, starsOf, loadDaily, appendDailyShot, finishDaily, demoSeen, markDemoSeen, settings, setSetting, consumeMigrationNotice };
 }

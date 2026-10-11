@@ -31,18 +31,34 @@ export function poolIndex(dateKey) {
   return ((dayIndex(dateKey) % POOL_SIZE) + POOL_SIZE) % POOL_SIZE;
 }
 
+// THE-535 (CTO review, blocking): the pool ships partially solved - a null row (not yet solved, or the pool
+// array hasn't grown that far) must still give every device the same playable tower that day, not crash. Falls
+// back to row (dayIndex mod K), where K is the count of leading solved rows (table[0..K-1] all non-null) - the
+// same deterministic row for everyone, and only ever one that's known-good. If even row 0 isn't solved yet,
+// there's nothing safe to fall back to.
+function leadingSolvedCount(table) {
+  let k = 0;
+  while (k < table.length && table[k]) k += 1;
+  return k;
+}
+
 // The day's tower, from the solved pool (table: DAILY_TABLE, row i = pool[i]). The level number is the day index plus
-// one, so the rail starts at the same member for everyone that day (member (L − 1) mod F). Null for an unsolved row.
+// one, so the rail starts at the same member for everyone that day (member (L − 1) mod F). Null only if no row at
+// all is solved yet (table[0] is null).
 export function dailyLevel(dateKey, table) {
-  const row = table[poolIndex(dateKey)];
-  if (!row) return null;
+  let row = table[poolIndex(dateKey)];
+  if (!row) {
+    const k = leadingSolvedCount(table);
+    if (k === 0) return null;
+    row = table[((dayIndex(dateKey) % k) + k) % k];
+  }
   const def = generateDaily(row.seed);
   return def && { ...def, level: dayIndex(dateKey) + 1, par: row.par, shots: row.shots };
 }
 
-// The share line (launch kit §1): the result, then one star per unused member capped by the tower's cap. A fail is the
+// The share line (spec v2 §E4): a win reports the shots used out of the total and the score; a fail is the
 // bomb alone. Never names, photos, colours or looks.
-export function shareLine(dateKey, { won, stars }, url = ARCADE_URL) {
-  const result = won ? (stars > 0 ? `🎪 ${"★".repeat(stars)}` : "🎪") : "💥";
+export function shareLine(dateKey, { won, stars, shotsUsed, totalShots, score }, url = ARCADE_URL) {
+  const result = won ? `🎯 ${shotsUsed}/${totalShots} ${"★".repeat(stars)} ${score}` : "💥";
   return `Family Tower No. ${dailyNumber(dateKey)}\n${result}\n${url}`;
 }

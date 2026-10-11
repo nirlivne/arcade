@@ -3,7 +3,7 @@ import { GRAVITY } from "./physics.js";
 
 export const CANCEL_PX = 20; // a release closer than this to the pull start cancels the shot
 export const FULL_POWER_PX = 160; // power is linear with pull length up to here, then flat
-export const SPEED_MIN = 300, SPEED_MAX = 900; // launch speed, world units per second
+export const SPEED_MIN = 450, SPEED_MAX = 1150; // launch speed, world units per second (THE-523 / spec v2 §B)
 
 // The pull's drag vector (dx, dy) = now - start, in screen px (y down). Pulling down-left fires up-right:
 // θ = atan2(dy, -dx). θ in [10, 80] is used as is. Otherwise it snaps to the nearer clamp, split at -135°:

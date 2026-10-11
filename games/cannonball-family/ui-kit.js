@@ -238,9 +238,10 @@
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
-  // options: { x, y } origin in CSS px (default: centre, a third down), count, duration (ms), colors (token names).
-  // Under reduced motion it draws a single soft glow instead of flying particles. Returns a Promise that
-  // resolves when the layer is gone.
+  // options: { x, y } origin in CSS px (default: centre, a third down), or spreadX: [x0, x1] to randomise each
+  // particle's own origin across a range (e.g. the top edge) instead of bursting from one point; count,
+  // duration (ms), colors (token names). Under reduced motion it draws a single soft glow instead of flying
+  // particles. Returns a Promise that resolves when the layer is gone.
   function celebrate(options) {
     const o = options || {};
     const colors = (o.colors || ["--color-primary", "--color-accent", "--color-danger", "--color-text"])
@@ -271,7 +272,7 @@
         const angle = -Math.PI / 2 + (rand() - 0.5) * Math.PI * 1.1;
         const speed = 380 + rand() * 520;
         parts.push({
-          x: ox,
+          x: o.spreadX ? o.spreadX[0] + rand() * (o.spreadX[1] - o.spreadX[0]) : ox,
           y: oy,
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,

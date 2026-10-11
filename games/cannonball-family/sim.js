@@ -8,36 +8,70 @@ import { railMember } from "./family.js";
 import { mulberry32 } from "./rng.js";
 
 export const DT = 1 / 120;
-export const FIELD = { l: 0, r: 640, floor: 456 };
-export const CANNON = { x: 90, y: 400 };
-export const TIN_R = 20, FLYER_R = 36;
-export const FLIGHT_CAP = 480; // 4 s after launch: a shot always resolves
+// THE-523 / spec v2 §A2: the world is 720 high, the floor at y = 680, the left edge at x = 0, the cannon at
+// x = 140. Each level's own width (the far edge of its structure + 300) is computed in boundsFor() below, not
+// fixed here — FIELD only carries what's constant across every level (the floor, read by markDown()).
+export const WORLD_H = 720, FLOOR = 680, LEFT = 0;
+export const FIELD = { l: LEFT, floor: FLOOR };
+export const CANNON = { x: 140, y: FLOOR - 56 };
+export const TIN_R = 22, FLYER_R = 36; // THE-527 feel check, spec v2 C8: locked at 22 for the S3 solver
+export const FLIGHT_CAP = 960; // 8 s after launch (spec v2 §B): a shot always resolves
 export const BOW_STEPS = 72; // 600 ms of bow or shrug in the net
 export const FUSE_STEPS = 1800; // 15 s of aiming before the cannon fires on its own
-export const TARGET_POINTS = 100, UNUSED_POINTS = 250;
+export const TARGET_POINTS = 100; // a tin down (spec v2 §E1)
 export const STAR_MAX = 3;
 export const STONE_R = 20, STONE_MASS = 4; // stones are heavy obstacles, never targets
-export const CRACK_IMPULSE = 250; // a heavy helmet hit this hard breaks a stone (world units per second)
+export const CRACK_IMPULSE = 320; // a heavy helmet hit this hard breaks a stone (spec v2 §B4 amendment r2: landing speeds grew ~1.29x, so 250 -> 320 keeps the v1 feel)
 export const PLANK_IMPULSE = 250; // a plank swings on a hit this hard, or when a tin it holds goes down
 export const PLANK_SWING_STEPS = 30; // 0.25 s to swing 90°
 
+// THE-523 / spec v2 §D-§E: drums (2-hit circles) and crate shelves (multi-HP static ledges).
+export const DRUM_R = 34, DRUM_MASS = 3, DRUM_HP = 2, DRUM_POINTS = 300;
+export const CRATE_POINTS = 150;
+export const HIT_IMPULSE = 300; // the impact threshold that counts as a "hit" on a drum or a crate
+export const STONE_POINTS = 50; // a stone knocked from elsewhere to the floor (not one that starts there)
+export const MULTI_DOWN_BONUS = 100; // +100 x (k - 2) for a shot that downs k >= 3 tins/drums
+export const FAMILY_BONUS = 1000; // per unused member, on a clear only
+
 const PHASE_CODE = { aim: 1, flight: 2, bow: 3, won: 4, lost: 5 };
 
-// def: { N, seed, ledges: [{ x0, x1, top, h, plank? }], tins: [{ x, y, ledge }], stones?: [{ x, y }],
-//        slots?: [knack|null] × N, par? }. A ledge with plank: true is a plank on a pivot at its x0 end.
+// A level's own width: its structure's far edge (every ledge/tin/stone x) + 300 (spec v2 §A2), or def.W when
+// the generator already knows it. The floor and left edge are the same for every level (FIELD above).
+function boundsFor(def) {
+  const far = Math.max(0, ...def.ledges.map((L) => L.x1), ...def.tins.map((t) => t.x),
+    ...(def.stones || []).map((s) => s.x), ...(def.drums || []).map((d) => d.x));
+  return { l: LEFT, r: def.W ?? far + 300, floor: FLOOR };
+}
+
+// def: { N, seed, ledges: [{ x0, x1, top, h, plank?, crate?, hp? }], tins: [{ x, y, ledge }],
+//        drums?: [{ x, y }], stones?: [{ x, y }], slots?: [knack|null] × N, par?, S2?, S3? }. A ledge with
+//        plank: true is a plank on a pivot at its x0 end; crate: true is a multi-HP shelf (spec v2 §D) with its
+//        own hp (default 1, the pine crate; iron-banded crates set hp: 2 in the def).
 // Everything spawns asleep. opts: { level, familySize } (the rail start and the member on each slot).
 export function createLevel(def, { level = 1, familySize = 5 } = {}) {
-  const world = new World(FIELD);
-  // Each sim gets its own ledge objects: a plank's state and impact live on them, never on the shared def.
-  const ledges = def.ledges.map((L) => world.addLedge({ ...L, state: L.plank ? "rest" : null, swingStart: 0, off: false }));
+  const world = new World(boundsFor(def));
+  // Each sim gets its own ledge objects: a plank's/crate's state and impact live on them, never on the shared
+  // def. hitHeld debounces a sustained multi-step contact into one hit (see updateCrates).
+  const ledges = def.ledges.map((L) => world.addLedge({
+    ...L, state: L.plank ? "rest" : null, swingStart: 0, off: false,
+    hp: L.crate ? (L.hp ?? 1) : undefined, hitHeld: false,
+    iron: L.crate ? (L.hp ?? 1) >= 2 : undefined, // the crate's starting hp, kept separately so render.js can
+    // still tell an iron-banded crate at hp 1 (after one hit) from a fresh pine crate (also hp 1)
+  }));
   const tins = def.tins.map((t) => world.add({ x: t.x, y: t.y, r: TIN_R, sleep: true, ledge: t.ledge, down: false }));
-  const stones = (def.stones || []).map((s) => world.add({ x: s.x, y: s.y, r: STONE_R, sleep: true, mass: STONE_MASS, stone: true }));
+  const stones = (def.stones || []).map((s) => {
+    const grounded = s.y + STONE_R >= FLOOR - 1e-6; // a stone that already starts on the floor was never "knocked" there (spec v2 §D)
+    return world.add({ x: s.x, y: s.y, r: STONE_R, sleep: true, mass: STONE_MASS, stone: true, grounded });
+  });
+  const drums = (def.drums || []).map((d) => world.add({
+    x: d.x, y: d.y, r: DRUM_R, sleep: true, mass: DRUM_MASS, drum: true, hp: DRUM_HP, down: false, hitHeld: false,
+  }));
   const rail = [];
   for (let k = 0; k < def.N; k++) rail.push({ member: railMember(level, k, familySize), knack: knackFor(def, k) });
   return {
-    def, world, ledges, tins, stones, rail,
+    def, world, ledges, tins, stones, drums, rail,
     N: def.N, shotsLeft: def.N,
-    cap: def.par === undefined ? STAR_MAX : Math.min(STAR_MAX, def.N - def.par),
+    cap: STAR_MAX, // v2: stars come from score thresholds, not a per-level unused-member cap (spec §E2)
     rng: mulberry32(def.seed ?? 1),
     phase: "aim", step: 0, fuse: FUSE_STEPS,
     flyer: null, flightStart: 0, downThisShot: 0, cracked: 0,
@@ -107,6 +141,9 @@ function stepOne(sim, held) {
     if (f.cracks) crackStones(sim);
     touchLedges(sim);
     markDown(sim);
+    updateDrums(sim);
+    updateCrates(sim);
+    checkStonesFloor(sim);
     updatePlanks(sim, true);
     const settled = sim.world.bodies.every((b) => b.sleep);
     if (settled || sim.step - sim.flightStart >= FLIGHT_CAP) resolve(sim);
@@ -181,29 +218,101 @@ function markDown(sim) {
     if (L.off || t.y > L.top + t.r || t.x < L.x0 || t.x > L.x1 || t.y + t.r >= FIELD.floor - 1e-6) {
       t.down = true;
       sim.downThisShot += 1;
+      sim.score += TARGET_POINTS;
     }
   }
 }
 
-// The shot is over when every body sleeps or at the 4 s cap; a tin still teetering counts as standing.
+// A drum (spec v2 §D) takes two hits to go down: the first impact >= HIT_IMPULSE dents it (hp 2 -> 1), the
+// second bursts it (hp 1 -> 0, removed from the world - felt fluff is drawn in S6). It also counts as down,
+// without bursting, the moment it reaches the floor. hitHeld debounces a sustained multi-step contact (the
+// flyer still pressing into it after the bounce resolves) into a single hit, the same way a rising edge would.
+function updateDrums(sim) {
+  for (const d of sim.drums) {
+    if (d.down) continue;
+    const hitNow = d.impact > HIT_IMPULSE;
+    if (hitNow && !d.hitHeld) {
+      d.hp -= 1;
+      if (d.hp <= 0) burstDrum(sim, d);
+    }
+    d.hitHeld = hitNow;
+    if (!d.down && d.y + d.r >= FIELD.floor - 1e-6) downDrum(sim, d); // reaching the floor counts as down either way
+  }
+}
+
+function burstDrum(sim, d) {
+  sim.world.remove(d);
+  downDrum(sim, d);
+}
+
+function downDrum(sim, d) {
+  if (d.down) return;
+  d.down = true;
+  sim.downThisShot += 1;
+  sim.score += DRUM_POINTS;
+}
+
+// A crate shelf (spec v2 §D) takes its own hp in hits (1 for pine, 2 for iron-banded) before it breaks: its
+// collider goes (ledgeContact already skips an off ledge) and anything resting on it wakes and falls, the same
+// mechanism as a plank's swing or a touch shelf's give-way. Crates never count toward clearing the level.
+function updateCrates(sim) {
+  for (const L of sim.ledges) {
+    if (!L.crate || L.off) continue;
+    const hitNow = L.impact > HIT_IMPULSE;
+    if (hitNow && !L.hitHeld) {
+      L.hp -= 1;
+      if (L.hp <= 0) {
+        L.off = true;
+        sim.world.wakeAll();
+        sim.score += CRATE_POINTS;
+      }
+    }
+    L.hitHeld = hitNow;
+  }
+}
+
+// A stone that didn't start on the floor scores once it's knocked down to it (spec v2 §D); one already resting
+// on the floor at spawn was never "knocked" anywhere, so it never scores this way.
+function checkStonesFloor(sim) {
+  for (const s of sim.stones) {
+    if (s.grounded) continue;
+    if (s.y + s.r >= FIELD.floor - 1e-6) {
+      s.grounded = true;
+      sim.score += STONE_POINTS;
+    }
+  }
+}
+
+// The shot is over when every body sleeps or at the 4 s cap; a tin still teetering counts as standing. The
+// multi-down bonus (spec v2 §E1) is per shot, tins and drums only (never crates), added once here.
 function resolve(sim) {
   sim.world.remove(sim.flyer);
   sim.flyer = null;
+  if (sim.downThisShot >= 3) sim.score += MULTI_DOWN_BONUS * (sim.downThisShot - 2);
   sim.pose = sim.downThisShot > 0 ? "bow" : "shrug";
   sim.poses.push(sim.pose);
   sim.phase = "bow";
   sim.bowUntil = sim.step + BOW_STEPS;
 }
 
+// Stars come from score thresholds the solver writes per level (spec v2 §E2), not from unused members: 1 for
+// any clear, 2/3 once the score passes the level's own S2/S3. A level without S2/S3 yet (not re-solved for v2;
+// THE-523 S3) always shows 1 star on a clear, never crashing on the missing fields.
+function starsFor(sim) {
+  const { S2, S3 } = sim.def;
+  if (S3 !== undefined && sim.score >= S3) return 3;
+  if (S2 !== undefined && sim.score >= S2) return 2;
+  return 1;
+}
+
 function afterBow(sim) {
-  if (sim.tins.every((t) => t.down)) {
+  if (sim.tins.every((t) => t.down) && sim.drums.every((d) => d.down)) {
     sim.phase = "won";
-    sim.stars = Math.min(sim.shotsLeft, sim.cap); // stars = unused members, up to the cap
-    sim.score = tinsDown(sim) * TARGET_POINTS + sim.shotsLeft * UNUSED_POINTS;
+    sim.score += sim.shotsLeft * FAMILY_BONUS; // spec v2 §E1: a clear only
+    sim.stars = starsFor(sim);
   } else if (sim.shotsLeft === 0) {
     sim.phase = "lost";
-    sim.stars = 0;
-    sim.score = tinsDown(sim) * TARGET_POINTS;
+    sim.stars = 0; // "a loss scores the pieces only" (spec v2 §E1): sim.score already holds exactly that
   } else {
     sim.phase = "aim";
     sim.fuse = FUSE_STEPS;
@@ -212,6 +321,10 @@ function afterBow(sim) {
 
 export function tinsDown(sim) {
   return sim.tins.filter((t) => t.down).length;
+}
+
+export function drumsDown(sim) {
+  return sim.drums.filter((d) => d.down).length;
 }
 
 // A copy a probe can fire without touching the real sim: bodies, ledges (planks and touch shelves keep state on
@@ -230,6 +343,7 @@ export function cloneSim(sim) {
     ledges,
     tins: sim.tins.map((t) => copyOf.get(t)),
     stones: sim.stones.map((s) => copyOf.get(s)),
+    drums: sim.drums.map((d) => copyOf.get(d) ?? { ...d }), // a burst drum left world.bodies; a plain copy is fine, it's inert
     flyer: sim.flyer ? copyOf.get(sim.flyer) : null,
     rail: sim.rail.map((r) => ({ ...r })),
     poses: sim.poses.slice(),
