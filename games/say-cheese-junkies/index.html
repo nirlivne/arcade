@@ -1374,10 +1374,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
 <script>
 'use strict';
 // Guests at the table: three friends who aren't tiers. A few times a game, as the score climbs, the line deals one
-// instead of a face, and each has a power: דניאל goes all in (a blast of the small faces, then pizza), מיקי is a wild card
-// with a guitar the others sing along to in pairs, קוקו peeks in from the edge with a rain of flags and pops a few little faces.
+// instead of a face, and each has a power: דניאל goes all in (a blast, then pizza), מיקי is a wild card with a guitar the
+// others sing along to in pairs while the little faces glow and pop, קוקו peeks in from the edge, pops a few little faces
+// and rains flags that blow away the faces they hit.
 // They also peek in to say their line at big moments.
-// Deck, blastPlan, singPlan and popPlan are pure (tested by scripts/test_guests.mjs); create(api) is the runtime.
+// Deck, blastPlan, singPlan, zapPlan and popPlan are pure (tested by scripts/test_guests.mjs); create(api) is the runtime.
 (function (root) {
   var IDS = ['daniel', 'michael', 'koko'];
   var NAMES = { daniel: 'דניאל', michael: 'מיקי', koko: 'קוקו' };
@@ -1418,22 +1419,22 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     return id;
   };
 
-  // דניאל's blast at (x, y): every face up to tier maxT inside R is gone; bigger ones and the faces around are thrown
-  // out and up by the shockwave, harder the nearer they are. Returns {remove: [body], push: [[body, dvx, dvy]]};
-  // guests and treats (b.g) are left alone.
+  // דניאל's blast at (x, y): a face is gone when it's inside its tier's share of R (reach[tier], the last entry for the
+  // tiers past the end; no reach: all of R); the rest and the faces around are thrown out and up by the shockwave,
+  // harder the nearer they are. Returns {remove: [body], push: [[body, dvx, dvy]]}; guests and treats (b.g) are left alone.
   var SHOCK_K = 2.2, PUSH_V = 1100, PUSH_UP = 350;
-  function blastPlan(bodies, x, y, R, maxT) {
+  function blastPlan(bodies, x, y, R, reach) {
     var out = { remove: [], push: [] };
-    if (maxT === undefined) maxT = Infinity;
     for (var i = 0; i < bodies.length; i++) {
       var b = bodies[i];
       if (b.g || b.dead) continue;
       var dx = b.x - x, dy = b.y - y, d = Math.hypot(dx, dy);
-      if (d < R + 0.5 * b.r && b.t <= maxT) { out.remove.push(b); continue; }
-      var reach = SHOCK_K * R + b.r;
-      if (d >= reach) continue;
-      var nx = d > 1e-6 ? dx / d : 0, ny = d > 1e-6 ? dy / d : -1, k = PUSH_V * (1 - d / reach);
-      out.push.push([b, nx * k, ny * k - PUSH_UP]);
+      var k = !reach ? 1 : b.t < reach.length ? reach[b.t] : reach[reach.length - 1];
+      if (d < k * R + 0.5 * b.r) { out.remove.push(b); continue; }
+      var far = SHOCK_K * R + b.r;
+      if (d >= far) continue;
+      var nx = d > 1e-6 ? dx / d : 0, ny = d > 1e-6 ? dy / d : -1, v = PUSH_V * (1 - d / far);
+      out.push.push([b, nx * v, ny * v - PUSH_UP]);
     }
     return out;
   }
@@ -1442,6 +1443,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   function singPlan(bodies, tier, self) {
     return bodies.filter(function (b) { return !b.g && !b.dead && b !== self && b.t === tier; })
       .sort(function (a, b) { return a.x - b.x; });
+  }
+
+  // מיקי's zap: every face up to tier maxT, except the ones in keep (the singers and the face he made)
+  function zapPlan(bodies, maxT, keep) {
+    return bodies.filter(function (b) { return !b.g && !b.dead && b.t >= 0 && b.t <= maxT && keep.indexOf(b) < 0; });
   }
 
   // קוקו's pops: up to n faces of tier maxT or below, picked at random
@@ -1459,11 +1465,13 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   }
 
   var PEEK_R = 34, PEEK_Y = 330, PEEK_Y_MIN = 176, PEEK_STEP = 14, GUITAR_W = 36, GUITAR_H = 90;
-  // מיקי's guitar when he peeks: held across his chest below the chin, the body in toward the jar and the neck out
-  // past the edge, like he's playing it. [x, y, angle] of the sprite's centre, and [bx, by] of its body
+  // מיקי's guitar when he peeks, per side: [in from his centre (r), down (r), neck tilt out from vertical, size]. Peeking
+  // in from the left he holds it flat under his chin, neck poking in; from the right, rock-star style, neck up into the jar
+  var GUITAR_POS = { l: [0.75, 1.0, -1.42, 1.2], r: [0.75, 1.25, -0.75, 1.3] };
+  // [x, y, angle] of the sprite's centre, [bx, by] of its body, its size
   function guitarAt(side, x, y, r) {
-    var dir = side === 'l' ? 1 : -1, a = -dir * 1.15, cx = x + dir * r * 0.5, cy = y + r * 1.5, k = GUITAR_H * 0.375;
-    return [cx, cy, a, cx - Math.sin(a) * k, cy + Math.cos(a) * k];
+    var P = GUITAR_POS[side], dir = side === 'l' ? 1 : -1, a = -dir * P[2], cx = x + dir * r * P[0], cy = y + r * P[1], k = GUITAR_H * P[3] * 0.375;
+    return [cx, cy, a, cx - Math.sin(a) * k, cy + Math.cos(a) * k, P[3]];
   }
   // where a peek goes: the side (one of sides) and height where his head (and מיקי's guitar, when gtr) covers the least
   // of the pile, nearest PEEK_Y on a tie
@@ -1490,13 +1498,18 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var GUEST_R = 38, TREAT_R = 13, BLAST_R = 120, FUSE = 0.7, TREAT_FADE = 2, TREAT_MAX_AGE = 4.5;
   var PIZZA_DELAY = 0.4, FLAG_DELAY = 0.45, GUITAR_SEG = 0.55, GUITAR_ENDS = 1.8; // the guitar: s per hop, x for coming in / going out
   var DD_T = 4, PEEK_IN = 0.35, CAMEO_FLY = 0.5, SAY_HOLD = 2.5;
-  // דניאל's blast takes faces up to BLAST_MAX_T (the big ones are only thrown); of his slices, 1-2 shrink a face
-  var BLAST_MAX_T = 3, PIZZA_LIVE = [1, 2];
-  // קוקו pops POPS faces of tier POP_MAX_T or below, one every POP_GAP s, starting POP_AT s after he lands
-  var POPS = [3, 4], POP_MAX_T = 2, POP_AT = 0.9, POP_GAP = 0.3;
+  // דניאל's blast reach per tier, a share of BLAST_R: the little ones (0-1) go a bit past it, 2-3 inside it, the big
+  // ones (4+) only near the middle (the rest are thrown); of his slices, 1-2 shrink a face
+  var BLAST_REACH = [1.2, 1.2, 1, 1, 0.35], PIZZA_LIVE = [1, 2];
+  // קוקו pops POPS faces of tier POP_MAX_T or below, one every POP_GAP s, starting POP_AT s after he lands; of his
+  // flags, FLAG_LIVE blow away the first face they touch
+  var POPS = [3, 4], POP_MAX_T = 2, POP_AT = 0.9, POP_GAP = 0.3, FLAG_LIVE = [2, 3];
+  // מיקי's sing-along clears the small faces: every face up to ZAP_MAX_T that isn't singing glows yellow for ZAP_T s, then pops
+  var ZAP_MAX_T = 1, ZAP_T = 0.7;
   // pop-ups: the moment -> [who ('any': one of the three), chance, delay s]
   var MOMENTS = { over: ['daniel', 1 / 2], chain3: ['michael', 1 / 2], fullhouse: ['koko', 1 / 2, 2.8], best: ['any', 1 / 2, 1.2] };
-  // treats fall after a power: דניאל's pizza (a live slice takes the first face it touches a tier down), קוקו's flags (just the show)
+  // treats fall after a power: דניאל's pizza (a live slice takes the first face it touches a tier down), קוקו's flags
+  // (a live flag blows away the first face it touches)
   function isTreat(g) { return g === 'pizza' || g === 'flag'; }
 
   function canvas(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
@@ -1555,12 +1568,12 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   // sfx(name, ...args), event(s), face(id), faceSprite(face, x, y, r, o), R (renderer), jar {l, r, top, floor}, score(), play() s into the game, friends() on the board so far
   function create(api, opt) {
     var deck = new Deck(api.rng, opt && opt.thresh, opt && opt.ids), off = !!(opt && opt.off);
-    var live = null, treats = [], rain = [], dd = 0, peeks = [], pend = [], gtr = null, tex = null, dealtOut = false, pops = null, seen = {};
+    var live = null, treats = [], rain = [], dd = 0, peeks = [], pend = [], gtr = null, tex = null, dealtOut = false, pops = null, zap = null, seen = {};
     // no new guest while one is dealt, on the line, in the jar, or his power is still running
-    function busyNow() { return dealtOut || !!live || treats.length > 0 || rain.length > 0 || !!gtr || dd > 0 || !!pops; }
+    function busyNow() { return dealtOut || !!live || treats.length > 0 || rain.length > 0 || !!gtr || dd > 0 || !!pops || !!zap; }
 
-    function reset() { deck.reset(); dealtOut = false; live = null; treats = []; rain = []; gtr = null; dd = 0; peeks = []; pend = []; pops = null; seen = {}; }
-    function end() { dd = 0; peeks = []; pend = []; rain = []; gtr = null; pops = null; }
+    function reset() { deck.reset(); dealtOut = false; live = null; treats = []; rain = []; gtr = null; dd = 0; peeks = []; pend = []; pops = null; zap = null; seen = {}; }
+    function end() { dd = 0; peeks = []; pend = []; rain = []; gtr = null; pops = null; zap = null; }
     function due() { return !off && deck.due(api.score(), api.play(), api.friends()); }
     function take() { var id = deck.take(); dealtOut = true; deck.busy = true; api.event('guest:' + id); return id; }
     // he moves from NEXT onto the line
@@ -1575,14 +1588,16 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       return b;
     }
 
-    // treats fall from the top of the jar after `delay` s: n of a kind, spread across, the first `live` of them work
+    // treats fall from the top of the jar after `delay` s: n of a kind, spread across, `live` of them (at random) work
     function treatRain(kind, n, delay, live) { rain.push({ kind: kind, n: n, at: delay, live: live || 0 }); }
     function dropTreats(kind, n, live) {
-      var J = api.jar;
-      for (var i = 0; i < n; i++) {
+      var J = api.jar, ord = [], i;
+      for (i = 0; i < n; i++) ord.push(i);
+      for (i = n - 1; i > 0; i--) { var j = Math.floor(api.rng() * (i + 1)), x0 = ord[i]; ord[i] = ord[j]; ord[j] = x0; }
+      for (i = 0; i < n; i++) {
         var x = J.l + TREAT_R * 2 + (i + api.rng()) / n * (J.r - J.l - TREAT_R * 4);
         var p = api.newBody(x, J.top + 6 - (i % 3) * 30 - api.rng() * 20, kind, 40 + api.rng() * 60);
-        p.ang = (api.vr() - 0.5) * 1.2; p.used = false; p.live = i < live; p.tt = -1; p.ph = api.vr() * 6;
+        p.ang = (api.vr() - 0.5) * 1.2; p.used = false; p.live = ord[i] < live; p.tt = -1; p.ph = api.vr() * 6;
         treats.push(p);
       }
       api.sfx('riffle', 0);
@@ -1596,19 +1611,23 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       dd = DD_T;
       api.talk('g-koko', p, LINES.koko, true, SAY_HOLD);
       api.sfx('best'); api.event('cameo');
-      treatRain('flag', 5 + Math.floor(api.rng() * 4), FLAG_DELAY);
+      treatRain('flag', 5 + Math.floor(api.rng() * 4), FLAG_DELAY, FLAG_LIVE[0] + Math.floor(api.rng() * (FLAG_LIVE[1] - FLAG_LIVE[0] + 1)));
       pops = { n: POPS[0] + Math.floor(api.rng() * (POPS[1] - POPS[0] + 1)), at: POP_AT };
     }
     // one pop: a little face is gone in red, white and blue
     function popOne() {
       var b = popPlan(api.world().bodies, 1, POP_MAX_T, api.rng)[0];
       if (!b) return false;
+      usa(b);
+      api.event('pop:' + b.t);
+      return true;
+    }
+    // a face goes in red, white and blue (קוקו's pops and live flags)
+    function usa(b) {
       b.dead = true;
       api.scoreGone([b], b.x, b.y);
       api.sparkles(b.x, b.y, 8, [0.78, 0.2, 0.23]); api.sparkles(b.x, b.y, 8, [0.18, 0.25, 0.5]); api.sparkles(b.x, b.y, 6, [1, 1, 1]);
       api.sfx('pluck', 4);
-      api.event('pop:' + b.t);
-      return true;
     }
     // ---- a guest peeks in at the edge to say his line, where he covers the least of the pile (false when another
     // peek is up or the bubble is busy); מיקי brings his guitar and strums
@@ -1648,7 +1667,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
 
     // ---- דניאל: the fuse, the blast, the pizza
     function blast(b) {
-      var plan = blastPlan(api.world().bodies, b.x, b.y, BLAST_R, BLAST_MAX_T);
+      var plan = blastPlan(api.world().bodies, b.x, b.y, BLAST_R, BLAST_REACH);
       plan.remove.forEach(function (o) { o.dead = true; });
       plan.push.forEach(function (q) { var o = q[0]; o.vx += q[1]; o.vy += q[2]; o.sleep = false; o.sleepT = 0; });
       b.dead = true;
@@ -1671,6 +1690,27 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       gtr = { pts: pts, who: [null].concat(list.length ? list : [null]), seg: 0, k: 0, x: pts[0][0], y: pts[0][1], ang: 0, n: 0, held: null };
       api.sfx('handoff'); api.sfx('strum', 0.05);
       api.event('sing:' + list.length);
+    }
+    // the small faces that aren't singing glow yellow, then all pop at once (only they go; nothing around them is hit)
+    function zapStart(keep) {
+      var list = zapPlan(api.world().bodies, ZAP_MAX_T, keep);
+      if (!list.length) return;
+      list.forEach(function (b) { b.zap = ZAP_T; });
+      zap = { list: list, at: ZAP_T };
+      api.sfx('fuse', ZAP_T);
+    }
+    function zapPop() {
+      var gone = zap.list.filter(function (b) { return !b.dead && b.zap > 0; }), x = 0, y = 0;
+      zap = null;
+      if (!gone.length) return false;
+      gone.forEach(function (b) {
+        b.dead = true; b.zap = 0; x += b.x; y += b.y;
+        api.sparkles(b.x, b.y, 12, [1, 0.88, 0.2]); api.sparkles(b.x, b.y, 6, [1, 1, 0.85]);
+      });
+      api.scoreGone(gone, x / gone.length, y / gone.length);
+      api.sfx('boom');
+      api.event('zap:' + gone.length);
+      return true;
     }
     function tickGuitar(dt) {
       var g = gtr, segT = GUITAR_SEG * (g.seg === 0 || g.seg === g.pts.length - 2 ? GUITAR_ENDS : 1);
@@ -1713,9 +1753,14 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
           // the faces that sing along: everyone of the tier he touched (marked now, paired up as the guitar reaches them)
           serenade(from, g.x, g.y);
           if (gtr) gtr.who.forEach(function (b) { if (b) b.t0 = b.t; });
+          zapStart((gtr ? gtr.who : []).concat([nb || o]));
         } else if (g.g === 'pizza' && g.live && !g.used) {
           g.used = true; api.event('pizza:' + o.t);
           api.shrink(o, g); // a tier down
+          dirty = true;
+        } else if (g.g === 'flag' && g.live && !g.used) {
+          g.used = true; api.event('flag:' + o.t);
+          usa(o); // blown away
           dirty = true;
         }
       }
@@ -1734,6 +1779,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         }
       }
       if (gtr && tickGuitar(dt)) dirty = true;
+      if (zap) {
+        zap.at -= dt;
+        zap.list.forEach(function (b) { b.zap = Math.max(0.001, zap.at); });
+        if (zap.at <= 0 && zapPop()) dirty = true;
+      }
       for (i = rain.length - 1; i >= 0; i--) { rain[i].at -= dt; if (rain[i].at <= 0) { var rn = rain.splice(i, 1)[0]; dropTreats(rn.kind, rn.n, rn.live); } }
       if (pops) {
         pops.at -= dt;
@@ -1774,6 +1824,13 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       api.talk('g-' + id, p, LINES[id], true, 99);
     }
 
+    // his guitar while he peeks, strumming
+    function drawGuitar(ga) {
+      var R = api.R, st = api.reduced() ? 0 : Math.sin(api.t() * 11), gang = ga[2] + st * 0.05, w = GUITAR_W * ga[5], h = GUITAR_H * ga[5];
+      ga[1] += st * 1.5;
+      R.quad(ga[0] + 3, ga[1] + 5, w * 0.53, h * 0.46, gang, 0, 0, 0, 0.22, 5);
+      R.sprite(tex.guitar, { x: ga[0], y: ga[1], w: w, h: h, ang: gang });
+    }
     function draw() {
       var R = api.R, J = api.jar, i, T = api.t();
       if (!tex) tex = { pizza: R.texture(bakePizza()), flag: R.texture(bakeFlag()), guitar: R.texture(bakeGuitar()) };
@@ -1787,6 +1844,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         var b = live.b, k = 1 - live.fuse / FUSE, beat = api.reduced() ? 0.6 : 0.5 + 0.5 * Math.sin(T * (14 + k * 30));
         R.quad(b.x, b.y, b.r * (1.5 + 0.6 * k), b.r * (1.5 + 0.6 * k), 0, 1, 0.45, 0.1, -(0.3 + 0.5 * k) * beat, 0);
       }
+      if (zap) zap.list.forEach(function (b) { // מיקי's zap: a yellow glow that beats faster as it runs down
+        if (b.dead) return;
+        var k = 1 - zap.at / ZAP_T, beat = api.reduced() ? 0.6 : 0.5 + 0.5 * Math.sin(T * (14 + k * 30));
+        R.quad(b.x, b.y, b.r * (1.4 + 0.5 * k), b.r * (1.4 + 0.5 * k), 0, 1, 0.85, 0.15, -(0.3 + 0.5 * k) * beat, 0);
+      });
       if (gtr) {
         R.quad(gtr.x + 4, gtr.y + 7, 21, 46, gtr.ang, 0, 0, 0, 0.25, 5);
         R.sprite(tex.guitar, { x: gtr.x, y: gtr.y, w: 40, h: 100, ang: gtr.ang });
@@ -1795,12 +1857,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         var p = peeks[i];
         if (p.clip) R.clip(J.l, J.top, J.r - J.l, J.floor - J.top); // he's behind the photo's edge
         api.faceSprite(api.face(p.id), p.x, p.y, p.r, { ang: p.ang });
-        if (p.id === 'michael' && !p.fly) { // his guitar across his chest, neck out past the edge, strumming
-          var ga = guitarAt(p.side, p.x, p.y, p.r), st = api.reduced() ? 0 : Math.sin(T * 11), gang = ga[2] + st * 0.05;
-          ga[1] += st * 1.5;
-          R.quad(ga[0] + 3, ga[1] + 5, GUITAR_W * 0.53, GUITAR_H * 0.46, gang, 0, 0, 0, 0.22, 5);
-          R.sprite(tex.guitar, { x: ga[0], y: ga[1], w: GUITAR_W, h: GUITAR_H, ang: gang });
-        }
+        if (p.id === 'michael' && !p.fly) drawGuitar(guitarAt(p.side, p.x, p.y, p.r));
         if (p.clip) R.clip(null);
       }
     }
@@ -1809,7 +1866,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       onDrop: onDrop, drop: drop, tick: tick, moment: moment, show: show, draw: draw };
   }
 
-  root.Guests = { IDS: IDS, NAMES: NAMES, LINES: LINES, GUEST_R: GUEST_R, TREAT_R: TREAT_R, isTreat: isTreat, Deck: Deck, blastPlan: blastPlan, singPlan: singPlan, popPlan: popPlan, pickPeeker: pickPeeker, peekSpot: peekSpot, create: create };
+  root.Guests = { IDS: IDS, NAMES: NAMES, LINES: LINES, GUEST_R: GUEST_R, TREAT_R: TREAT_R, isTreat: isTreat, Deck: Deck, blastPlan: blastPlan, singPlan: singPlan, zapPlan: zapPlan, popPlan: popPlan, pickPeeker: pickPeeker, peekSpot: peekSpot, create: create };
 })(window);
 
 </script>
@@ -2798,9 +2855,9 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         if (Guests.isTreat(b.g)) continue;
         var nervous = state === 'play' && overTimer > 0 && b.y - b.r < LINE_Y + 30;
         var fuse = b.fuse > 0 ? 1 - b.fuse / 0.7 : 0; // דניאל about to blow: he glows hot and shakes
-        var jx = (nervous || fuse) && !reduced ? Math.sin(t * 60 + i) * (0.8 + fuse * 2.5) : 0;
+        var jx = (nervous || fuse || b.zap > 0) && !reduced ? Math.sin(t * 60 + i) * (0.8 + fuse * 2.5) : 0;
         faceSprite(faceOf(b), b.x + jx, b.y + b.r * (1 - sy2), b.r, { ang: b.ang, sx: sx2, sy: sy2, blink: blinkAmt(b), sepia: sep,
-          tint: fuse ? [1, 0.45, 0.1, 0.15 + 0.3 * fuse] : nervous ? [1, 0.2, 0.2, 0.12 + 0.1 * Math.sin(t * 10)] : null, shine: b.pop > 0 ? 1 - b.pop / 0.22 : 0 });
+          tint: fuse ? [1, 0.45, 0.1, 0.15 + 0.3 * fuse] : b.zap > 0 ? [1, 0.85, 0.1, 0.25 + 0.3 * (1 - b.zap / 0.7)] : nervous ? [1, 0.2, 0.2, 0.12 + 0.1 * Math.sin(t * 10)] : null, shine: b.pop > 0 ? 1 - b.pop / 0.22 : 0 });
       }
     }
     if (guests && state !== 'start') guests.draw();
