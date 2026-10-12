@@ -2480,6 +2480,14 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var challenge = Challenge.fromURL(location.search);
   var SHARE_URL = 'https://nirlivne.github.io/arcade/games/say-cheese-junkies/';
   var errors = [], events = [], games = 1;
+  // GoatCounter events (the script is only in the arcade build; it ignores localhost). Nothing personal: names only.
+  // The script loads async: an event before it arrives waits for the page's load event.
+  function track(name) {
+    if (BOT || SIM || simulating || FROZEN_T !== null) return;
+    function go() { var g = window.goatcounter; if (g && g.count) { try { g.count({ path: name, title: name, event: true }); } catch (e) {} } }
+    if (window.goatcounter && window.goatcounter.count) go(); else window.addEventListener('load', go, { once: true });
+  }
+  if (challenge) track('challenge-open');
   window.addEventListener('error', function (e) { errors.push(String(e.message)); });
 
   function $(id) { return document.getElementById(id); }
@@ -2678,6 +2686,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     flash = 0.85; flashCol = [1, 1, 1];
     persons.forEach(function (p) { p.target = 0; });
     showScreen(null);
+    track('game-start'); if (challenge) track('challenge-start');
     emit('game:start');
   }
   function startPlay() {
@@ -2694,6 +2703,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   }
   function gameOver() {
     state = 'over'; overAt = performance.now(); overAnim = 0;
+    track('game-over');
     showScreen(null);
     burnOver = overTimer / OVER_TIME;
     var isBest = score > best && score > 0;
@@ -3767,12 +3777,14 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     if (state !== 'over' || !cardUp || BOT || SIM) return;
     Sound.sfx.click();
     Share.send(shareReady || { file: null, text: Share.text(shareInfo()) }, toast);
+    track('share-end');
   });
   // the start screen: share the game itself
   $('share-start').addEventListener('click', function () {
     if (state !== 'start' || BOT || SIM) return;
     Sound.unlock(); Sound.sfx.click();
     Share.send({ file: null, text: Share.invite(best, SHARE_URL) }, toast);
+    track('share-start');
   });
   // home: from the end screen straight back to the start; in play it pauses first (a stray tap must not end a run),
   // and from the pause (the card's button, or the home button again) it leaves the game
@@ -3954,5 +3966,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
 
 </script>
 <script src="register-sw.js"></script>
+<script data-goatcounter="https://junkies-game.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
