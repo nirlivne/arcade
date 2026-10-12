@@ -129,16 +129,15 @@ button:focus-visible,.radios input:focus-visible{outline:3px solid #fff;outline-
 #loading p{position:absolute;left:0;right:0;top:420px;text-align:center;font-family:Letter,Marker,cursive;font-size:34px;color:#fff;margin:0;padding:0 30px}
 #paused{pointer-events:auto}
 #paused .card{top:430px}
-/* game over: the scene shrinks to 62% at the top (js), the card hangs from just under it (top set by js from the same
+/* game over: the scene shrinks to 70% at the top (js), the card hangs from just under it (top set by js from the same
    constants) and grows downwards; Share first, it is the viral action. Worst case (best + challenge + new deal) fits in 760. */
-#over .card{top:448px;padding:10px 18px 8px;transform:translate(-50%,0) rotate(1.5deg)}
-#over .badge{margin:0;padding:1px 12px;font-size:15px}
-#over .score{font-size:40px;line-height:1}
+#over .card{top:448px;padding:8px 16px 8px;transform:translate(-50%,0) rotate(1.5deg)}
+#over .badge{margin:0;padding:0 12px;font-size:14px}
+#over .score{font-size:36px;line-height:1}
 #over p{margin:1px 0;font-size:16px;line-height:1.2}
 #over .muted{font-size:14px}
-#over .hint{font-size:12px;margin-top:3px}
-button.share{width:100%;height:48px;margin:6px auto 0;font-size:28px}
-#over button.big{margin-top:6px;padding:5px 0 2px;font-size:26px}
+button.share{width:100%;height:44px;margin:5px auto 0;font-size:26px}
+#over button.big{margin-top:5px;padding:4px 0 1px;font-size:24px}
 #over button.small{margin-top:4px;padding:1px 14px;font-size:15px}
 #toast{position:absolute;left:50%;top:-44px;transform:translateX(-50%);z-index:1;background:var(--ink);color:#fff;padding:5px 12px;border-radius:999px;font-size:14px;white-space:nowrap}
 .score{font-family:Marker,Hand,cursive;font-size:50px;line-height:1.1;color:var(--ink)}
@@ -152,6 +151,7 @@ button.share{width:100%;height:48px;margin:6px auto 0;font-size:28px}
 /* settings: random order every game, or a fixed order (top row = smallest tier) */
 #settings .card{top:384px;padding:22px 18px 16px}
 #settings h2{margin-bottom:4px}
+#settings h3{margin:10px 0 2px;font-size:16px;font-weight:600;opacity:.75}
 .radios{display:flex;flex-direction:column;gap:2px;margin:4px 0;text-align:start}
 .radios label{display:flex;align-items:center;gap:10px;font-size:18px;padding:5px 8px;border-radius:10px;cursor:pointer}
 .radios input{width:20px;height:20px;margin:0;border-radius:50%;accent-color:var(--rose);cursor:pointer}
@@ -207,12 +207,10 @@ button.mv:disabled{opacity:.2;cursor:default}
       <div id="badge" class="badge hidden">שיא חדש!</div>
       <div class="score" id="final" dir="ltr">0</div>
       <p id="bestline">שיא 0</p>
-      <p class="muted" id="stats"></p>
       <p class="muted" id="dealline"></p>
       <button id="share" type="button" class="play share">שתף לקבוצה</button>
       <button id="again" type="button" class="big">עוד יד</button>
       <button id="newdeal" type="button" class="small hidden">יד חדשה</button>
-      <p class="muted hint">R או Enter לעוד יד</p>
       <div id="toast" class="hidden"></div>
     </div>
   </div>
@@ -227,6 +225,11 @@ button.mv:disabled{opacity:.2;cursor:default}
       <div id="ordwrap" class="hidden">
         <p class="muted">למעלה הכי קטן, למטה הכי גדול</p>
         <ol id="ordlist"></ol>
+      </div>
+      <h3 id="fx-title">כשהערימה עוברת את הקו</h3>
+      <div class="radios" role="radiogroup" aria-labelledby="fx-title">
+        <label><input type="radio" name="endfx" value="burn">התמונה נשרפת</label>
+        <label><input type="radio" name="endfx" value="melt">התמונה נמסה</label>
       </div>
       <button id="set-close" type="button" class="big">סגירה</button>
     </div>
@@ -408,14 +411,30 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   ].join('\n');
 
   var FS_PHOTO = [
-    'precision mediump float;',
+    '#ifdef GL_FRAGMENT_PRECISION_HIGH', 'precision highp float;', '#else', 'precision mediump float;', '#endif',
     'varying vec2 vUV;',
     'uniform sampler2D uTex; uniform sampler2D uDepth;',
+    'uniform float uMelt; uniform float uTime; uniform vec4 uBox;',
+    'float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
+    'float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);',
+    '  return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }',
     'uniform vec4 uSrc; uniform vec2 uPar; uniform float uLayerDepth; uniform float uUseMap;',
     'uniform float uDevelop; uniform float uAlpha; uniform float uSepia; uniform float uDim; uniform float uGhost;',
     'uniform vec2 uBlur;',
     'void main(){',
-    '  vec2 uv = mix(uSrc.xy, uSrc.zw, vUV);',
+    // melt: the photo slides down in drips (uBox = this layer's rect in photo units, so every layer melts as one)
+    '  vec2 st = vUV; float edge = 1.0;',
+    '  if (uMelt > 0.0) {',
+    '    vec2 P = uBox.xy + vUV * uBox.zw;',
+    '    float colN = n(vec2(P.x * 5.0, 0.5)) * 0.35 + pow(n(vec2(P.x * 11.0, 4.0)), 3.0) * 1.3 + pow(n(vec2(P.x * 19.0, 9.0)), 5.0) * 0.6;',
+    '    float drop = (uMelt * uMelt * (0.06 + 0.26 * colN) + uMelt * 0.025) * smoothstep(0.0, 0.3, uMelt);',
+    '    P = vec2(P.x + sin(P.y * 14.0 + uTime * 1.5) * 0.002 * uMelt, P.y - drop * (1.0 - P.y * 0.85));',
+    '    edge = P.y;',
+    '    if (P.y < 0.0) { gl_FragColor = uGhost > 0.5 || uUseMap < 0.5 ? vec4(0.0) : vec4(vec3(0.09, 0.06, 0.08) * (0.8 + 0.4 * (uBox.y + vUV.y * uBox.w)) * uDim, 1.0); return; }',
+    '    st = (P - uBox.xy) / uBox.zw;',
+    '    if (st.x < 0.0 || st.x > 1.0 || st.y < 0.0 || st.y > 1.0) { gl_FragColor = vec4(0.0); return; }',
+    '  }',
+    '  vec2 uv = mix(uSrc.xy, uSrc.zw, st);',
     '  float d = uLayerDepth;',
     '  if (uUseMap > 0.5) d = texture2D(uDepth, uv).r;',
     '  uv += uPar * (d - 0.5);',
@@ -445,6 +464,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     '  }',
     '  float l = dot(rgb, vec3(0.299, 0.587, 0.114));',
     '  rgb = mix(rgb, vec3(l * 1.08, l * 0.93, l * 0.72), uSepia);',
+    '  if (uMelt > 0.0) { rgb *= 1.0 - smoothstep(0.035, 0.0, edge) * 0.45; rgb += exp(-pow((edge - 0.012) / 0.005, 2.0)) * 0.5 * c.a; }',
     '  rgb *= uDim;',
     '  gl_FragColor = vec4(rgb, c.a) * f;',
     '}'
@@ -755,7 +775,8 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   };
 
-  // o: {tex, depth, x, y, w, h (logical dest), src: [u0,v0,u1,v1], parU, parV, layerDepth, useMap, develop, alpha, sepia, dim, ghost, blur (logical px)}
+  // o: {tex, depth, x, y, w, h (logical dest), src: [u0,v0,u1,v1], parU, parV, layerDepth, useMap, develop, alpha, sepia, dim, ghost, blur (logical px),
+  //     melt (0..1), time, box: [x, y, w, h] of this layer in photo units (melt only)}
   P.photo = function (o) {
     var gl = this.gl, p = this.pPhoto;
     this.flush();
@@ -773,6 +794,10 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     gl.uniform1f(p.u.uSepia, o.sepia || 0);
     gl.uniform1f(p.u.uDim, o.dim === undefined ? 1 : o.dim);
     gl.uniform1f(p.u.uGhost, o.ghost ? 1 : 0);
+    var bx = o.box || [0, 0, 1, 1];
+    gl.uniform1f(p.u.uMelt, o.melt || 0);
+    gl.uniform1f(p.u.uTime, o.time || 0);
+    gl.uniform4f(p.u.uBox, bx[0], bx[1], bx[2], bx[3]);
     // blur is in logical px; the shader wants texture units
     var b = o.blur || 0;
     gl.uniform2f(p.u.uBlur, b * (s[2] - s[0]) / o.w, b * (s[3] - s[1]) / o.h);
@@ -1372,6 +1397,29 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     });
     hush(t0 + (PAMELA_BARS.length * 4 - 2) * spb);
   }
+  // ---- קוקו arrives: the first line of "The Star-Spangled Banner" (music John Stafford Smith, before 1777; public
+  // domain), "O say can you see, by the dawn's early light". [beat, beats, midi] at 100 bpm in B-flat, 3/4, with a
+  // pickup; a brass-ish voice and a bass note on the chord changes.
+  var ANTHEM = [[0, 0.75, 65], [0.75, 0.25, 62], [1, 1, 58], [2, 1, 62], [3, 1, 65], [4, 2, 70], [6, 0.75, 74], [6.75, 0.25, 72],
+    [7, 1, 70], [8, 1, 62], [9, 1, 64], [10, 2.5, 65]];
+  var ANTHEM_BASS = [[1, 3, 46], [4, 3, 46], [7, 2, 43], [9, 1, 48], [10, 2.5, 41]];
+  function brass(freq, t0, vol, dur, bus) {
+    var a = ac; if (!a) return;
+    var o = a.createOscillator(), f = a.createBiquadFilter(), g = a.createGain(), end = t0 + dur;
+    o.type = 'sawtooth'; o.frequency.value = freq;
+    f.type = 'lowpass'; f.Q.value = 1; f.frequency.setValueAtTime(freq * 2, t0); f.frequency.linearRampToValueAtTime(freq * 5, t0 + 0.06);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.04);
+    g.gain.setValueAtTime(vol, Math.max(t0 + 0.04, end - 0.08)); g.gain.exponentialRampToValueAtTime(0.0001, end + 0.06);
+    o.connect(f); f.connect(g); g.connect(bus || musBus);
+    o.start(t0); o.stop(end + 0.1);
+  }
+  function anthem() {
+    var a = ctx(); if (!a || !sfxOn) return;
+    var spb = 60 / 100, t0 = a.currentTime + 0.05;
+    ANTHEM.forEach(function (n) { brass(midi(n[2]), t0 + n[0] * spb, 0.13, n[1] * spb * 0.92, sfxBus); });
+    ANTHEM_BASS.forEach(function (n) { brass(midi(n[2]), t0 + n[0] * spb, 0.09, n[1] * spb * 0.9, sfxBus); });
+    hush(t0 + 12 * spb);
+  }
   function musicStart() {
     var a = ctx(); if (!a || musTimer) return;
     nextBeat = bachT0 = a.currentTime + 0.1; beat = 0; curBar = 0; inBar = 0; bachIdx = 0; chordLog = []; calm();
@@ -1395,7 +1443,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     setSfx: function (v) { sfxOn = v; },
     setMusic: function (v) { musOn = v; if (ac && musBus && musTimer) { musBus.gain.cancelScheduledValues(ac.currentTime); musBus.gain.setTargetAtTime(musTarget(), ac.currentTime, 0.15); } },
     musicStart: musicStart, musicStop: musicStop, musicDuck: musicDuck,
-    setTension: setTension, calm: calm, musicHit: musicHit, setTune: setTune, solfIntro: solfIntro, pamela: pamela,
+    setTension: setTension, calm: calm, musicHit: musicHit, setTune: setTune, solfIntro: solfIntro, pamela: pamela, anthem: anthem,
     suspend: function (hidden) { if (!ac) return; if (hidden) ac.suspend(); else ac.resume(); }
   };
 })();
@@ -2113,7 +2161,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   // info: {deal, score, target (number or null), link}
   function text(info) {
     var beat = info.target !== null && info.target !== undefined && info.score > info.target;
-    return 'ג׳אנקיס 🃏 יד ' + iso('#' + info.deal) + ': ' + iso(fmt(info.score)) + ' נק׳\n' +
+    return 'ג׳אנקיס 🃏 ' + iso(fmt(info.score)) + ' נק׳\n' +
       (beat ? 'עברתי את ' + iso(fmt(info.target)) + '. הבא בתור?' : 'מי עובר אותי?') + '\n' + info.link;
   }
 
@@ -2133,13 +2181,15 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     x.fillStyle = '#fbf7ee'; x.fillRect(mg + 2, mg + 2, sw - 4, sh - 4); x.restore();
     x.imageSmoothingQuality = 'high';
     x.drawImage(shot, mg, mg, sw, sh);
-    note(x, mg + sw + 6 * L, mg - 12 * L, L, info); // over the corner, poking into the felt: covers less of the photo
+    // the score note centred, its middle about 10% down: chat previews crop corners and edges, not the middle
+    note(x, W / 2 + NOTE_W * L / 2, Math.round(H * 0.10 - NOTE_H * L / 2), L, info);
     tag(x, W / 2, mg + sh + mg * 1.05, L, info);
     return c;
   }
   // the torn notepad page (the HUD's .note look), pinned by its top-right corner at (right, top)
+  var NOTE_W = 108, NOTE_H = 62;
   function note(x, right, top, L, info) {
-    var w = 108 * L, h = 80 * L;
+    var w = NOTE_W * L, h = NOTE_H * L;
     x.save(); x.translate(right, top); x.rotate(2.5 * Math.PI / 180);
     x.shadowColor = 'rgba(0,0,0,0.4)'; x.shadowBlur = 3 * L; x.shadowOffsetY = 3 * L;
     x.fillStyle = '#fbf6e4'; tornPage(x, -w, 0, w, h); x.fill();
@@ -2150,9 +2200,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     x.textBaseline = 'alphabetic'; x.textAlign = 'right';
     x.direction = 'rtl'; x.fillStyle = '#3E6DB0'; x.font = (14 * L) + 'px Round, Hand, sans-serif'; x.fillText('ניקוד', -17 * L, 17 * L);
     x.direction = 'ltr'; x.fillStyle = '#2b2118'; x.font = (30 * L) + 'px Marker, Hand, cursive'; x.fillText(fmt(info.score), -17 * L, 48 * L);
-    x.direction = 'rtl'; x.fillStyle = '#6b5b4b'; x.font = (14 * L) + 'px Round, Hand, sans-serif';
-    var lbl = 'יד '; x.fillText(lbl, -17 * L, 68 * L);
-    var lw = x.measureText(lbl).width; x.direction = 'ltr'; x.fillText('#' + info.deal, -17 * L - lw, 68 * L); // two runs: no bidi guesswork
     x.restore();
   }
   function tornPage(x, x0, y0, w, h) {
@@ -2179,7 +2226,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     return fonts.then(function () {
       var c = compose(shot, info);
       return new Promise(function (res) { c.toBlob(function (bl) { res(bl); }, 'image/png'); }).then(function (bl) {
-        var file = bl && typeof File === 'function' ? new File([bl], 'junkies-' + info.deal + '.png', { type: 'image/png' }) : null;
+        var file = bl && typeof File === 'function' ? new File([bl], 'junkies-' + info.score + '.png', { type: 'image/png' }) : null;
         return { file: file, text: text(info), canvas: c };
       });
     });
@@ -2312,11 +2359,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   };
   var CHAT_GAP = [9, 16]; // s of play between two players' lines
   // game over: the snap (poses, flash, capture) and then the scene shrinks to the top so the card fits under it
-  var SNAP_AT = 1.0, SHRINK_AT = 1.5, SHRINK_T = 0.5, OVER_SCALE = 0.62, OVER_SEPIA = 0.3;
+  var SNAP_AT = 1.0, SHRINK_AT = 1.5, SHRINK_T = 0.5, OVER_SCALE = 0.70, OVER_SEPIA = 0.3;
   // the shrunk scene's top keeps the rope's clothespins (about 12 px above ROPE_Y) on screen even when the view has no letterbox;
   // the card hangs from just under the shrunk polaroid and grows downwards
   var OVER_TOP = Math.ceil((POL.t - (ROPE_Y - 12)) * OVER_SCALE) + 2;
-  var OVER_CARD_TOP = Math.round(OVER_TOP + (POL.b - POL.t) * OVER_SCALE) + 16;
+  var OVER_CARD_TOP = Math.round(OVER_TOP + (POL.b - POL.t) * OVER_SCALE) + 10;
   var SOFT_BLUR = 5; // logical px: how soft the photo gets once all eight are at the table
   var QUORUM = 6; // this many at the table is enough for a game: a banner says so
   var SAY_GAP = 4, SAY_COOL = 20, SAY_DUR = 1.9, IDLE_SAY = 8, BUB_MIN_Y = 90;
@@ -2433,6 +2480,9 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var orderMode = qs.get('order') || load('orderMode', 'random');
   if (orderMode !== 'fixed') orderMode = 'random';
   var fixedOrder = validOrder(load('order', '')) || HEADS.slice();
+  // how the photo goes when the pile stays over the line: it burns (film burn) or it melts (settings)
+  var endFx = qs.get('endfx') || load('endFx', 'burn');
+  if (endFx !== 'melt') endFx = 'burn';
   function validOrder(s) {
     var a = String(s).split(',');
     return a.length === HEADS.length && HEADS.every(function (h) { return a.indexOf(h) >= 0; }) ? a : null;
@@ -2566,10 +2616,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     $('final').textContent = thousands(score);
     $('bestline').textContent = 'שיא ⁦' + thousands(best) + '⁩';
     $('badge').classList.toggle('hidden', !isBest);
-    var back = unlocked.filter(Boolean).length;
-    // numbers isolated (U+2066..2069) so they keep their order inside the Hebrew line
-    $('stats').textContent = back + '/' + TIERS.length + ' ליד השולחן' + (families ? '  ·  פול האוס ⁦×' + families + '⁩' : '');
-    $('dealline').textContent = dealLine();
+    $('dealline').textContent = dealLine(); $('dealline').classList.toggle('hidden', !challenge);
     bustedB = overTop; // the face that stood highest over the line ends the night
     guests.end();
     if (!simulating) {
@@ -2579,9 +2626,10 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     emit('game:over', { score: score });
   }
   function thousands(n) { return Share.fmt(n); } // 10666 -> "10,666"
-  // "יד #4821", or in a challenge the target and whether it was beaten (numbers isolated, U+2066..2069)
+  // in a challenge: the target and whether it was beaten (number isolated, U+2066..2069). The deal number itself is
+  // never shown: it only fixes the deal behind the scenes.
   function dealLine() {
-    if (!challenge) return 'יד ⁦#' + deal + '⁩';
+    if (!challenge) return '';
     return 'היעד: ⁦' + thousands(challenge.score) + '⁩ · ' + (score > challenge.score ? 'עברת!' : 'לא הפעם');
   }
   // the start screen in a challenge: the note with the deal and the target, the play button's label, no settings
@@ -2589,7 +2637,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     var on = !!challenge;
     $('chal').classList.toggle('hidden', !on);
     if (on) {
-      $('chal-deal').textContent = 'אתגר! יד ⁦#' + challenge.deal + '⁩';
+      $('chal-deal').textContent = 'אתגר!';
       $('chal-target').textContent = ' · היעד: ⁦' + thousands(challenge.score) + '⁩';
     }
     $('play').textContent = on ? 'קבל את האתגר' : 'התחל משחק';
@@ -2643,7 +2691,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     idleT = 0; drops++;
     guests.onDrop();
     // a guest in NEXT goes to the line and the dealt face waits behind him; otherwise deal on
-    if (nextG) { curG = nextG; nextG = null; guests.dealt(curG); if (!simulating) { if (curG === 'michael') Sound.pamela(); else Sound.solfIntro(32); } } // מיקי walks in to פמלה, the rest to the Solfeggietto
+    if (nextG) { curG = nextG; nextG = null; guests.dealt(curG); if (!simulating) { if (curG === 'michael') Sound.pamela(); else if (curG === 'koko') Sound.anthem(); else Sound.solfIntro(32); } } // מיקי walks in to פמלה, קוקו to the US anthem, דניאל to the Solfeggietto
     else { curG = null; cur = next; next = rollTier(); }
     if (!nextG && guests.due()) nextG = guests.take();
     cooldown = DROP_CD;
@@ -3071,7 +3119,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     for (m = waves.length - 1; m >= 0; m--) { waves[m].age += dt; if (waves[m].age > 0.7) waves.splice(m, 1); }
     // embers from the burning edge
     var burn = burnLevel();
-    if (burn > 0.02 && !simulating && vr() < burn * 0.9) {
+    if (endFx === 'burn' && burn > 0.02 && !simulating && vr() < burn * 0.9) {
       var ex = JAR.l + vr() * (JAR.r - JAR.l), ey = JAR.top + (burn * 0.62 - 0.04) * PH.h + (vr() - 0.5) * 14;
       fx.push({ k: 'ember', x: ex, y: ey, vx: (vr() - 0.5) * 30, vy: -20 - vr() * 50, s: 1.5 + vr() * 2.2, life: 0.6 + vr() * 0.8, max: 1.4 });
     }
@@ -3159,21 +3207,22 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   function drawPhoto(par) {
     R.clip(PH.x, PH.y, PH.w, PH.h);
     var sepia = state === 'over' ? clamp(overAnim / 1.2, 0, OVER_SEPIA) : 0;
+    var burn = burnLevel(), melt = endFx === 'melt' ? clamp(burn / 1.5, 0, 1) : 0;
     var dim = state === 'start' ? 1 : 0.94;
     var e = soft * soft * (3 - 2 * soft), blur = e * SOFT_BLUR;
     dim *= 1 - e * 0.06;
     R.photo({ tex: tex.plate, depth: tex.plateDepth, x: PH.x, y: PH.y, w: PH.w, h: PH.h,
       src: [SRC[0] / mainP.w, SRC[1] / mainP.h, SRC[2] / mainP.w, SRC[3] / mainP.h],
-      parU: par[0] / PS / mainP.w, parV: par[1] / PS / mainP.h, useMap: true, sepia: sepia, dim: dim, blur: blur });
+      parU: par[0] / PS / mainP.w, parV: par[1] / PS / mainP.h, useMap: true, sepia: sepia, dim: dim, blur: blur, melt: melt, time: t });
     // everyone overlaps everyone in this photo, so nobody leaves it: people not dealt in yet stay as pale, undeveloped figures
     for (var i = 0; i < persons.length; i++) {
       var p = persons[i];
       var a = toLogical(p.bbox[0], p.bbox[1]), d = p.depth - 0.5;
-      R.photo({ tex: p.t, x: a[0] - par[0] * d, y: a[1] - par[1] * d, w: (p.bbox[2] - p.bbox[0]) * PS, h: (p.bbox[3] - p.bbox[1]) * PS,
-        develop: p.dev, sepia: sepia, dim: dim, ghost: true, blur: blur });
+      var lx = a[0] - par[0] * d, ly = a[1] - par[1] * d, lw = (p.bbox[2] - p.bbox[0]) * PS, lh = (p.bbox[3] - p.bbox[1]) * PS;
+      R.photo({ tex: p.t, x: lx, y: ly, w: lw, h: lh, develop: p.dev, sepia: sepia, dim: dim, ghost: true, blur: blur,
+        melt: melt, time: t, box: [(lx - PH.x) / PH.w, (ly - PH.y) / PH.h, lw / PH.w, lh / PH.h] });
     }
-    var burn = burnLevel();
-    if (burn > 0.001) R.burn(PH.x, PH.y, PH.w, PH.h, burn, t);
+    if (endFx === 'burn' && burn > 0.001) R.burn(PH.x, PH.y, PH.w, PH.h, burn, t);
     R.quad(PH.x + PH.w / 2, PH.y + PH.h / 2, PH.w / 2, PH.h / 2, 0, 0.1, 0.05, 0.12, 0.32, 7);
     R.clip(null);
   }
@@ -3524,6 +3573,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   }
   function renderSettings() {
     elSet.querySelectorAll('input[name=ordmode]').forEach(function (r) { r.checked = r.value === orderMode; });
+    elSet.querySelectorAll('input[name=endfx]').forEach(function (r) { r.checked = r.value === endFx; });
     $('ordwrap').classList.toggle('hidden', orderMode !== 'fixed');
     var ol = $('ordlist');
     ol.innerHTML = '';
@@ -3563,6 +3613,9 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       orderMode = r.value; save('orderMode', orderMode); Sound.sfx.click();
       settingsChanged(); r.focus();
     });
+  });
+  elSet.querySelectorAll('input[name=endfx]').forEach(function (r) {
+    r.addEventListener('change', function () { endFx = r.value; save('endFx', endFx); Sound.sfx.click(); r.focus(); });
   });
   $('btn-set').addEventListener('click', function () { Sound.unlock(); Sound.sfx.click(); setSettings(true); });
   $('set-close').addEventListener('click', function () { setSettings(false); });
