@@ -39,7 +39,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#1d3a2c;overscroll-beh
 #nextlbl{position:absolute;left:74px;top:24px;font-family:Letter,Marker,cursive;font-size:24px;color:#f3e6c4;transform:rotate(8deg);text-shadow:0 2px 3px rgba(0,0,0,.6)}
 /* קוקו's double down: a gold chip by the score, the ring empties as the 10 s run out (--k: 1 -> 0) */
 #fam{position:absolute;left:20px;top:713px;width:40px;text-align:center;font-size:14px;color:var(--ink);font-weight:bold}
-#btns{position:absolute;left:162px;top:14px;display:flex;gap:6px}
+#btns{position:absolute;left:124px;top:14px;display:flex;gap:6px}
 .ibtn{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,250,235,.85);background:rgba(255,250,235,.14);
   color:#fff;font-size:14px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 0 rgba(0,0,0,.3)}
 .ibtn:active{transform:translateY(1px)}
@@ -123,7 +123,14 @@ button:focus-visible,.radios input:focus-visible{outline:3px solid #fff;outline-
 #chal-target{color:var(--rose)}
 #ui[data-chal] #btn-set{display:none}
 #about-open{position:absolute;left:22px;top:716px;margin:0;padding:2px 12px;font-size:15px;color:var(--ink);pointer-events:auto}
+#share-start{position:absolute;right:22px;top:716px;margin:0;padding:2px 12px;font-size:15px;color:var(--ink);pointer-events:auto}
+#stoast{top:718px}
+/* home: back to the start screen (in play it pauses first; the pause card has the way out) */
+#btn-home{display:none;font-size:16px}
+#ui[data-state=play] #btn-home,#ui[data-state=intro] #btn-home,#ui[data-state=over] #btn-home{display:flex}
+#paused #home{margin-top:10px}
 #ui[data-state=start] #btns,#ui[data-state=over] #btns{left:8px;top:16px} /* over: off the shrunk photo, in the green margin */
+#ui[data-state=over] #btns{flex-direction:column} /* a column: the faces on the shrunk photo stick out over its top */
 #ui[data-state=start] #btn-pause,#ui[data-state=loading] #btn-pause,#ui[data-state=over] #btn-pause{display:none}
 .caption{position:absolute;left:24px;right:24px;top:670px;text-align:center;color:var(--ink);font-size:24px;transform:rotate(1.5deg)}
 #loading p{position:absolute;left:0;right:0;top:420px;text-align:center;font-family:Letter,Marker,cursive;font-size:34px;color:#fff;margin:0;padding:0 30px}
@@ -139,7 +146,7 @@ button:focus-visible,.radios input:focus-visible{outline:3px solid #fff;outline-
 button.share{width:100%;height:44px;margin:5px auto 0;font-size:26px}
 #over button.big{margin-top:5px;padding:4px 0 1px;font-size:24px}
 #over button.small{margin-top:4px;padding:1px 14px;font-size:15px}
-#toast{position:absolute;left:50%;top:-44px;transform:translateX(-50%);z-index:1;background:var(--ink);color:#fff;padding:5px 12px;border-radius:999px;font-size:14px;white-space:nowrap}
+.toast{position:absolute;left:50%;top:-44px;transform:translateX(-50%);z-index:1;background:var(--ink);color:#fff;padding:5px 12px;border-radius:999px;font-size:14px;white-space:nowrap}
 .score{font-family:Marker,Hand,cursive;font-size:50px;line-height:1.1;color:var(--ink)}
 .badge{display:inline-block;margin:2px 0;padding:2px 14px;border-radius:999px;background:var(--sun);color:var(--ink);font-weight:bold;font-size:17px;animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{transform:scale(1.08)}}
@@ -177,6 +184,7 @@ button.mv:disabled{opacity:.2;cursor:default}
   </div>
   <div id="cut" class="hidden" aria-hidden="true">✂</div>
   <div id="btns">
+    <button id="btn-home" class="ibtn" type="button" aria-label="למסך הפתיחה"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M3.5 11.5 12 4l8.5 7.5M6 10v10h4.5v-6h3v6H18V10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg></button>
     <button id="btn-pause" class="ibtn" type="button" aria-label="השהיה">❚❚</button>
     <button id="btn-set" class="ibtn" type="button" aria-label="הגדרות" aria-haspopup="dialog">⚙&#xFE0E;</button>
     <button id="btn-sfx" class="ibtn" type="button" aria-label="צלילים">🔊</button>
@@ -197,10 +205,12 @@ button.mv:disabled{opacity:.2;cursor:default}
       <p id="startbest"></p>
     </div>
     <button id="about-open" type="button" class="small" aria-haspopup="dialog">אודות</button>
+    <button id="share-start" type="button" class="small">שתף</button>
+    <div id="stoast" class="toast hidden"></div>
     <div class="caption">20 שנה ועדיין לא למדנו לשחק</div>
   </div>
 
-  <div id="paused" class="screen hidden"><div class="card"><h2>רוצה ספליט? צ׳ופ?</h2><p class="muted">נגיעה או רווח כדי להמשיך</p></div></div>
+  <div id="paused" class="screen hidden"><div class="card"><h2>רוצה ספליט? צ׳ופ?</h2><p class="muted">נגיעה או רווח כדי להמשיך</p><button id="home" type="button" class="big">למסך הפתיחה</button></div></div>
 
   <div id="over" class="screen hidden">
     <div class="card">
@@ -211,7 +221,7 @@ button.mv:disabled{opacity:.2;cursor:default}
       <button id="share" type="button" class="play share">שתף לקבוצה</button>
       <button id="again" type="button" class="big">עוד יד</button>
       <button id="newdeal" type="button" class="small hidden">יד חדשה</button>
-      <div id="toast" class="hidden"></div>
+      <div id="toast" class="toast hidden"></div>
     </div>
   </div>
 
@@ -2235,6 +2245,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       (beat ? 'עברתי את ' + iso(fmt(info.target)) + '. הבא בתור?' : 'מי עובר אותי?') + '\n' + info.link;
   }
 
+  // the start screen's share: an invitation, with the player's best when there is one
+  function invite(best, link) {
+    return 'ג׳אנקיס 🃏 ' + (best > 0 ? 'השיא שלי: ' + iso(fmt(best)) + ' נק׳. מי עובר אותי?' : 'משחק לערב פוקר. בואו לשחק!') + '\n' + link;
+  }
+
   // shot: a canvas with the captured polaroid (device px, ~6 px of felt around it). info as above plus home (the
   // address without the scheme). Returns the composed canvas, MAX_W wide at most.
   function compose(shot, info) {
@@ -2362,7 +2377,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     setTimeout(function () { URL.revokeObjectURL(u); }, 2000);
   }
 
-  root.Share = { text: text, fmt: fmt, compose: compose, prepare: prepare, send: send, dismiss: dismiss };
+  root.Share = { text: text, invite: invite, fmt: fmt, compose: compose, prepare: prepare, send: send, dismiss: dismiss };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
@@ -3598,7 +3613,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   }
   var toastTimer = null;
   function toast(msg) {
-    var el = $('toast'); el.textContent = msg; el.classList.remove('hidden');
+    var el = $(state === 'start' ? 'stoast' : 'toast'); el.textContent = msg; el.classList.remove('hidden');
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 2000);
   }
 
@@ -3753,6 +3768,26 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     Sound.sfx.click();
     Share.send(shareReady || { file: null, text: Share.text(shareInfo()) }, toast);
   });
+  // the start screen: share the game itself
+  $('share-start').addEventListener('click', function () {
+    if (state !== 'start' || BOT || SIM) return;
+    Sound.unlock(); Sound.sfx.click();
+    Share.send({ file: null, text: Share.invite(best, SHARE_URL) }, toast);
+  });
+  // home: from the end screen straight back to the start; in play it pauses first (a stray tap must not end a run),
+  // and from the pause (the card's button, or the home button again) it leaves the game
+  function goHome() {
+    if (state !== 'over' && !paused) return;
+    paused = false; Sound.musicDuck(false); Sound.musicStop(); Sound.calm();
+    clearTimeout(toastTimer); $('toast').classList.add('hidden');
+    toStart();
+    emit('game:home');
+  }
+  $('btn-home').addEventListener('click', function () {
+    Sound.unlock(); Sound.sfx.click(); this.blur();
+    if (state === 'over' || paused) goHome(); else { setPaused(true); $('home').focus(); }
+  });
+  $('home').addEventListener('click', function (e) { e.stopPropagation(); goHome(); });
   $('newdeal').addEventListener('click', function () { if (cardUp) { leaveChallenge(); restart(); } });
   $('over').querySelector('.card').style.top = OVER_CARD_TOP + 'px';
   document.addEventListener('visibilitychange', function () {
