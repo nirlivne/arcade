@@ -3055,7 +3055,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     }
     if (state === 'over') {
       overAnim += dt;
-      burnOver = Math.min(1.5, burnOver + dt * 0.9);
+      if (!snapped) burnOver = Math.min(1.5, burnOver + dt * 0.9); // after the snap it stays at the keepsake trace
       if (!snapped && overAnim >= SNAP_AT) snapPoses();
       var sk = clamp((overAnim - SHRINK_AT) / SHRINK_T, 0, 1);
       // the bubble and the score pops sit at full-scale positions: gone once the scene starts to shrink under them
@@ -3134,6 +3134,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     if (famFast > 0) famFast -= dt;
     tickBubble();
   }
+  function keepBurn() { return endFx === 'melt' ? 0.5 : 0.22; } // melt: a few short drips at the top; burn: a singed top edge
   function burnLevel() { return state === 'over' ? burnOver : state === 'play' ? overTimer / OVER_TIME : 0; }
   // the snap: everyone in the pile takes a pose (js/poses.js), the shutter clicks, the frame is captured for the share
   function snapPoses() {
@@ -3145,6 +3146,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       { busted: busted ? busted.uid : null, winner: winner ? winner.uid : null, last: last ? last.uid : null }, vr);
     bs.forEach(function (b) { b.pose = poses[b.uid]; });
     flash = 0.8; flashCol = [1, 1, 1];
+    burnOver = keepBurn(); // the flash saves the photo: the share picture and the end card show the pose, with a trace of the damage
     captureShot = !simulating && !BOT;
     if (!simulating && FROZEN_T === null) Sound.sfx.shutter(0);
     events.push('snap@' + t.toFixed(2));
@@ -3791,7 +3793,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       if (SCREEN === 'over' && state === 'play') { overTimer = OVER_TIME; gameOver(); }
       if (state === 'over' && FROZEN_T !== null) {
         if (!snapped) snapPoses();
-        burnOver = 1.5;
+        burnOver = keepBurn();
         flash = 0; // frozen frames never decay the flash, so keep it off the screenshots
         if (qs.get('show') === 'snap') overAnim = SNAP_AT + 0.05;             // the posed photo, full size
         else { overAnim = 2.5; shrink = 1; cardUp = true; showScreen('over'); }               // the end screen: shrunk, card up
