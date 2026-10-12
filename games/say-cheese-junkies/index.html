@@ -116,14 +116,31 @@ button:focus-visible,.radios input:focus-visible{outline:3px solid #fff;outline-
   color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.9)}
 #start .go{position:absolute;left:60px;width:280px;top:540px;pointer-events:auto;text-align:center}
 #startbest{margin:10px 0 0;font-size:20px;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.95),0 0 2px #000}
+/* a challenge link: a paper note above the play button; the settings button hides (the deal fixes the order) */
+#chal{position:absolute;left:50%;top:468px;transform:translateX(-50%) rotate(-2deg);background:var(--paper);color:var(--ink);
+  padding:9px 16px 6px;border-radius:3px;box-shadow:0 6px 18px rgba(0,0,0,.35);font-family:Letter,Marker,cursive;font-size:26px;line-height:1;white-space:nowrap}
+#chal::before{content:'';position:absolute;left:50%;top:-10px;width:70px;height:20px;transform:translateX(-50%) rotate(3deg);background:var(--tape);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+#chal-target{color:var(--rose)}
+#ui[data-chal] #btn-set{display:none}
 #about-open{position:absolute;left:22px;top:716px;margin:0;padding:2px 12px;font-size:15px;color:var(--ink);pointer-events:auto}
-#ui[data-state=start] #btns{left:8px;top:16px}
+#ui[data-state=start] #btns,#ui[data-state=over] #btns{left:8px;top:16px} /* over: off the shrunk photo, in the green margin */
 #ui[data-state=start] #btn-pause,#ui[data-state=loading] #btn-pause,#ui[data-state=over] #btn-pause{display:none}
 .caption{position:absolute;left:24px;right:24px;top:670px;text-align:center;color:var(--ink);font-size:24px;transform:rotate(1.5deg)}
 #loading p{position:absolute;left:0;right:0;top:420px;text-align:center;font-family:Letter,Marker,cursive;font-size:34px;color:#fff;margin:0;padding:0 30px}
 #paused{pointer-events:auto}
 #paused .card{top:430px}
-#over .card{top:440px}
+/* game over: the scene shrinks to 62% at the top (js), the card hangs from just under it (top set by js from the same
+   constants) and grows downwards; Share first, it is the viral action. Worst case (best + challenge + new deal) fits in 760. */
+#over .card{top:448px;padding:10px 18px 8px;transform:translate(-50%,0) rotate(1.5deg)}
+#over .badge{margin:0;padding:1px 12px;font-size:15px}
+#over .score{font-size:40px;line-height:1}
+#over p{margin:1px 0;font-size:16px;line-height:1.2}
+#over .muted{font-size:14px}
+#over .hint{font-size:12px;margin-top:3px}
+button.share{width:100%;height:48px;margin:6px auto 0;font-size:28px}
+#over button.big{margin-top:6px;padding:5px 0 2px;font-size:26px}
+#over button.small{margin-top:4px;padding:1px 14px;font-size:15px}
+#toast{position:absolute;left:50%;top:-44px;transform:translateX(-50%);z-index:1;background:var(--ink);color:#fff;padding:5px 12px;border-radius:999px;font-size:14px;white-space:nowrap}
 .score{font-family:Marker,Hand,cursive;font-size:50px;line-height:1.1;color:var(--ink)}
 .badge{display:inline-block;margin:2px 0;padding:2px 14px;border-radius:999px;background:var(--sun);color:var(--ink);font-weight:bold;font-size:17px;animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{transform:scale(1.08)}}
@@ -174,6 +191,7 @@ button.mv:disabled{opacity:.2;cursor:default}
   <div id="start" class="screen hidden">
     <div class="title"><h1>ג׳אנקיס</h1></div>
     <p class="sub">אלו הם הג׳אנקיס, זן נדיר של קלפנים המתכנס בקביעות כבר 20 שנה. החוקרים עדיין מנסים להבין כיצד שרדו זמן כה רב.</p>
+    <div id="chal" class="hidden"><span id="chal-deal"></span><span id="chal-target"></span></div>
     <div class="go">
       <button id="play" type="button" class="play">התחל משחק</button>
       <p id="startbest"></p>
@@ -190,9 +208,12 @@ button.mv:disabled{opacity:.2;cursor:default}
       <div class="score" id="final" dir="ltr">0</div>
       <p id="bestline">שיא 0</p>
       <p class="muted" id="stats"></p>
+      <p class="muted" id="dealline"></p>
+      <button id="share" type="button" class="play share">שתף לקבוצה</button>
       <button id="again" type="button" class="big">עוד יד</button>
-      <button id="saveshot" type="button" class="small hidden">שמירת התמונה</button>
-      <p class="muted">R או Enter ליד חדשה</p>
+      <button id="newdeal" type="button" class="small hidden">יד חדשה</button>
+      <p class="muted hint">R או Enter לעוד יד</p>
+      <div id="toast" class="hidden"></div>
     </div>
   </div>
 
@@ -433,7 +454,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     'precision mediump float;',
     'varying vec2 vUV;',
     'uniform sampler2D uTex; uniform sampler2D uTexC;',
-    'uniform vec4 uEye0; uniform vec4 uEye1; uniform vec2 uEyeAng; uniform float uBlink; uniform float uUseEyes;',
+    'uniform vec4 uEye0; uniform vec4 uEye1; uniform vec2 uEyeAng; uniform vec2 uBlink; uniform float uUseEyes;',
     'uniform vec4 uTint; uniform float uSepia; uniform float uAlpha; uniform float uShine; uniform float uGray;',
     'float lid(vec2 uv, vec4 e, float ang, float k, out float lash){',
     '  vec2 d = uv - e.xy; float c = cos(ang), s = sin(ang);',
@@ -448,9 +469,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     '}',
     'void main(){',
     '  vec4 o = texture2D(uTex, vUV);',
-    '  if (uUseEyes > 0.5 && uBlink > 0.01) {',
+    '  if (uUseEyes > 0.5 && max(uBlink.x, uBlink.y) > 0.01) {',
     '    float l0, l1;',
-    '    float m = max(lid(vUV, uEye0, uEyeAng.x, uBlink, l0), lid(vUV, uEye1, uEyeAng.y, uBlink, l1));',
+    '    float m = 0.0; l0 = 0.0; l1 = 0.0;',
+    '    if (uBlink.x > 0.01) m = lid(vUV, uEye0, uEyeAng.x, uBlink.x, l0);',
+    '    if (uBlink.y > 0.01) m = max(m, lid(vUV, uEye1, uEyeAng.y, uBlink.y, l1));',
     '    vec4 cl = texture2D(uTexC, vUV);',
     '    o = mix(o, cl, m);',
     '    float lash = max(l0, l1);',
@@ -756,7 +779,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   };
 
-  // o: {x, y, w, h, px, py, ang, sx, sy, texC, eyes: [e0(vec4), e1(vec4), ang0, ang1], blink, tint [r,g,b,a], sepia, gray, alpha, shine}
+  // o: {x, y, w, h, px, py, ang, sx, sy, texC, eyes: [e0(vec4), e1(vec4), ang0, ang1], blink (number or [l, r], l = image-left), tint [r,g,b,a], sepia, gray, alpha, shine}
   P.sprite = function (t, o) {
     var gl = this.gl, p = this.pSprite;
     this.flush();
@@ -764,14 +787,16 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     this.setM(p, this.affine(o.x, o.y, o.w, o.h, o.px === undefined ? 0.5 : o.px, o.py === undefined ? 0.5 : o.py, o.ang || 0, o.sx || 1, o.sy || 1));
     this.bindTex(0, t.tex, p.u.uTex);
     this.bindTex(1, (o.texC || t).tex, p.u.uTexC);
-    var e = o.eyes;
-    if (e && o.blink > 0.01) {
+    // blink: one amount for both eyes, or [left, right] (a wink); left = image-left, the viewer's left
+    var e = o.eyes, bl = o.blink, b0 = 0, b1 = 0;
+    if (typeof bl === 'number') { b0 = b1 = bl; } else if (bl) { b0 = bl[0] || 0; b1 = bl[1] || 0; }
+    if (e && Math.max(b0, b1) > 0.01) {
       gl.uniform1f(p.u.uUseEyes, 1);
       gl.uniform4f(p.u.uEye0, e[0][0], e[0][1], e[0][2], e[0][3]);
       gl.uniform4f(p.u.uEye1, e[1][0], e[1][1], e[1][2], e[1][3]);
       gl.uniform2f(p.u.uEyeAng, e[2], e[3]);
-      gl.uniform1f(p.u.uBlink, Math.min(1, o.blink));
-    } else { gl.uniform1f(p.u.uUseEyes, 0); gl.uniform1f(p.u.uBlink, 0); }
+      gl.uniform2f(p.u.uBlink, Math.min(1, b0), Math.min(1, b1));
+    } else { gl.uniform1f(p.u.uUseEyes, 0); gl.uniform2f(p.u.uBlink, 0, 0); }
     var tn = o.tint || [0, 0, 0, 0];
     gl.uniform4f(p.u.uTint, tn[0], tn[1], tn[2], tn[3]);
     gl.uniform1f(p.u.uSepia, o.sepia || 0);
@@ -999,9 +1024,14 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     }
     var el = eye('img_left'), er = eye('img_right');
     var mid = tf([(F[0] + C[0]) / 2, (F[1] + C[1]) / 2]), chin = tf(C);
+    // landmarks as sticker UV (cell fractions): where props go on the final photo. L/l = image-left (the viewer's left);
+    // eyeL/eyeR are the lid-ellipse centres, slightly below the landmark eye centre
+    function uv(p) { var q = tf(p); return [q[0] / S, q[1] / S]; }
+    var marks = { forehead: uv(F), chin: uv(C), eyeL: [el.e[0], el.e[1]], eyeR: [er.e[0], er.e[1]],
+      mouth: lm.mouth_left && lm.mouth_right && lm.mouth_bottom ? { l: uv(lm.mouth_left), r: uv(lm.mouth_right), b: uv(lm.mouth_bottom) } : null };
 
     return {
-      headO: headO, headC: headC, white: white, wtop: wtop,
+      headO: headO, headC: headC, white: white, wtop: wtop, marks: marks,
       eyes: [el.e, er.e, el.ang, er.ang],
       // where the face sits in the sticker, in R (to map the sticker back onto the group photo)
       faceH: FACE_H * k, chinY: (chin[1] - CY) / R, faceX: (mid[0] - CX) / R, roll: th
@@ -1572,7 +1602,8 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     // no new guest while one is dealt, on the line, in the jar, or his power is still running
     function busyNow() { return dealtOut || !!live || treats.length > 0 || rain.length > 0 || !!gtr || dd > 0 || !!pops || !!zap; }
 
-    function reset() { deck.reset(); dealtOut = false; live = null; treats = []; rain = []; gtr = null; dd = 0; peeks = []; pend = []; pops = null; zap = null; seen = {}; }
+    // bagRng (optional): the deal's stream for the bag order, so the same deal brings the same guests in the same order
+    function reset(bagRng) { if (bagRng) deck.rng = bagRng; deck.reset(); dealtOut = false; live = null; treats = []; rain = []; gtr = null; dd = 0; peeks = []; pend = []; pops = null; zap = null; seen = {}; }
     function end() { dd = 0; peeks = []; pend = []; rain = []; gtr = null; pops = null; zap = null; }
     function due() { return !off && deck.due(api.score(), api.play(), api.friends()); }
     function take() { var id = deck.take(); dealtOut = true; deck.busy = true; api.event('guest:' + id); return id; }
@@ -1872,6 +1903,354 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
 </script>
 <script>
 'use strict';
+// The deal and the challenge link. Pure: no DOM, no game state (tested by scripts/test_endscreen.mjs).
+// - mulberry(seed): the game's seeded RNG (here so game.js and the node tests share one)
+// - dealer(rng): the NEXT sequence of a deal: tier weights by how many faces it dealt, never four of a kind in a row
+// - encode(deal, score) / decode(code): the 8-character challenge code (a mask and a check character, not encryption:
+//   it only keeps the numbers from being obvious)
+// - fromURL(search) / link(base, deal, score): the ?c= parameter
+(function (root) {
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  var DEAL_MIN = 1000, DEAL_MAX = 9999, SCORE_MAX = 1048574; // 2^20 - 2
+  // tier weights (cumulative %, tiers 0..3) before and after the dealer's SHIFT_DROPS-th face. The dealer counts the
+  // faces it dealt itself: not time, and not the game's drops (guests are dropped too, and they arrive by score and
+  // time), so the deal does not depend on how fast or how well the player plays.
+  var SHIFT_DROPS = 25, W_EARLY = [40, 70, 90], W_LATE = [25, 55, 80];
+
+  // next() -> the tier (0..3) of the next face
+  function dealer(rng) {
+    var streakT = -1, streakN = 0, dealt = 0;
+    return {
+      next: function () {
+        var r = rng() * 100, w = dealt++ >= SHIFT_DROPS ? W_LATE : W_EARLY;
+        var k = r < w[0] ? 0 : r < w[1] ? 1 : r < w[2] ? 2 : 3;
+        if (k === streakT) { if (++streakN >= 4) { k = (k + 1) % 4; streakT = k; streakN = 1; } }
+        else { streakT = k; streakN = 1; }
+        return k;
+      }
+    };
+  }
+
+  function dealNumber(rng) { return DEAL_MIN + Math.floor(rng() * (DEAL_MAX - DEAL_MIN + 1)); }
+
+  // the code: n = deal * 2^20 + score (34 bits), masked in two 17-bit halves (JS bitwise ops are 32-bit), base 36
+  // padded to 7 characters, plus a check character. The check weights are coprime with 36, so any single changed
+  // character changes the check.
+  var B36 = '0123456789abcdefghijklmnopqrstuvwxyz', HALF = 131072, TOP = 1048576; // 2^17, 2^20
+  var HI_MASK = 0x1A5F1, LO_MASK = 0x0C7B3, WEIGHTS = [1, 5, 7, 11, 13, 17, 19];
+  function check(s) { var sum = 0; for (var i = 0; i < 7; i++) sum += B36.indexOf(s[i]) * WEIGHTS[i]; return B36[sum % 36]; }
+  function encode(deal, score) {
+    deal = Math.round(deal); score = Math.max(0, Math.min(SCORE_MAX, Math.round(score) || 0));
+    if (!(deal >= DEAL_MIN && deal <= DEAL_MAX)) return null;
+    var n = deal * TOP + score;
+    var m = (Math.floor(n / HALF) ^ HI_MASK) * HALF + ((n % HALF) ^ LO_MASK);
+    var s = m.toString(36);
+    while (s.length < 7) s = '0' + s;
+    return s + check(s);
+  }
+  function decode(code) {
+    if (typeof code !== 'string' || !/^[0-9a-z]{8}$/.test(code)) return null;
+    var s = code.slice(0, 7);
+    if (check(s) !== code[7]) return null;
+    var m = parseInt(s, 36);
+    var n = (Math.floor(m / HALF) ^ HI_MASK) * HALF + ((m % HALF) ^ LO_MASK);
+    var deal = Math.floor(n / TOP), score = n % TOP;
+    if (deal < DEAL_MIN || deal > DEAL_MAX || score > SCORE_MAX) return null;
+    return { deal: deal, score: score };
+  }
+  function fromURL(search) {
+    var m = /[?&]c=([0-9a-z]{8})(?:&|$)/.exec(search || '');
+    return m ? decode(m[1]) : null;
+  }
+  function link(base, deal, score) { var c = encode(deal, score); return c ? base + '?c=' + c : base; }
+
+  root.Challenge = { mulberry: mulberry, dealer: dealer, dealNumber: dealNumber, encode: encode, decode: decode, fromURL: fromURL, link: link,
+    DEAL_MIN: DEAL_MIN, DEAL_MAX: DEAL_MAX, SCORE_MAX: SCORE_MAX, SHIFT_DROPS: SHIFT_DROPS };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+'use strict';
+// The final photo's poses: who winks, who sticks a tongue out, who wears the hat. plan() is pure (tested by
+// scripts/test_endscreen.mjs); sprites() draws the props into small canvases, one texture each in game.js.
+(function (root) {
+  var PROPS = ['tongue', 'joint', 'hat', 'patch', 'cards'], PROP_P = 0.45, CAP = 2;
+
+  // bodies: [{id, t, y, r, g, ang}] (the pile, treats left out); roles: {busted, winner, last} (ids or null);
+  // rnd: () -> [0, 1). Returns {id: {eyes, prop, prop2, side}}:
+  // eyes 'open'|'closed'|'winkL'|'winkR'|'squint'; prop/prop2 a PROPS name, 'xeyes' or null; side 0|1 (joint, patch).
+  function plan(bodies, roles, rnd) {
+    var out = {}, used = {};
+    function take(p) { used[p] = (used[p] || 0) + 1; return p; }
+    function free(p) { return (used[p] || 0) < CAP; }
+    function eyes() { var w = rnd(); return w < 0.45 ? 'open' : w < 0.70 ? (rnd() < 0.5 ? 'winkL' : 'winkR') : w < 0.85 ? 'squint' : 'closed'; }
+    // role faces first: their props are not optional, so the random faces must see them already counted
+    function role(b) { return b.id === roles.busted || b.id === roles.winner || b.id === roles.last; }
+    bodies.filter(role).concat(bodies.filter(function (b) { return !role(b); })).forEach(function (b) {
+      var p = { eyes: 'open', prop: null, prop2: null, side: rnd() < 0.5 ? 0 : 1 };
+      if (b.id === roles.busted) { p.eyes = 'closed'; p.prop = take('xeyes'); p.prop2 = take('tongue'); }
+      else if (b.id === roles.winner) { p.prop = take('hat'); p.prop2 = take('cards'); }
+      else if (b.id === roles.last) { p.eyes = b.ang < -0.15 ? 'winkL' : 'winkR'; }
+      else {
+        p.eyes = eyes();
+        if (rnd() < PROP_P) { var c = PROPS.filter(free); if (c.length) p.prop = take(c[Math.floor(rnd() * c.length)]); }
+      }
+      if (b.g) p.eyes = 'open'; // guests have no closed-eye plate
+      out[b.id] = p;
+    });
+    return out;
+  }
+
+  // ---- props: each drawn into a 256x256 canvas; px, py = the point (canvas fraction) that sits on the anchor
+  var S = 256;
+  function cv() { var c = document.createElement('canvas'); c.width = c.height = S; return c; }
+  function ctx(c) { var x = c.getContext('2d'); x.lineJoin = 'round'; x.lineCap = 'round'; return x; }
+
+  // a pink tongue hanging from the anchor (top centre)
+  function tongue() {
+    var c = cv(), x = ctx(c);
+    x.fillStyle = '#e8637c'; x.strokeStyle = '#8a2c42'; x.lineWidth = 11;
+    x.beginPath(); x.moveTo(70, 18); x.lineTo(186, 18);
+    x.bezierCurveTo(200, 120, 198, 228, 128, 228); x.bezierCurveTo(58, 228, 56, 120, 70, 18); x.closePath();
+    x.fill(); x.stroke();
+    x.strokeStyle = 'rgba(138,44,66,.7)'; x.lineWidth = 7; x.beginPath(); x.moveTo(128, 60); x.lineTo(128, 200); x.stroke();
+    x.fillStyle = 'rgba(255,255,255,.45)'; x.beginPath(); x.ellipse(100, 90, 14, 36, -0.15, 0, 6.3); x.fill();
+    return { canvas: c, px: 0.5, py: 0.07 };
+  }
+  // a joint: paper cone from the anchor (left middle) to the right, a lit tip, a smoke curl
+  function joint() {
+    var c = cv(), x = ctx(c);
+    x.fillStyle = '#f3eee2'; x.strokeStyle = '#6b5b4b'; x.lineWidth = 5;
+    x.beginPath(); x.moveTo(22, 118); x.lineTo(200, 108); x.lineTo(200, 148); x.lineTo(22, 138); x.closePath(); x.fill(); x.stroke();
+    x.fillStyle = '#c9b58c'; x.beginPath(); x.rect(200, 108, 18, 40); x.fill(); x.stroke();
+    x.fillStyle = '#ff7a2e'; x.beginPath(); x.arc(226, 128, 13, 0, 6.3); x.fill();
+    x.fillStyle = 'rgba(255,220,120,.9)'; x.beginPath(); x.arc(228, 126, 6, 0, 6.3); x.fill();
+    x.strokeStyle = 'rgba(200,200,200,.6)'; x.lineWidth = 6;
+    x.beginPath(); x.moveTo(230, 104); x.bezierCurveTo(250, 80, 210, 60, 232, 36); x.stroke();
+    x.beginPath(); x.moveTo(236, 108); x.bezierCurveTo(250, 92, 240, 66, 246, 50); x.stroke();
+    return { canvas: c, px: 0.09, py: 0.5 };
+  }
+  // a brown fedora; the anchor is where the brim meets the forehead
+  function hat() {
+    var c = cv(), x = ctx(c);
+    x.fillStyle = '#5a3a22'; x.strokeStyle = '#2b1a10'; x.lineWidth = 7;
+    x.beginPath(); x.ellipse(128, 196, 122, 28, 0, 0, 6.3); x.fill(); x.stroke();                     // brim
+    // a low, flat crown (top at y ~104) so the hat stays on its own head instead of reaching into the face above
+    x.beginPath(); x.moveTo(66, 190); x.bezierCurveTo(60, 140, 76, 108, 104, 105); x.bezierCurveTo(118, 103, 124, 114, 128, 114);
+    x.bezierCurveTo(132, 114, 138, 103, 152, 105); x.bezierCurveTo(180, 108, 196, 140, 190, 190); x.closePath(); x.fill(); x.stroke(); // crown with a dent
+    x.fillStyle = '#2b1a10'; x.beginPath(); x.moveTo(66, 174); x.lineTo(190, 174); x.lineTo(191, 190); x.lineTo(65, 190); x.closePath(); x.fill(); // band
+    x.fillStyle = 'rgba(255,255,255,.12)'; x.beginPath(); x.ellipse(128, 196, 110, 16, 0, 0, 6.3); x.fill();
+    return { canvas: c, px: 0.5, py: 0.76 };
+  }
+  // an eye patch with a strap; the anchor is the eye
+  function patch() {
+    var c = cv(), x = ctx(c);
+    x.strokeStyle = '#1a1412'; x.lineWidth = 9;
+    x.beginPath(); x.moveTo(68, 110); x.lineTo(4, 70); x.moveTo(188, 110); x.lineTo(252, 70); x.stroke(); // strap
+    x.fillStyle = '#1a1412'; x.beginPath(); x.moveTo(60, 100); x.bezierCurveTo(90, 86, 166, 86, 196, 100);
+    x.bezierCurveTo(196, 160, 160, 190, 128, 192); x.bezierCurveTo(96, 190, 60, 160, 60, 100); x.closePath(); x.fill();
+    x.fillStyle = 'rgba(255,255,255,.15)'; x.beginPath(); x.ellipse(110, 122, 18, 10, -0.4, 0, 6.3); x.fill();
+    return { canvas: c, px: 0.5, py: 0.52 };
+  }
+  // three cards fanned downward from the anchor (the chin); drawn behind the face
+  function cards() {
+    var c = cv(), x = ctx(c);
+    var suits = [0, 1, 2]; // spade, heart, club (odd = red, like the game's SUIT_RED rule)
+    [-0.6, 0, 0.6].forEach(function (a, i) {
+      x.save(); x.translate(128, 30); x.rotate(a); x.translate(0, 40);
+      x.fillStyle = '#fdfbf4'; x.strokeStyle = '#9b948a'; x.lineWidth = 4;
+      rr(x, -40, -50, 80, 116, 8); x.fill(); x.stroke();
+      pip(x, -26, -32, 11, suits[i]); x.save(); x.rotate(Math.PI); pip(x, -26, -32 - 16, 11, suits[i]); x.restore();
+      x.restore();
+    });
+    return { canvas: c, px: 0.5, py: 0.1 };
+  }
+  // one X mark, thick with a cream edge so it still reads on a small face; game.js draws it once per eye
+  function xeyes() {
+    var c = cv(), x = ctx(c);
+    x.beginPath(); x.moveTo(66, 66); x.lineTo(190, 190); x.moveTo(190, 66); x.lineTo(66, 190);
+    x.strokeStyle = '#fdf6e3'; x.lineWidth = 64; x.stroke();
+    x.strokeStyle = '#8c2f2f'; x.lineWidth = 46; x.stroke();
+    return { canvas: c, px: 0.5, py: 0.5 };
+  }
+  function rr(x, l, t, w, h, r) { x.beginPath(); x.moveTo(l + r, t); x.arcTo(l + w, t, l + w, t + h, r); x.arcTo(l + w, t + h, l, t + h, r); x.arcTo(l, t + h, l, t, r); x.arcTo(l, t, l + w, t, r); x.closePath(); }
+  // a suit pip centred at (cx, cy), size s: 0 spade, 1 heart, 2 club, 3 diamond
+  function pip(x, cx, cy, s, suit) {
+    x.fillStyle = suit % 2 ? '#d2483f' : '#2b2118';
+    x.beginPath();
+    if (suit === 1 || suit === 0) { // heart (spade = heart upside down + stem)
+      x.save(); x.translate(cx, cy); if (suit === 0) x.rotate(Math.PI);
+      x.moveTo(0, s); x.bezierCurveTo(-s * 1.4, -s * 0.2, -s * 0.6, -s * 1.1, 0, -s * 0.3); x.bezierCurveTo(s * 0.6, -s * 1.1, s * 1.4, -s * 0.2, 0, s); x.fill();
+      if (suit === 0) { x.beginPath(); x.rect(-s * 0.16, -s * 1.1, s * 0.32, s * 0.6); x.fill(); }
+      x.restore();
+    } else if (suit === 2) { // club
+      [[0, -0.45], [-0.42, 0.15], [0.42, 0.15]].forEach(function (o) { // moveTo first so the three circles are not joined by lines
+        x.moveTo(cx + s * (o[0] + 0.42), cy + s * o[1]); x.arc(cx + s * o[0], cy + s * o[1], s * 0.42, 0, 6.3);
+      });
+      x.fill();
+      x.beginPath(); x.rect(cx - s * 0.14, cy, s * 0.28, s * 0.8); x.fill();
+    } else { // diamond
+      x.moveTo(cx, cy - s); x.lineTo(cx + s * 0.7, cy); x.lineTo(cx, cy + s); x.lineTo(cx - s * 0.7, cy); x.closePath(); x.fill();
+    }
+  }
+  function sprites() { return { tongue: tongue(), joint: joint(), hat: hat(), patch: patch(), cards: cards(), xeyes: xeyes() }; }
+
+  root.Poses = { plan: plan, sprites: sprites, PROPS: PROPS, CAP: CAP };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+'use strict';
+// The share: the picture (the posed polaroid on the felt, the score note, the title tag), the message, and the share
+// sheet with its fallbacks. text() and fmt() are pure (tested by scripts/test_endscreen.mjs); the rest needs the DOM.
+(function (root) {
+  var MAX_W = 1080, FELT = '#1d3a2c', MARGIN = 0.06; // of the polaroid width
+
+  // isolate a number inside Hebrew text; a '#' goes inside with it, else it resolves RTL and lands after the digits
+  function iso(s) { return '⁦' + s + '⁩'; }
+  function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  // info: {deal, score, target (number or null), link}
+  function text(info) {
+    var beat = info.target !== null && info.target !== undefined && info.score > info.target;
+    return 'ג׳אנקיס 🃏 יד ' + iso('#' + info.deal) + ': ' + iso(fmt(info.score)) + ' נק׳\n' +
+      (beat ? 'עברתי את ' + iso(fmt(info.target)) + '. הבא בתור?' : 'מי עובר אותי?') + '\n' + info.link;
+  }
+
+  // shot: a canvas with the captured polaroid (device px, ~6 px of felt around it). info as above plus home (the
+  // address without the scheme). Returns the composed canvas, MAX_W wide at most.
+  function compose(shot, info) {
+    var u = Math.min(1, MAX_W / (shot.width * (1 + 2 * MARGIN)));
+    var sw = Math.round(shot.width * u), sh = Math.round(shot.height * u), mg = Math.round(sw * MARGIN), L = sw / 396; // L: px per logical unit
+    var W = sw + mg * 2, H = sh + mg * 2 + Math.round(mg * 1.4);
+    var c = document.createElement('canvas'); c.width = W; c.height = H;
+    var x = c.getContext('2d');
+    x.fillStyle = FELT; x.fillRect(0, 0, W, H);
+    var g = x.createRadialGradient(W / 2, H * 0.45, W * 0.25, W / 2, H * 0.5, W * 0.95);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.5)');
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+    x.save(); x.shadowColor = 'rgba(0,0,0,0.55)'; x.shadowBlur = mg * 0.9; x.shadowOffsetY = mg * 0.35;
+    x.fillStyle = '#fbf7ee'; x.fillRect(mg + 2, mg + 2, sw - 4, sh - 4); x.restore();
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(shot, mg, mg, sw, sh);
+    note(x, mg + sw + 6 * L, mg - 12 * L, L, info); // over the corner, poking into the felt: covers less of the photo
+    tag(x, W / 2, mg + sh + mg * 1.05, L, info);
+    return c;
+  }
+  // the torn notepad page (the HUD's .note look), pinned by its top-right corner at (right, top)
+  function note(x, right, top, L, info) {
+    var w = 108 * L, h = 80 * L;
+    x.save(); x.translate(right, top); x.rotate(2.5 * Math.PI / 180);
+    x.shadowColor = 'rgba(0,0,0,0.4)'; x.shadowBlur = 3 * L; x.shadowOffsetY = 3 * L;
+    x.fillStyle = '#fbf6e4'; tornPage(x, -w, 0, w, h); x.fill();
+    x.shadowColor = 'transparent';
+    x.lineWidth = L; x.strokeStyle = 'rgba(62,109,176,0.25)';
+    for (var y = 13 * L; y < h - 8 * L; y += 13 * L) { x.beginPath(); x.moveTo(-w, y); x.lineTo(0, y); x.stroke(); }
+    x.strokeStyle = 'rgba(210,72,63,0.5)'; x.beginPath(); x.moveTo(-10 * L, 0); x.lineTo(-10 * L, h); x.stroke();
+    x.textBaseline = 'alphabetic'; x.textAlign = 'right';
+    x.direction = 'rtl'; x.fillStyle = '#3E6DB0'; x.font = (14 * L) + 'px Round, Hand, sans-serif'; x.fillText('ניקוד', -17 * L, 17 * L);
+    x.direction = 'ltr'; x.fillStyle = '#2b2118'; x.font = (30 * L) + 'px Marker, Hand, cursive'; x.fillText(fmt(info.score), -17 * L, 48 * L);
+    x.direction = 'rtl'; x.fillStyle = '#6b5b4b'; x.font = (14 * L) + 'px Round, Hand, sans-serif';
+    var lbl = 'יד '; x.fillText(lbl, -17 * L, 68 * L);
+    var lw = x.measureText(lbl).width; x.direction = 'ltr'; x.fillText('#' + info.deal, -17 * L - lw, 68 * L); // two runs: no bidi guesswork
+    x.restore();
+  }
+  function tornPage(x, x0, y0, w, h) {
+    var pts = [[0, 0], [100, 0], [100, 90], [96, 99], [88, 92], [79, 100], [70, 91], [60, 99], [51, 92], [42, 100], [32, 91], [23, 99], [14, 92], [6, 100], [0, 89]];
+    x.beginPath();
+    pts.forEach(function (p, i) { var px = x0 + p[0] / 100 * w, py = y0 + p[1] / 100 * h; if (i) x.lineTo(px, py); else x.moveTo(px, py); });
+    x.closePath();
+  }
+  // the gold title in the bottom margin and the address under it
+  function tag(x, cx, cy, L, info) {
+    x.save(); x.textAlign = 'center'; x.textBaseline = 'middle';
+    var g = x.createLinearGradient(0, cy - 13 * L, 0, cy + 13 * L);
+    g.addColorStop(0, '#FFF1C1'); g.addColorStop(0.45, '#E9C46A'); g.addColorStop(0.55, '#B8862B'); g.addColorStop(1, '#F3D98B');
+    x.shadowColor = 'rgba(0,0,0,0.6)'; x.shadowBlur = 4 * L; x.shadowOffsetY = 2 * L;
+    x.direction = 'rtl'; x.fillStyle = g; x.font = (26 * L) + 'px Letter, Marker, cursive'; x.fillText('ג׳אנקיס', cx, cy);
+    x.shadowColor = 'transparent';
+    x.direction = 'ltr'; x.fillStyle = 'rgba(255,244,214,0.75)'; x.font = (9 * L) + 'px Hand, sans-serif'; x.fillText(info.home, cx, cy + 20 * L);
+    x.restore();
+  }
+
+  // compose + encode once the fonts are in; resolves {file (File or null), text, canvas}
+  function prepare(shot, info) {
+    var fonts = document.fonts && document.fonts.ready ? document.fonts.ready.catch(function () {}) : Promise.resolve();
+    return fonts.then(function () {
+      var c = compose(shot, info);
+      return new Promise(function (res) { c.toBlob(function (bl) { res(bl); }, 'image/png'); }).then(function (bl) {
+        var file = bl && typeof File === 'function' ? new File([bl], 'junkies-' + info.deal + '.png', { type: 'image/png' }) : null;
+        return { file: file, text: text(info), canvas: c };
+      });
+    });
+  }
+
+  // the share sheet with the picture and the text; else the sheet with the text; else copy the text (and offer the
+  // picture as a download). Before a sheet the text also goes to the clipboard, unannounced: iOS WhatsApp often drops
+  // the text when it gets a file, and the text carries the challenge link. A cancelled sheet (AbortError, or
+  // InvalidStateError: a sheet already open) does nothing; taps while a share is pending are ignored.
+  // Resolves 'files' | 'text' | 'copy' | 'cancel' | 'busy' | 'stale'.
+  // iOS may never settle a share() (the player goes to WhatsApp and back), so busy also clears on dismiss() (restart)
+  // and when the page is visible again; a share that settles late does not clear a newer one's busy. dismiss() also
+  // makes the pending share stale: when it settles there is no fallback (download, textarea, toast) in the new game.
+  var busy = false, sendN = 0;
+  function free() { busy = false; }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') free(); });
+  }
+  function send(ready, toast) {
+    if (busy) return Promise.resolve('busy');
+    busy = true;
+    var my = ++sendN;
+    var nav = navigator, clip = nav.clipboard && nav.clipboard.writeText ? nav.clipboard : null;
+    function cancelled(e) { return e && (e.name === 'AbortError' || e.name === 'InvalidStateError'); }
+    function done(r) { if (my === sendN) busy = false; return r; }
+    function stale() { return my !== sendN; }
+    function sheet(data, ok) {
+      if (clip) { try { clip.writeText(ready.text).catch(function () {}); } catch (e) {} } // the backup copy (see above)
+      return nav.share(data).then(function () { return ok; }, function (e) { return cancelled(e) ? 'cancel' : stale() ? 'stale' : fallback(); });
+    }
+    var p;
+    try {
+      if (ready.file && nav.share && nav.canShare && nav.canShare({ files: [ready.file] })) p = sheet({ files: [ready.file], text: ready.text }, 'files');
+      else if (nav.share) p = sheet({ text: ready.text }, 'text');
+      else p = fallback();
+    } catch (e) { p = fallback(); }
+    return p.then(done, function () { return done('copy'); });
+    function fallback() {
+      // the toast says only what is sure: the copy (a blob download fails silently in in-app browsers)
+      var copied = clip ? clip.writeText(ready.text).then(function () { return true; }, function () { return false; }) : Promise.resolve(false);
+      if (ready.file) { try { download(ready.file); } catch (e) {} }
+      return copied.then(function (ok) {
+        if (stale()) return 'stale';
+        if (!ok) field(ready.text);
+        if (toast) toast(ok ? 'הטקסט הועתק' : 'העתיקו את הטקסט');
+        return 'copy';
+      });
+    }
+  }
+  var fieldEl = null;
+  function field(s) { // last resort: a selected textarea the player can copy from
+    unfield();
+    var f = fieldEl = document.createElement('textarea'); f.value = s; f.readOnly = true;
+    f.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:280px;height:90px;z-index:50;font-size:16px';
+    document.body.appendChild(f); f.focus(); f.select();
+    f.addEventListener('blur', unfield);
+  }
+  function unfield() { if (fieldEl) { fieldEl.remove(); fieldEl = null; } }
+  function dismiss() { sendN++; free(); unfield(); } // on restart: the textarea, a stuck or late share
+  function download(file) {
+    var u = URL.createObjectURL(file), a = document.createElement('a');
+    a.href = u; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(u); }, 2000);
+  }
+
+  root.Share = { text: text, fmt: fmt, compose: compose, prepare: prepare, send: send, dismiss: dismiss };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+'use strict';
 // ג׳אנקיס — Say Cheese! for poker night: a Bloop Stack-style merge game made of the Junkies' faces cut out with photolab.
 (function () {
   // ---------------- config ----------------
@@ -1922,16 +2301,22 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   // Each player's own lines. Every CHAT_GAP s of play a random player whose face is in the jar (or on the line) says one
   // of theirs, at random. To add a line, append it to the player's list.
   var SAYS = {
-    [HEAD_RONZO]: ['אחד גבוה אחד נמוך סוטד'],
+    [HEAD_RONZO]: ['אחד גבוה אחד נמוך סוטד','הבאתי עוגיות'],
     [HEAD_NIR]: ['יצא צבע ניר', 'סורי'],
-    [HEAD_EVEN]: ['קונהצ!'],
+    [HEAD_EVEN]: ['קונהצ!','מישהו רוצה מרק וואנטון?'],
     [HEAD_DAGI]: ['רונזו, תעזוב ת׳טלפון', 'זה מה שהיא אמרה', 'כשיוני דילר יוצאים לפ*ף'],
     [HEAD_EITAN]: ['נייס!','תעביר את הגרעינים'],
-    [HEAD_HABORER]: ['חד משמעית'],
+    [HEAD_HABORER]: ['חד משמעית','מי רוצה במבה?'],
     [HEAD_SENSEI]: ['אני פשוט שחקן מעולה!','חלב ועוגיות מישהו?'],
     [HEAD_SAALEM]: ['זה לא יקרה!', 'איזה מטופם!']
   };
   var CHAT_GAP = [9, 16]; // s of play between two players' lines
+  // game over: the snap (poses, flash, capture) and then the scene shrinks to the top so the card fits under it
+  var SNAP_AT = 1.0, SHRINK_AT = 1.5, SHRINK_T = 0.5, OVER_SCALE = 0.62, OVER_SEPIA = 0.3;
+  // the shrunk scene's top keeps the rope's clothespins (about 12 px above ROPE_Y) on screen even when the view has no letterbox;
+  // the card hangs from just under the shrunk polaroid and grows downwards
+  var OVER_TOP = Math.ceil((POL.t - (ROPE_Y - 12)) * OVER_SCALE) + 2;
+  var OVER_CARD_TOP = Math.round(OVER_TOP + (POL.b - POL.t) * OVER_SCALE) + 16;
   var SOFT_BLUR = 5; // logical px: how soft the photo gets once all eight are at the table
   var QUORUM = 6; // this many at the table is enough for a game: a banner says so
   var SAY_GAP = 4, SAY_COOL = 20, SAY_DUR = 1.9, IDLE_SAY = 8, BUB_MIN_Y = 90;
@@ -1955,8 +2340,13 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var GUEST_ONLY = qs.has('gonly') ? qs.get('gonly').split(',') : null; // test: deal only these guests (balance runs)
   var GUEST_TH = qs.has('gth') ? qs.get('gth').split(',').map(Number) : null; // test: guest score thresholds (balance runs)
   var seed = qs.has('seed') ? parseInt(qs.get('seed'), 10) : (Date.now() & 0xffffffff);
-  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-  var rng = mulberry(seed), vr = mulberry(seed ^ 0x5bd1e995), orng = mulberry(seed ^ 0x2545f491);
+  var mulberry = Challenge.mulberry;
+  // rng: gameplay that may depend on play (guest peeks, bot aim); vr: looks; dealRng: the session's deal numbers.
+  // The deal itself (NEXT sequence, tier order, guest bag) runs on streams seeded by the deal number: see reset().
+  var rng = mulberry(seed), vr = mulberry(seed ^ 0x5bd1e995), dealRng = mulberry(seed ^ 0x2545f491);
+  // a challenge link (?c=): play this deal against this score
+  var challenge = Challenge.fromURL(location.search);
+  var SHARE_URL = 'https://nirlivne.github.io/arcade/games/say-cheese-junkies/';
   var errors = [], events = [], games = 1;
   window.addEventListener('error', function (e) { errors.push(String(e.message)); });
 
@@ -2031,9 +2421,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         var im = ims[k++], cut = Faces.cut({ sprite: im, plate: im, layer: M.photos[GUEST_PIDS[id]].layers[0] });
         var cv = { open: Faces.canvas(), closed: Faces.canvas() }, top = Faces.paint(cut, GOLD, Faces.outline(Guests.GUEST_R), cv);
         var tx = R.texture(cv.open);
-        gfaces[id] = { pid: GUEST_PIDS[id], open: tx, closed: tx, top: top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S, eyes: null, name: Guests.NAMES[id] };
+        gfaces[id] = { pid: GUEST_PIDS[id], open: tx, closed: tx, top: top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S, eyes: null, marks: cut.marks, name: Guests.NAMES[id] };
       });
       guests = Guests.create(guestApi(), { off: GUESTS_OFF, thresh: GUEST_TH, ids: GUEST_ONLY });
+      var sp = Poses.sprites();
+      Object.keys(sp).forEach(function (n) { propTex[n] = { tex: R.texture(sp[n].canvas), px: sp[n].px, py: sp[n].py }; });
     });
   }
 
@@ -2046,8 +2438,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     return a.length === HEADS.length && HEADS.every(function (h) { return a.indexOf(h) >= 0; }) ? a : null;
   }
   function rollOrder() {
+    // the deal's own order: the same deal shuffles the same way for everyone. Seeded by the deal, not the session
+    // seed, so it is a different stream from dealRng even though the XOR constant is the same.
+    var orng = mulberry(deal ^ 0x2545f491);
     order = HEADS.slice();
-    if (orderMode === 'fixed') order = fixedOrder.slice();
+    if (orderMode === 'fixed' && !challenge) order = fixedOrder.slice();
     else for (var i = order.length - 1; i > 0; i--) { var j = Math.floor(orng() * (i + 1)), x = order[i]; order[i] = order[j]; order[j] = x; }
     applyOrder();
   }
@@ -2063,7 +2458,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
         sl.pid = pid;
       }
       faces[t] = { pid: pid, open: sl.open, closed: sl.closed, top: sl.top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S,
-        eyes: h.eyes, name: h.name, spot: h.spot, person: h.person };
+        eyes: h.eyes, marks: h.cut.marks, name: h.name, spot: h.spot, person: h.person };
     });
   }
 
@@ -2071,13 +2466,16 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var world = null, score = 0, state = 'loading'; // loading | start | intro | play | over
   var paused = false, playTime = 0, t = 0;
   var curG = null, nextG = null; // a guest on the line / in NEXT (the dealt tier waits behind him)
-  var aimX = W / 2, cur = 0, next = 0, cooldown = 0, overTimer = 0, shake = 0, overAt = 0;
-  var chainN = 0, lastMergeAt = -10, maxTier = 0, warnT = 0, crackT = 0, streakT = -1, streakN = 0;
+  var aimX = W / 2, cur = 0, next = 0, cooldown = 0, overTimer = 0, shake = 0, overAt = 0, cardUp = false;
+  var chainN = 0, lastMergeAt = -10, maxTier = 0, warnT = 0, crackT = 0;
+  var deal = 0, dealer = null, drops = 0; // this game's deal number, its NEXT dealer and how many drops (dealt faces and guests)
   var unlocked = [], families = 0, fx = [], waves = [], flash = 0, flashCol = [1, 1, 1], ca = 0;
   var hang = { phi: 0, w: 0, appear: 1, lastAim: W / 2, pinKick: 0, bt: 2, bp: -1, sq: 0 };
   function blinker() { return { bt: 1 + Math.random() * 4, bp: -1, sq: 0 }; }
   var nextBl = blinker(), ladderBl = TIERS.map(blinker);
-  var introT = 0, overAnim = 0, burnOver = 0, snap = null, pendingSnap = false, snapAt = 0, famFast = 0, captureShot = false, shotURL = null, soft = 0;
+  var introT = 0, overAnim = 0, burnOver = 0, snap = null, pendingSnap = false, snapAt = 0, famFast = 0, captureShot = false, shareReady = null, soft = 0;
+  // the final photo: poses by body uid, the roles' bodies, how far the scene has shrunk (0..1)
+  var gameGen = 0, uidN = 0, poses = null, snapped = false, overTop = null, bustedB = null, lastDropped = null, shrink = 0, propTex = {};
   var lineFaces = [];
   // table talk: chain tracking, merges in the last moment, a merge that may have saved the pile, idle time
   var chainOpen = false, idleT = 0, chatT = 0;
@@ -2085,30 +2483,28 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var best = parseInt(load('best', '0'), 10) || 0;
   var sfxOn = load('sfx', '1') === '1', musOn = load('mus', '1') === '1';
 
-  function rollTier() {
-    var r = rng(), w = playTime > 60 ? [25, 55, 80] : [40, 70, 90], k;
-    k = r * 100 < w[0] ? 0 : r * 100 < w[1] ? 1 : r * 100 < w[2] ? 2 : 3;
-    if (k === streakT) { if (++streakN >= 4) { k = (k + 1) % 4; streakT = k; streakN = 1; } }
-    else { streakT = k; streakN = 1; }
-    return k;
-  }
+  function rollTier() { return dealer.next(); } // the dealer counts its own faces: guest drops never move its weights
+  function newDeal() { deal = challenge ? challenge.deal : Challenge.dealNumber(dealRng); }
 
   function reset() {
+    gameGen++; // a share capture still encoding from the last game is dropped (grabShot)
     world = new Physics.World({ l: JAR.l, r: JAR.r, floor: JAR.floor });
-    score = 0; playTime = 0; streakT = -1; streakN = 0;
+    score = 0; playTime = 0;
+    dealer = Challenge.dealer(mulberry(deal)); drops = 0; // every reset restarts the deal's stream, so the path here never matters
     cur = 0; next = rollTier(); curG = nextG = null; cooldown = 0.3; overTimer = 0; shake = 0; fx = []; waves = [];
     chainN = 0; lastMergeAt = -10; maxTier = 0; aimX = W / 2; warnT = 0;
     unlocked = TIERS.map(function () { return false; }); families = 0;
     overAnim = 0; burnOver = 0; snap = null; snapAt = 0; pendingSnap = false; famFast = 0; captureShot = false; soft = 0;
+    poses = null; snapped = false; overTop = null; bustedB = null; lastDropped = null; shrink = 0; cardUp = false;
     chainOpen = false; idleT = 0; chatT = chatGap();
-    if (shotURL) { URL.revokeObjectURL(shotURL); shotURL = null; }
-    $('saveshot').classList.add('hidden');
+    shareReady = null; Share.dismiss();
     $('pops').innerHTML = '';
+    clearTimeout(toastTimer); $('toast').classList.add('hidden'); // a share toast from the last game
     clearTimeout(bannerTimer); $('banner').classList.remove('show');
     hideBubble();
     hang.phi = 0; hang.w = 0; hang.appear = 0; hang.lastAim = aimX;
     persons.forEach(function (p) { p.target = 0; });
-    if (guests) { guests.reset(); if (GUEST_Q) { guests.force(GUEST_Q); nextG = guests.take(); } }
+    if (guests) { guests.reset(mulberry(deal ^ 0x3c6ef372)); if (GUEST_Q) { guests.force(GUEST_Q); nextG = guests.take(); } }
     syncHud();
   }
 
@@ -2116,17 +2512,19 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   function showScreen(id) {
     ['start', 'over', 'paused', 'loading'].forEach(function (s) { $(s).classList.toggle('hidden', s !== id); });
     ui.setAttribute('data-state', state);
-    $('hud').classList.toggle('hidden', !(state === 'play' || state === 'intro' || state === 'over'));
-    $('cut').classList.toggle('hidden', state === 'start' || state === 'loading');
+    $('hud').classList.toggle('hidden', !(state === 'play' || state === 'intro'));
+    $('cut').classList.toggle('hidden', state === 'start' || state === 'loading' || state === 'over');
   }
   function toStart() {
     state = 'start';
+    newDeal();
     reset();
     rollOrder();
     persons.forEach(function (p) { p.target = 1; p.dev = 1; });
     makeLine();
     showScreen('start');
-    $('startbest').textContent = best ? 'שיא: ' + best : '';
+    $('startbest').textContent = best ? 'שיא: ⁦' + thousands(best) + '⁩' : ''; // isolated, like the card
+    syncChallenge();
   }
   // the stickers on the line, smallest on the right (they fly down into the ladder below)
   function makeLine() {
@@ -2154,31 +2552,56 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   function restart() {
     Sound.unlock();
     paused = false;
-    state = 'start'; rollOrder(); makeLine();
+    state = 'start'; newDeal(); rollOrder(); makeLine();
     persons.forEach(function (p) { p.target = 1; p.dev = 1; });
     beginGame();
     emit('game:restart');
   }
   function gameOver() {
     state = 'over'; overAt = performance.now(); overAnim = 0;
+    showScreen(null);
     burnOver = overTimer / OVER_TIME;
-    captureShot = !simulating;
     var isBest = score > best && score > 0;
     if (score > best) { best = score; save('best', best); }
-    $('final').textContent = score;
-    $('bestline').textContent = 'שיא ' + best;
+    $('final').textContent = thousands(score);
+    $('bestline').textContent = 'שיא ⁦' + thousands(best) + '⁩';
     $('badge').classList.toggle('hidden', !isBest);
     var back = unlocked.filter(Boolean).length;
     // numbers isolated (U+2066..2069) so they keep their order inside the Hebrew line
     $('stats').textContent = back + '/' + TIERS.length + ' ליד השולחן' + (families ? '  ·  פול האוס ⁦×' + families + '⁩' : '');
-    world.bodies.forEach(function (b) { b.closeAt = 0.2 + vr() * 0.9; });
+    $('dealline').textContent = dealLine();
+    bustedB = overTop; // the face that stood highest over the line ends the night
     guests.end();
     if (!simulating) {
       Sound.sfx.over(); if (isBest) Sound.sfx.best();
       Sound.calm(); Sound.musicDuck(true);
-      setTimeout(function () { if (state === 'over') { showScreen('over'); $('again').focus(); } }, 1500);
     }
     emit('game:over', { score: score });
+  }
+  function thousands(n) { return Share.fmt(n); } // 10666 -> "10,666"
+  // "יד #4821", or in a challenge the target and whether it was beaten (numbers isolated, U+2066..2069)
+  function dealLine() {
+    if (!challenge) return 'יד ⁦#' + deal + '⁩';
+    return 'היעד: ⁦' + thousands(challenge.score) + '⁩ · ' + (score > challenge.score ? 'עברת!' : 'לא הפעם');
+  }
+  // the start screen in a challenge: the note with the deal and the target, the play button's label, no settings
+  function syncChallenge() {
+    var on = !!challenge;
+    $('chal').classList.toggle('hidden', !on);
+    if (on) {
+      $('chal-deal').textContent = 'אתגר! יד ⁦#' + challenge.deal + '⁩';
+      $('chal-target').textContent = ' · היעד: ⁦' + thousands(challenge.score) + '⁩';
+    }
+    $('play').textContent = on ? 'קבל את האתגר' : 'התחל משחק';
+    if (on) ui.setAttribute('data-chal', '1'); else ui.removeAttribute('data-chal');
+    $('newdeal').classList.toggle('hidden', !on);
+  }
+  // leave the challenge: drop ?c= from the address and deal fresh
+  function leaveChallenge() {
+    challenge = null;
+    qs.delete('c');
+    try { history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs.toString() : '') + location.hash); } catch (e) {}
+    syncChallenge();
   }
   function setPaused(p) {
     if ((state !== 'play' && state !== 'intro') || p === paused) return;
@@ -2206,7 +2629,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   function newBody(x, y, tier, vx, vy, g) {
     var r = g ? (Guests.isTreat(g) ? Guests.TREAT_R : Guests.GUEST_R) : TIERS[tier].r;
     var b = world.add({ x: x, y: y, r: r, t: g ? -1 : tier, g: g || null, vx: vx, vy: vy, sc: 1, sv: 0, ang: 0, av: 0 });
-    b.bt = 1 + vr() * 3; b.bp = -1; b.sq = 0; b.born = t;
+    b.bt = 1 + vr() * 3; b.bp = -1; b.sq = 0; b.born = t; b.uid = ++uidN;
     return b;
   }
   function drop() {
@@ -2214,10 +2637,10 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     var p = dropPos(), b;
     if (curG) b = guests.drop(curG, p.x, p.y);
     else { b = newBody(p.x, p.y, cur, 0, 150); seeTier(cur, b); }
-    if (b) { b.ang = hang.phi * 0.8; b.av = hang.w * 0.5; }
+    if (b) { b.ang = hang.phi * 0.8; b.av = hang.w * 0.5; lastDropped = b; }
     if (!simulating) Sound.sfx.drop();
     if (bub.who === HANG) { if (b) bub.who = b; else hideBubble(); } // the face that was talking on the line keeps talking as it falls
-    idleT = 0;
+    idleT = 0; drops++;
     guests.onDrop();
     // a guest in NEXT goes to the line and the dealt face waits behind him; otherwise deal on
     if (nextG) { curG = nextG; nextG = null; guests.dealt(curG); if (!simulating) { if (curG === 'michael') Sound.pamela(); else Sound.solfIntro(32); } } // מיקי walks in to פמלה, the rest to the Solfeggietto
@@ -2566,6 +2989,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
           if (!topB || b.y - b.r < topB.y - topB.r) topB = b;
         }
       }
+      if (over) overTop = topB;
       // the pile first goes over the line: דניאל may peek in
       if (over && overTimer === 0) guests.moment('over');
       // ... a chain is called once it ends, and a slow hand gets told off
@@ -2584,6 +3008,12 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     if (state === 'over') {
       overAnim += dt;
       burnOver = Math.min(1.5, burnOver + dt * 0.9);
+      if (!snapped && overAnim >= SNAP_AT) snapPoses();
+      var sk = clamp((overAnim - SHRINK_AT) / SHRINK_T, 0, 1);
+      // the bubble and the score pops sit at full-scale positions: gone once the scene starts to shrink under them
+      if (sk > 0 && shrink === 0) { hideBubble(); $('pops').innerHTML = ''; }
+      shrink = reduced ? (sk > 0 ? 1 : 0) : easeOut(sk);
+      if (!cardUp && shrink >= 1) { cardUp = true; if (!simulating) { showScreen('over'); $('again').focus(); } } // the card once the photo is small
     }
     // hanging face: pendulum that lags behind the aim
     if (state === 'play') {
@@ -2608,8 +3038,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       q.av += ((lean - q.ang) * 55 - q.av * 6.5) * dt;
       q.av = clamp(q.av, -9, 9);
       q.ang = clamp(q.ang + q.av * dt, -0.9, 0.9);
-      if (state === 'over') { if (q.closeAt !== undefined && overAnim > q.closeAt) q.sq = 9; }
-      else tickBlink(q, dt, overTimer > 0 && q.y - q.r < LINE_Y + 30);
+      if (state !== 'over' || !snapped) tickBlink(q, dt, state === 'play' && overTimer > 0 && q.y - q.r < LINE_Y + 30); // frozen once posed
     }
     for (j = 0; j < lineFaces.length; j++) {
       var lf = lineFaces[j];
@@ -2658,9 +3087,25 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     tickBubble();
   }
   function burnLevel() { return state === 'over' ? burnOver : state === 'play' ? overTimer / OVER_TIME : 0; }
+  // the snap: everyone in the pile takes a pose (js/poses.js), the shutter clicks, the frame is captured for the share
+  function snapPoses() {
+    snapped = true;
+    var bs = world.bodies.filter(function (b) { return !b.dead && faceOf(b); }), winner = null;
+    bs.forEach(function (b) { if (!b.g && (!winner || b.t > winner.t || (b.t === winner.t && b.y > winner.y))) winner = b; });
+    var busted = bustedB && bs.indexOf(bustedB) >= 0 ? bustedB : null, last = lastDropped && bs.indexOf(lastDropped) >= 0 ? lastDropped : null;
+    poses = Poses.plan(bs.map(function (b) { return { id: b.uid, t: b.t, y: b.y, r: b.r, g: b.g, ang: b.ang }; }),
+      { busted: busted ? busted.uid : null, winner: winner ? winner.uid : null, last: last ? last.uid : null }, vr);
+    bs.forEach(function (b) { b.pose = poses[b.uid]; });
+    flash = 0.8; flashCol = [1, 1, 1];
+    captureShot = !simulating && !BOT;
+    if (!simulating && FROZEN_T === null) Sound.sfx.shutter(0);
+    events.push('snap@' + t.toFixed(2));
+  }
+  function poseBlink(eyes) { return eyes === 'closed' ? 1 : eyes === 'winkL' ? [1, 0] : eyes === 'winkR' ? [0, 1] : eyes === 'squint' ? 0.6 : 0; }
 
   // ---------------- render ----------------
   var view = { s: 1, ox: 0, oy: 0, dpr: 1 };
+  var scene = { k: 1, ox: 0, oy: 0 };
   function resize() {
     var dpr = Math.min(window.devicePixelRatio || 1, 2), w = window.innerWidth, h = window.innerHeight;
     canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
@@ -2680,10 +3125,40 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     });
   }
   function shadow(x, y, r, a) { R.quad(x + r * 0.08, y + r * 0.16, r * 1.12, r * 1.12, 0, 0.05, 0.02, 0.08, a, 0); }
+  var HAT_DOWN = 0.05; // the hat's anchor: this far from the forehead mark toward the eyes, so the brim sits on the head
+  function mix(p, q, k) { return [p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k]; }
+  // where a sticker mark (cell fraction) lands on screen for a body drawn at (bx, by) with squash (sx, sy): the
+  // same forward transform as the quad affine in gl.js (rotate the offset, then the world-space squash)
+  function markPos(b, f, m, bx, by, sx, sy) {
+    var Q = cellQ(b.r), dx = (m[0] - f.cx) * Q, dy = (m[1] - f.cy) * Q, cs = Math.cos(b.ang), sn = Math.sin(b.ang);
+    return [bx + sx * (cs * dx - sn * dy), by + sy * (sn * dx + cs * dy)];
+  }
+  // a prop pinned to a face's marks, sized by the collision radius (hat, tongue, joint, cards) or the eye (patch, X)
+  function drawProp(b, f, name, bx, by, sx, sy, sep) {
+    var m = f.marks, sp = propTex[name], r = b.r;
+    if (!m || !sp) return;
+    // eye width: f.eyes[0][2] is the left lid ellipse's half-width (cell fraction); guests have no lid ellipses, so
+    // their eye width is guessed as 0.45 of the distance between the eye centres
+    var Q = cellQ(r), eyeW = f.eyes ? f.eyes[0][2] * 2 * Q : Math.hypot(m.eyeR[0] - m.eyeL[0], m.eyeR[1] - m.eyeL[1]) * Q * 0.45;
+    var at, s, tilt = 0, mirror = false;
+    if (name === 'tongue') { if (!m.mouth) return; at = m.mouth.b; s = 0.6 * r; }
+    else if (name === 'joint') { if (!m.mouth) return; mirror = b.pose.side === 0; at = mirror ? m.mouth.l : m.mouth.r; s = 1.1 * r; tilt = -0.3; }
+    else if (name === 'hat') { at = mix(m.forehead, mix(m.eyeL, m.eyeR, 0.5), HAT_DOWN); s = 2.4 * r; tilt = -0.12; }
+    else if (name === 'patch') { at = b.pose.side === 0 ? m.eyeL : m.eyeR; s = 2.6 * eyeW; }
+    else if (name === 'cards') { at = m.chin; s = 1.7 * r; }
+    else if (name === 'xeyes') {
+      var xs = Math.max(2 * eyeW, 0.35 * r); // never smaller than ~1/3 of the face: busted is often a small tier
+      [m.eyeL, m.eyeR].forEach(function (e) { var p = markPos(b, f, e, bx, by, sx, sy); R.sprite(sp.tex, { x: p[0], y: p[1], w: xs, h: xs, px: sp.px, py: sp.py, ang: b.ang, sepia: sep }); });
+      return;
+    } else return;
+    var p = markPos(b, f, at, bx, by, sx, sy);
+    // a mirrored sprite is mirrored in world space after its rotation (gl.js affine), so its angle is negated too
+    R.sprite(sp.tex, { x: p[0], y: p[1], w: s, h: s, px: sp.px, py: sp.py, ang: mirror ? tilt - b.ang : b.ang + tilt, sx: mirror ? -1 : 1, sepia: sep });
+  }
 
   function drawPhoto(par) {
     R.clip(PH.x, PH.y, PH.w, PH.h);
-    var sepia = state === 'over' ? clamp(overAnim / 1.2, 0, 0.85) : 0;
+    var sepia = state === 'over' ? clamp(overAnim / 1.2, 0, OVER_SEPIA) : 0;
     var dim = state === 'start' ? 1 : 0.94;
     var e = soft * soft * (3 - 2 * soft), blur = e * SOFT_BLUR;
     dim *= 1 - e * 0.06;
@@ -2794,12 +3269,16 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     R.beginFrame();
     var pxn = (aimX - 200) / 160, drift = reduced ? 0 : Math.sin(t * 0.31) * 0.4;
     R.bg({ ox: view.ox * view.dpr, oy: view.oy * view.dpr, k: k, w: W, h: H, dim: state === 'over' ? 0.7 : 1 });
-    R.setView(k, view.ox * view.dpr + sx * k, view.oy * view.dpr + sy * k);
+    // game over: the polaroid scene shrinks towards the top so the card fits under it (the backdrop keeps the full view)
+    var sc = 1 - shrink * (1 - OVER_SCALE), topY = lerp(POL.t, OVER_TOP, shrink);
+    // centre-x stays put; the polaroid's top edge (POL.t) lands on topY
+    scene.k = k * sc; scene.ox = view.ox * view.dpr + sx * k + k * (W / 2) * (1 - sc); scene.oy = view.oy * view.dpr + sy * k + k * (topY - POL.t * sc);
+    R.setView(scene.k, scene.ox, scene.oy);
     var par = reduced ? [0, 0] : [-(pxn + drift) * 7, Math.sin(t * 0.37) * 2.5];
 
     if (SCREEN === 'faces') { // debug sheet: every face open / half / closed
       for (var di = 0; di < faces.length; di++) {
-        for (var dk = 0; dk < 3; dk++) faceSprite(faces[di], 60 + dk * 120, 60 + di * 98, 44, { blink: dk * 0.5 });
+        for (var dk = 0; dk < 3; dk++) faceSprite(faces[di], 60 + dk * 120, 60 + di * 98, 44, { blink: [0, [1, 0], 1][dk] });
       }
       R.endFrame({ time: t }); return;
     }
@@ -2849,15 +3328,21 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       var bs = world.bodies, i;
       for (i = 0; i < bs.length; i++) if (!Guests.isTreat(bs[i].g)) shadow(bs[i].x, bs[i].y, bs[i].r * bs[i].sc, 0.38);
       R.flush();
-      var sep = state === 'over' ? clamp(overAnim / 1.2, 0, 0.7) : 0;
+      var sep = state === 'over' ? clamp(overAnim / 1.2, 0, OVER_SEPIA) : 0;
       for (i = 0; i < bs.length; i++) {
         var b = bs[i], sy2 = b.sc + (state === 'over' ? 0 : Math.sin(t * 6 + b.born * 7) * 0.012), sx2 = 2 - sy2;
         if (Guests.isTreat(b.g)) continue;
         var nervous = state === 'play' && overTimer > 0 && b.y - b.r < LINE_Y + 30;
         var fuse = b.fuse > 0 ? 1 - b.fuse / 0.7 : 0; // דניאל about to blow: he glows hot and shakes
         var jx = (nervous || fuse || b.zap > 0) && !reduced ? Math.sin(t * 60 + i) * (0.8 + fuse * 2.5) : 0;
-        faceSprite(faceOf(b), b.x + jx, b.y + b.r * (1 - sy2), b.r, { ang: b.ang, sx: sx2, sy: sy2, blink: blinkAmt(b), sepia: sep,
+        var f = faceOf(b), pz = state === 'over' ? b.pose : null, bx = b.x + jx, by = b.y + b.r * (1 - sy2);
+        if (pz && (pz.prop === 'cards' || pz.prop2 === 'cards')) drawProp(b, f, 'cards', bx, by, sx2, sy2, sep); // behind the sticker
+        faceSprite(f, bx, by, b.r, { ang: b.ang, sx: sx2, sy: sy2, blink: pz ? poseBlink(pz.eyes) : blinkAmt(b), sepia: sep,
           tint: fuse ? [1, 0.45, 0.1, 0.15 + 0.3 * fuse] : b.zap > 0 ? [1, 0.85, 0.1, 0.25 + 0.3 * (1 - b.zap / 0.7)] : nervous ? [1, 0.2, 0.2, 0.12 + 0.1 * Math.sin(t * 10)] : null, shine: b.pop > 0 ? 1 - b.pop / 0.22 : 0 });
+        if (pz) {
+          if (pz.prop && pz.prop !== 'cards') drawProp(b, f, pz.prop, bx, by, sx2, sy2, sep);
+          if (pz.prop2 && pz.prop2 !== 'cards') drawProp(b, f, pz.prop2, bx, by, sx2, sy2, sep);
+        }
       }
     }
     if (guests && state !== 'start') guests.draw();
@@ -2917,7 +3402,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     }
 
     // NEXT: a playing card with the next face on it (top left: the HUD is mirrored for Hebrew)
-    if ((state === 'play' || state === 'over') && faces.length) {
+    if (state === 'play' && faces.length) {
       playingCard(42, 38, 24, 31, -0.06, 1, 0.4);
       faceSprite(nextG ? gfaces[nextG] : faces[next], 42, 39, 17, { ang: -0.06, blink: blinkAmt(nextBl) });
     }
@@ -2940,24 +3425,32 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       var sc0 = 1.0, sc1 = 0.085, scl = lerp(sc0, sc1, se);
       var cxs = lerp(cx0, cx1, se), cys = lerp(cy0, cy1, se) - Math.sin(se * Math.PI) * 80, ang2 = Math.sin(se * Math.PI) * 0.5 + se * 0.08;
       var pw = (POL.r - POL.l) * scl, ph = (POL.b - POL.t) * scl;
-      var dpx = function (x) { return x * k + view.ox * view.dpr; }, dpy = function (y) { return y * k + view.oy * view.dpr; };
+      var dpx = function (x) { return x * scene.k + scene.ox; }, dpy = function (y) { return y * scene.k + scene.oy; };
       var alpha = snap.t > 1.6 ? 1 - (snap.t - 1.6) / 0.3 : 1;
       R.quad(cxs + 6 * scl, cys + 10 * scl, pw / 2 + 10 * scl, ph / 2 + 10 * scl, ang2, 0, 0, 0, 0.5 * alpha, 5);
-      R.snapQuad(cxs, cys, pw, ph, ang2, dpx(POL.l), dpy(POL.t), (POL.r - POL.l) * k, (POL.b - POL.t) * k, alpha);
+      R.snapQuad(cxs, cys, pw, ph, ang2, dpx(POL.l), dpy(POL.t), (POL.r - POL.l) * scene.k, (POL.b - POL.t) * scene.k, alpha);
     }
 
     var wv = waves.map(function (w) { var e = w.age / 0.7; return [w.x, w.y, w.r + e * 220, (1 - e) * w.amp * (reduced ? 0.5 : 1)]; });
-    R.endFrame({ waves: wv, flash: flash, flashCol: flashCol, ca: reduced ? 0 : ca, time: t, gray: paused ? 0.6 : 0 });
+    // the share capture reads this frame: keep the shutter flash off it (it shows from the next frame on)
+    R.endFrame({ waves: wv, flash: captureShot ? 0 : flash, flashCol: flashCol, ca: reduced ? 0 : ca, time: t, gray: paused ? 0.6 : 0 });
     placeBubble();
 
     if (captureShot) { captureShot = false; grabShot(); }
   }
 
-  // the final pile as a PNG keepsake (read straight after the post pass, same frame)
+  // the posed polaroid as a canvas (read straight after the post pass, same frame), then the share picture from it.
+  // The snap happens before the shrink, so this is the full-size photo, not the small one over the card.
+  var SHARE_HOME = 'nirlivne.github.io/arcade/games/say-cheese-junkies';
+  var SHOT_HOOK = qs.has('shot'); // test: show the composed share picture instead of the game
+  function shareInfo() { return { deal: deal, score: score, target: challenge ? challenge.score : null, link: Challenge.link(SHARE_URL, deal, score), home: SHARE_HOME }; }
+  function free(c) { if (c) c.width = c.height = 0; } // spare iOS its canvas memory
   function grabShot() {
+    shareReady = null;
+    var shotCanvas = null;
     try {
-      var gl = R.gl, k = view.dpr * view.s;
-      var x0 = Math.round(POL.l * k + view.ox * view.dpr) - 6, y0 = Math.round(POL.t * k + view.oy * view.dpr) - 6;
+      var gl = R.gl, k = scene.k;
+      var x0 = Math.round(POL.l * k + scene.ox) - 6, y0 = Math.round(POL.t * k + scene.oy) - 6;
       var w = Math.round((POL.r - POL.l) * k) + 12, h = Math.round((POL.b - POL.t) * k) + 12;
       x0 = Math.max(0, x0); y0 = Math.max(0, y0); w = Math.min(w, canvas.width - x0); h = Math.min(h, canvas.height - y0);
       var px = new Uint8Array(w * h * 4);
@@ -2966,8 +3459,26 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       var cx = c.getContext('2d'), id = cx.createImageData(w, h);
       for (var y = 0; y < h; y++) id.data.set(px.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
       cx.putImageData(id, 0, 0);
-      c.toBlob(function (bl) { if (bl) { shotURL = URL.createObjectURL(bl); $('saveshot').classList.remove('hidden'); } });
-    } catch (e) { /* keepsake is optional */ }
+      shotCanvas = c;
+    } catch (e) { /* no picture: the share is text only */ }
+    var info = shareInfo(), gen = gameGen;
+    if (!shotCanvas) { shareReady = { file: null, text: Share.text(info) }; return; }
+    Share.prepare(shotCanvas, info).then(function (r) {
+      if (SHOT_HOOK) showShot(r.canvas);
+      free(shotCanvas); free(r.canvas); // the share needs only the PNG file
+      if (gen === gameGen) shareReady = r; // a picture from the last game is dropped
+    }, function () { free(shotCanvas); if (gen === gameGen) shareReady = { file: null, text: Share.text(info) }; });
+  }
+  function showShot(c) {
+    canvas.style.display = 'none'; ui.style.display = 'none';
+    var im = document.createElement('img'); im.id = 'shareimg'; im.src = c.toDataURL('image/png');
+    im.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#222';
+    document.body.appendChild(im);
+  }
+  var toastTimer = null;
+  function toast(msg) {
+    var el = $('toast'); el.textContent = msg; el.classList.remove('hidden');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 2000);
   }
 
   // ---------------- input ----------------
@@ -3006,7 +3517,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var elSet = $('settings'), thumbs = {};
   function settingsOpen() { return !elSet.classList.contains('hidden'); }
   function setSettings(open) {
-    if (open && state !== 'start') return;
+    if (open && (state !== 'start' || challenge)) return;
     if (open) renderSettings();
     elSet.classList.toggle('hidden', !open);
     (open ? elSet.querySelector('input:checked') : $('btn-set')).focus();
@@ -3077,6 +3588,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       else if (k === 'Tab') trapTab(e, elSet);
       return;
     }
+    if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) return; // the share's copy box: typing there is not play
     if (k === 'ArrowLeft' || k === 'a' || k === 'A') { keys.left = true; e.preventDefault(); }
     else if (k === 'ArrowRight' || k === 'd' || k === 'D') { keys.right = true; e.preventDefault(); }
     else if (k === 'm' || k === 'M') { toggleSfx(); }
@@ -3086,7 +3598,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       var restartKey = k === 'r' || k === 'R';
       if (e.target && e.target.tagName === 'BUTTON' && (k === ' ' || k === 'Enter')) return;
       if (state === 'start') { if (!restartKey && !e.repeat) beginGame(); }
-      else if (state === 'over') { if (!e.repeat && performance.now() - overAt > 1500 && k !== 'ArrowDown') restart(); }
+      else if (state === 'over') { if (!e.repeat && cardUp && k !== 'ArrowDown') restart(); }
       else if (paused) { if (!restartKey && !e.repeat) setPaused(false); }
       else if (restartKey) { if (!e.repeat && state === 'play') restart(); }
       else if (k !== 'Enter' && !e.repeat) drop();
@@ -3110,12 +3622,14 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   $('btn-mus').addEventListener('click', function () { Sound.unlock(); toggleMus(); this.blur(); });
   $('btn-pause').addEventListener('click', function () { setPaused(true); this.blur(); });
   $('play').addEventListener('click', beginGame);
-  $('again').addEventListener('click', function () { if (performance.now() - overAt > 1500) restart(); });
-  $('saveshot').addEventListener('click', function () {
-    if (!shotURL) return;
-    var a = document.createElement('a'); a.href = shotURL; a.download = 'junkies-' + score + '.png';
-    document.body.appendChild(a); a.click(); a.remove();
+  $('again').addEventListener('click', function () { if (cardUp) restart(); });
+  $('share').addEventListener('click', function () {
+    if (state !== 'over' || !cardUp || BOT || SIM) return;
+    Sound.sfx.click();
+    Share.send(shareReady || { file: null, text: Share.text(shareInfo()) }, toast);
   });
+  $('newdeal').addEventListener('click', function () { if (cardUp) { leaveChallenge(); restart(); } });
+  $('over').querySelector('.card').style.top = OVER_CARD_TOP + 'px';
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) setPaused(true);
     Sound.suspend(document.hidden);
@@ -3198,9 +3712,10 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     reset(); state = 'play'; hang.appear = 1; showScreen(null); botT = 0;
   }
   window.__cheese = {
-    get state() { return state; }, get score() { return score; }, get world() { return world; }, get best() { return best; },
+    get state() { return state; }, get score() { return score; }, get world() { return world; }, get best() { return best; }, get deal() { return deal; }, get drops() { return drops; },
     get unlocked() { return unlocked.slice(); }, get families() { return families; }, get order() { return order.slice(); },
-    drop: drop, aim: function (x) { aimX = x; }, TIERS: TIERS, setRng: function (f) { rng = f; },
+    drop: drop, aim: function (x) { aimX = x; }, TIERS: TIERS,
+    setRng: function (f) { rng = f; }, // bot aim and guest peeks only: the NEXT tiers come from the deal, not rng
     forceTier: function (n) { cur = n; cooldown = 0; hang.appear = 1; }, gameOver: gameOver, banner: banner, talk: talk
   };
 
@@ -3222,8 +3737,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       simulate(SIM);
       if (SCREEN === 'over' && state === 'play') { overTimer = OVER_TIME; gameOver(); }
       if (state === 'over' && FROZEN_T !== null) {
-        overAnim = 2.5; burnOver = 1.5; world.bodies.forEach(function (b) { b.sq = 9; });
-        showScreen('over');
+        if (!snapped) snapPoses();
+        burnOver = 1.5;
+        flash = 0; // frozen frames never decay the flash, so keep it off the screenshots
+        if (qs.get('show') === 'snap') overAnim = SNAP_AT + 0.05;             // the posed photo, full size
+        else { overAnim = 2.5; shrink = 1; cardUp = true; showScreen('over'); }               // the end screen: shrunk, card up
       }
     } else if (SCREEN === 'play') { beginGameSilently(); }
     else if (SCREEN === 'about') setAbout(true);
@@ -3261,7 +3779,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       var rep = function () {
         pre.textContent = JSON.stringify({ state: state, score: score, bodies: world ? world.bodies.length : 0, maxTier: maxTier, t: +t.toFixed(2),
           unlocked: unlocked, families: families, errors: errors, events: events, games: games, faces: faces.length, persons: persons.length, fx: fx.length,
-          order: order.join(','), mode: orderMode, playTime: +playTime.toFixed(1),
+          order: order.join(','), mode: orderMode, deal: deal, challenge: !!challenge, playTime: +playTime.toFixed(1),
           pops: document.querySelectorAll('.pop').length });
       };
       rep(); setInterval(rep, 250);
