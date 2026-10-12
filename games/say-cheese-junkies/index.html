@@ -39,7 +39,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#1d3a2c;overscroll-beh
 #nextlbl{position:absolute;left:74px;top:24px;font-family:Letter,Marker,cursive;font-size:24px;color:#f3e6c4;transform:rotate(8deg);text-shadow:0 2px 3px rgba(0,0,0,.6)}
 /* קוקו's double down: a gold chip by the score, the ring empties as the 10 s run out (--k: 1 -> 0) */
 #fam{position:absolute;left:20px;top:713px;width:40px;text-align:center;font-size:14px;color:var(--ink);font-weight:bold}
-#btns{position:absolute;left:124px;top:14px;display:flex;gap:6px}
+#btns{position:absolute;left:162px;top:14px;display:flex;gap:6px}
 .ibtn{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,250,235,.85);background:rgba(255,250,235,.14);
   color:#fff;font-size:14px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 0 rgba(0,0,0,.3)}
 .ibtn:active{transform:translateY(1px)}
@@ -125,9 +125,9 @@ button:focus-visible,.radios input:focus-visible{outline:3px solid #fff;outline-
 #about-open{position:absolute;left:22px;top:716px;margin:0;padding:2px 12px;font-size:15px;color:var(--ink);pointer-events:auto}
 #share-start{position:absolute;right:22px;top:716px;margin:0;padding:2px 12px;font-size:15px;color:var(--ink);pointer-events:auto}
 #stoast{top:718px}
-/* home: back to the start screen (in play it pauses first; the pause card has the way out) */
+/* home: the end screen's way back to the start (in play, the pause card has it) */
 #btn-home{display:none;font-size:16px}
-#ui[data-state=play] #btn-home,#ui[data-state=intro] #btn-home,#ui[data-state=over] #btn-home{display:flex}
+#ui[data-state=over] #btn-home{display:flex}
 #paused #home{margin-top:10px}
 #ui[data-state=start] #btns,#ui[data-state=over] #btns{left:8px;top:16px} /* over: off the shrunk photo, in the green margin */
 #ui[data-state=over] #btns{flex-direction:column} /* a column: the faces on the shrunk photo stick out over its top */
@@ -158,7 +158,6 @@ button.share{width:100%;height:44px;margin:5px auto 0;font-size:26px}
 /* settings: random order every game, or a fixed order (top row = smallest tier) */
 #settings .card{top:384px;padding:22px 18px 16px}
 #settings h2{margin-bottom:4px}
-#settings h3{margin:10px 0 2px;font-size:16px;font-weight:600;opacity:.75}
 .radios{display:flex;flex-direction:column;gap:2px;margin:4px 0;text-align:start}
 .radios label{display:flex;align-items:center;gap:10px;font-size:18px;padding:5px 8px;border-radius:10px;cursor:pointer}
 .radios input{width:20px;height:20px;margin:0;border-radius:50%;accent-color:var(--rose);cursor:pointer}
@@ -235,11 +234,6 @@ button.mv:disabled{opacity:.2;cursor:default}
       <div id="ordwrap" class="hidden">
         <p class="muted">למעלה הכי קטן, למטה הכי גדול</p>
         <ol id="ordlist"></ol>
-      </div>
-      <h3 id="fx-title">כשהערימה עוברת את הקו</h3>
-      <div class="radios" role="radiogroup" aria-labelledby="fx-title">
-        <label><input type="radio" name="endfx" value="burn">התמונה נשרפת</label>
-        <label><input type="radio" name="endfx" value="melt">התמונה נמסה</label>
       </div>
       <button id="set-close" type="button" class="big">סגירה</button>
     </div>
@@ -2573,8 +2567,8 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var orderMode = qs.get('order') || load('orderMode', 'random');
   if (orderMode !== 'fixed') orderMode = 'random';
   var fixedOrder = validOrder(load('order', '')) || HEADS.slice();
-  // how the photo goes when the pile stays over the line: it burns (film burn) or it melts (settings)
-  var endFx = qs.get('endfx') || load('endFx', 'burn');
+  // how the photo goes when the pile stays over the line: it burns (film burn). ?endfx=melt (test only) melts it instead
+  var endFx = qs.get('endfx');
   if (endFx !== 'melt') endFx = 'burn';
   function validOrder(s) {
     var a = String(s).split(',');
@@ -2623,6 +2617,11 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   // table talk: chain tracking, merges in the last moment, a merge that may have saved the pile, idle time
   var chainOpen = false, idleT = 0, chatT = 0;
   var pointerDown = false, keys = { left: false, right: false }, simulating = false;
+  // a hidden reset for the record (not in the settings on purpose): open the game with ?resetbest; the address drops it
+  if (qs.has('resetbest')) {
+    save('best', 0); qs.delete('resetbest');
+    try { history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs.toString() : '') + location.hash); } catch (e) {}
+  }
   var best = parseInt(load('best', '0'), 10) || 0;
   var sfxOn = load('sfx', '1') === '1', musOn = load('mus', '1') === '1';
 
@@ -3670,7 +3669,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   }
   function renderSettings() {
     elSet.querySelectorAll('input[name=ordmode]').forEach(function (r) { r.checked = r.value === orderMode; });
-    elSet.querySelectorAll('input[name=endfx]').forEach(function (r) { r.checked = r.value === endFx; });
     $('ordwrap').classList.toggle('hidden', orderMode !== 'fixed');
     var ol = $('ordlist');
     ol.innerHTML = '';
@@ -3710,9 +3708,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
       orderMode = r.value; save('orderMode', orderMode); Sound.sfx.click();
       settingsChanged(); r.focus();
     });
-  });
-  elSet.querySelectorAll('input[name=endfx]').forEach(function (r) {
-    r.addEventListener('change', function () { endFx = r.value; save('endFx', endFx); Sound.sfx.click(); r.focus(); });
   });
   $('btn-set').addEventListener('click', function () { Sound.unlock(); Sound.sfx.click(); setSettings(true); });
   $('set-close').addEventListener('click', function () { setSettings(false); });
@@ -3786,8 +3781,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     Share.send({ file: null, text: Share.invite(best, SHARE_URL) }, toast);
     track('share-start');
   });
-  // home: from the end screen straight back to the start; in play it pauses first (a stray tap must not end a run),
-  // and from the pause (the card's button, or the home button again) it leaves the game
+  // home: the end screen's way back to the start; in play the pause card has it (a stray tap must not end a run)
   function goHome() {
     if (state !== 'over' && !paused) return;
     paused = false; Sound.musicDuck(false); Sound.musicStop(); Sound.calm();
@@ -3797,7 +3791,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   }
   $('btn-home').addEventListener('click', function () {
     Sound.unlock(); Sound.sfx.click(); this.blur();
-    if (state === 'over' || paused) goHome(); else { setPaused(true); $('home').focus(); }
+    goHome();
   });
   $('home').addEventListener('click', function (e) { e.stopPropagation(); goHome(); });
   $('newdeal').addEventListener('click', function () { if (cardUp) { leaveChallenge(); restart(); } });
