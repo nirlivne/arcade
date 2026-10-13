@@ -145,7 +145,6 @@ button:focus-visible,.radios input:focus-visible{outline:3px solid #fff;outline-
 #over .muted{font-size:14px}
 button.share{width:100%;height:44px;margin:5px auto 0;font-size:26px}
 #over button.big{margin-top:5px;padding:4px 0 1px;font-size:24px}
-#over button.small{margin-top:4px;padding:1px 14px;font-size:15px}
 .toast{position:absolute;left:50%;top:-44px;transform:translateX(-50%);z-index:1;background:var(--ink);color:#fff;padding:5px 12px;border-radius:999px;font-size:14px;white-space:nowrap}
 .score{font-family:Marker,Hand,cursive;font-size:50px;line-height:1.1;color:var(--ink)}
 .badge{display:inline-block;margin:2px 0;padding:2px 14px;border-radius:999px;background:var(--sun);color:var(--ink);font-weight:bold;font-size:17px;animation:pulse 1s ease-in-out infinite}
@@ -219,7 +218,6 @@ button.mv:disabled{opacity:.2;cursor:default}
       <p class="muted" id="dealline"></p>
       <button id="share" type="button" class="play share">שתף לקבוצה</button>
       <button id="again" type="button" class="big">עוד יד</button>
-      <button id="newdeal" type="button" class="small hidden">יד חדשה</button>
       <div id="toast" class="toast hidden"></div>
     </div>
   </div>
@@ -2470,7 +2468,8 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   // rng: gameplay that may depend on play (guest peeks, bot aim); vr: looks; dealRng: the session's deal numbers.
   // The deal itself (NEXT sequence, tier order, guest bag) runs on streams seeded by the deal number: see reset().
   var rng = mulberry(seed), vr = mulberry(seed ^ 0x5bd1e995), dealRng = mulberry(seed ^ 0x2545f491);
-  // a challenge link (?c=): play this deal against this score
+  // a challenge link (?c=): beat this score. The link still carries the sender's deal, but every game deals fresh (a
+  // challenge too), so tapping the link again can't replay the same game
   var challenge = Challenge.fromURL(location.search);
   var SHARE_URL = 'https://nirlivne.github.io/arcade/games/say-cheese-junkies/';
   var errors = [], events = [], games = 1;
@@ -2579,7 +2578,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     // seed, so it is a different stream from dealRng even though the XOR constant is the same.
     var orng = mulberry(deal ^ 0x2545f491);
     order = HEADS.slice();
-    if (orderMode === 'fixed' && !challenge) order = fixedOrder.slice();
+    if (orderMode === 'fixed') order = fixedOrder.slice();
     else for (var i = order.length - 1; i > 0; i--) { var j = Math.floor(orng() * (i + 1)), x = order[i]; order[i] = order[j]; order[j] = x; }
     applyOrder();
   }
@@ -2626,7 +2625,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
   var sfxOn = load('sfx', '1') === '1', musOn = load('mus', '1') === '1';
 
   function rollTier() { return dealer.next(); } // the dealer counts its own faces: guest drops never move its weights
-  function newDeal() { deal = challenge ? challenge.deal : Challenge.dealNumber(dealRng); }
+  function newDeal() { deal = Challenge.dealNumber(dealRng); }
 
   function reset() {
     gameGen++; // a share capture still encoding from the last game is dropped (grabShot)
@@ -2685,16 +2684,18 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     flash = 0.85; flashCol = [1, 1, 1];
     persons.forEach(function (p) { p.target = 0; });
     showScreen(null);
-    track('game-start'); if (challenge) track('challenge-start');
+    track('game-start'); if (challenge) { track('challenge-start'); dropLink(); } // the link is used up: a reload deals fresh
     emit('game:start');
   }
   function startPlay() {
     state = 'play'; hang.appear = 0;
     showScreen(null);
   }
+  // the next game after a challenge (another hand, R) is a fresh random deal: a challenge link plays once
   function restart() {
     Sound.unlock();
     paused = false;
+    if (challenge) leaveChallenge();
     state = 'start'; newDeal(); rollOrder(); makeLine();
     persons.forEach(function (p) { p.target = 1; p.dev = 1; });
     beginGame();
@@ -2736,13 +2737,17 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     }
     $('play').textContent = on ? 'קבל את האתגר' : 'התחל משחק';
     if (on) ui.setAttribute('data-chal', '1'); else ui.removeAttribute('data-chal');
-    $('newdeal').classList.toggle('hidden', !on);
   }
-  // leave the challenge: drop ?c= from the address and deal fresh
-  function leaveChallenge() {
-    challenge = null;
+  // drop ?c= from the address (the game keeps its challenge until it ends)
+  function dropLink() {
+    if (!qs.has('c')) return;
     qs.delete('c');
     try { history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs.toString() : '') + location.hash); } catch (e) {}
+  }
+  // leave the challenge: the next deal is fresh
+  function leaveChallenge() {
+    challenge = null;
+    dropLink();
     syncChallenge();
   }
   function setPaused(p) {
@@ -3786,6 +3791,7 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     if (state !== 'over' && !paused) return;
     paused = false; Sound.musicDuck(false); Sound.musicStop(); Sound.calm();
     clearTimeout(toastTimer); $('toast').classList.add('hidden');
+    if (challenge) leaveChallenge(); // a challenge link plays once
     toStart();
     emit('game:home');
   }
@@ -3794,7 +3800,6 @@ window.MANIFEST = {"photos": {"junkies": {"w": 1122, "h": 1402, "thumb": "data:i
     goHome();
   });
   $('home').addEventListener('click', function (e) { e.stopPropagation(); goHome(); });
-  $('newdeal').addEventListener('click', function () { if (cardUp) { leaveChallenge(); restart(); } });
   $('over').querySelector('.card').style.top = OVER_CARD_TOP + 'px';
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) setPaused(true);
