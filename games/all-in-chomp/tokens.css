@@ -1,0 +1,104 @@
+/* All-In Chomp (אול-אין!) design tokens. THE-687, from the art brief THE-680.
+   "1 a.m. at the home game, seen from the lamp": green baize under one pendant lamp in a near-black room.
+   Five hues at rest (baize, room, rail, cream, marigold) + hot red for danger; the four behaviour colours only
+   ever appear on chip stacks and behaviour labels. recipe.js (canvas) reads these same custom properties, so
+   a re-skin changes this file only. Readability pairs below are checked by tools/design/contrast.mjs. */
+/* contrast: --aic-ink on --aic-cream >= 4.5 */
+/* contrast: --aic-ink-2 on --aic-cream >= 4.5 */
+/* contrast: --aic-cream on --aic-room >= 4.5 */
+/* contrast: --aic-muted on --aic-room >= 4.5 */
+/* contrast: --aic-marigold on --aic-room >= 4.5 */
+/* contrast: --aic-cream on --aic-room-2 >= 4.5 */
+/* contrast: --aic-cream on --aic-hot >= 3 */
+/* contrast: --aic-cream on --aic-b-ambush >= 3 */
+/* contrast: --aic-cream on --aic-b-shy >= 4.5 */
+/* contrast: --aic-ink on --aic-b-flank >= 4.5 */
+/* contrast: --aic-ink on --aic-fold >= 4.5 */
+/* contrast: --aic-ink on --aic-marigold >= 4.5 */
+/* contrast: --aic-cream on --aic-baize >= 3 */
+/* contrast: --aic-cream on --aic-wood >= 3 */
+/* contrast: --aic-rail on --aic-baize >= 3 */
+/* contrast: --aic-hot on --aic-cream >= 3 */
+/* contrast: --aic-suit-diamond on --aic-cream >= 3 */
+/* contrast: --aic-suit-club on --aic-cream >= 3 */
+
+/* Fonts: 3 families (G17): Rubik Doodle Shadow (display), Karantina (numbers, names, labels), Fredoka (body).
+   All OFL; licences in licenses/. Karantina Latin is a 15 KB subset for digits and card ranks. */
+@font-face { font-family: "AIC Doodle"; src: url("fonts/doodle-hebrew.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "AIC Kar"; src: url("fonts/karantina-hebrew.woff2") format("woff2"); font-weight: 700;
+  unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; font-display: swap; }
+@font-face { font-family: "AIC Kar"; src: url("fonts/karantina-latin.woff2") format("woff2"); font-weight: 700;
+  unicode-range: U+0000-00FF, U+2000-206F; font-display: swap; }
+@font-face { font-family: "AIC Fredoka"; src: url("fonts/fredoka-hebrew.woff2") format("woff2"); font-weight: 300 700; font-display: swap; }
+
+:root {
+  /* ---- palette ---- */
+  --aic-baize: #1F7A4D;      /* dominant: the table */
+  --aic-baize-hi: #2E9460;   /* under the lamp */
+  --aic-baize-lo: #134D33;   /* lamp falloff at the rail */
+  --aic-room: #110C0A;       /* everything off the table; the HUD gutters */
+  --aic-room-2: #1C1512;     /* raised room surfaces (sheets, pause) */
+  --aic-rail: #2A1C17;       /* walls = padded rail tube */
+  --aic-rail-2: #3E2A21;     /* rail inner tone */
+  --aic-lamp: #FFD27A;       /* lamp highlight on the rail, halos */
+  --aic-cream: #FFF4DC;      /* chips, cards, bubbles */
+  --aic-cream-2: #E9DCC0;    /* card shade, chip rim */
+  --aic-chip-rim: #B79E70;   /* the 6 px chip's rim */
+  --aic-ink: #1A1412;        /* outlines, text on cream */
+  --aic-ink-2: #6E5E4C;      /* secondary text on cream (speaker name) */
+  --aic-marigold: #FFC233;   /* accent: score, your card, the lamp */
+  --aic-hot: #E2412E;        /* danger: ALL IN chip, buy-in stacks, the deal chip */
+  --aic-hot-lo: #7C1D14;     /* chip edge / pressed */
+  --aic-muted: #C9BDA4;      /* labels on the room */
+
+  /* behaviour colours: chip stacks and labels only (spec §2a: הלוחץ / הקורא / העוקף / הזהיר) */
+  --aic-b-direct: #E2412E;   /* הלוחץ, chases you */
+  --aic-b-ambush: #2F6BD6;   /* הקורא, cuts you off 4 ahead */
+  --aic-b-flank: #F5B82E;    /* העוקף, flanks */
+  --aic-b-shy: #232027;      /* הזהיר, backs off inside 8 tiles */
+  --aic-b-shy-spot: #DDD6C8; /* edge spots on the black stack */
+  --aic-fold: #C3CEE2;       /* folded stack + face tint */
+
+  /* kitchen table (maze B) */
+  --aic-wood: #7A5236;
+  --aic-wood-hi: #93673F;
+  --aic-wood-lo: #4A3020;
+  --aic-clutter: #26303A;    /* walls on maze B: the stuff on the table */
+  --aic-clutter-2: #3A4754;
+
+  /* the mouth (chomp jaw) */
+  --aic-mouth: #3B0D14;
+  --aic-tongue: #D9566A;
+
+  /* 4-colour deck so cards read at 22 px (spec §8) */
+  --aic-suit-spade: #1A1412;
+  --aic-suit-heart: #E2412E;
+  --aic-suit-diamond: #2F6BD6;
+  --aic-suit-club: #1F8A4C;
+
+  /* ---- type ---- */
+  /* The Doodle and Fredoka subsets have Hebrew letters only (no digits, ! ? . , : …): Karantina is second in
+     every stack so digits and punctuation stay in the family set (checked on the style tile). */
+  --aic-font-display: "AIC Doodle", "AIC Kar", system-ui, sans-serif;
+  --aic-font-label: "AIC Kar", "AIC Fredoka", system-ui, sans-serif;
+  --aic-font-body: "AIC Fredoka", "AIC Kar", system-ui, sans-serif;
+
+  /* ---- shape ---- */
+  --aic-r-card: 7px;          /* playing-card panel corner at 62 px card width */
+  --aic-r-bubble: 14px;
+  --aic-line: 2px;            /* ink outline on DOM pieces */
+  --aic-shadow-card: 0 4px 10px rgba(0, 0, 0, .45);
+  --aic-shadow-chip: 0 0 0 3px var(--aic-ink), 0 5px 0 3px var(--aic-hot-lo), 0 10px 18px rgba(0, 0, 0, .5);
+
+  /* ---- motion: card-table physics ---- */
+  --aic-ease-clack: cubic-bezier(.34, 1.56, .64, 1); /* back-out: chips landing, the deal bounce */
+  --aic-ease-deal: cubic-bezier(.2, .8, .2, 1);      /* cards sliding across the felt */
+  --aic-t-flip: 180ms;    /* card flip (hand beat); the deal's ghost flips are 150 ms */
+  --aic-t-clack: 90ms;    /* chip press */
+  --aic-t-stack: 180ms;   /* chip lands on a stack */
+  --aic-t-screen: 300ms;  /* a card dealt across the screen (screen change) */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --aic-t-flip: 0ms; --aic-t-clack: 0ms; --aic-t-stack: 0ms; --aic-t-screen: 0ms; }
+}

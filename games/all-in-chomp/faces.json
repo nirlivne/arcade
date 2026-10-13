@@ -1,0 +1,833 @@
+{
+ "faces": [
+  {
+   "id": "dagi",
+   "name_he": "דגי",
+   "name_latin": "Dagi",
+   "group": "regular",
+   "file": "faces/dagi.webp",
+   "w": 237,
+   "h": 287,
+   "lines_he": [
+    "רונזו, תעזוב ת׳טלפון",
+    "זה מה שהיא אמרה"
+   ],
+   "eyes_closed_file": "faces/dagi-eyes-closed.webp",
+   "landmarks": {
+    "left_eye_top": [
+     97,
+     108
+    ],
+    "left_eye_bottom": [
+     97,
+     114
+    ],
+    "left_eye_outer": [
+     82,
+     107
+    ],
+    "left_eye_inner": [
+     113,
+     121
+    ],
+    "right_eye_top": [
+     171,
+     140
+    ],
+    "right_eye_bottom": [
+     167,
+     144
+    ],
+    "right_eye_outer": [
+     181,
+     149
+    ],
+    "right_eye_inner": [
+     151,
+     138
+    ],
+    "mouth_top": [
+     102,
+     205
+    ],
+    "mouth_bottom": [
+     95,
+     219
+    ],
+    "mouth_left": [
+     55,
+     180
+    ],
+    "mouth_right": [
+     145,
+     216
+    ],
+    "nose_tip": [
+     117,
+     182
+    ],
+    "chin": [
+     75,
+     271
+    ],
+    "forehead": [
+     158,
+     70
+    ]
+   }
+  },
+  {
+   "id": "eitan",
+   "name_he": "איתן",
+   "name_latin": "Eitan",
+   "group": "regular",
+   "file": "faces/eitan.webp",
+   "w": 298,
+   "h": 397,
+   "lines_he": [
+    "נייס!",
+    "תעביר את הגרעינים"
+   ],
+   "eyes_closed_file": "faces/eitan-eyes-closed.webp",
+   "landmarks": {
+    "left_eye_top": [
+     143,
+     155
+    ],
+    "left_eye_bottom": [
+     143,
+     164
+    ],
+    "left_eye_outer": [
+     126,
+     156
+    ],
+    "left_eye_inner": [
+     162,
+     169
+    ],
+    "right_eye_top": [
+     228,
+     185
+    ],
+    "right_eye_bottom": [
+     223,
+     191
+    ],
+    "right_eye_outer": [
+     238,
+     194
+    ],
+    "right_eye_inner": [
+     206,
+     184
+    ],
+    "mouth_top": [
+     161,
+     261
+    ],
+    "mouth_bottom": [
+     154,
+     277
+    ],
+    "mouth_left": [
+     110,
+     248
+    ],
+    "mouth_right": [
+     196,
+     274
+    ],
+    "nose_tip": [
+     183,
+     230
+    ],
+    "chin": [
+     140,
+     330
+    ],
+    "forehead": [
+     210,
+     112
+    ]
+   }
+  },
+  {
+   "id": "saalem",
+   "name_he": "סאעלם",
+   "name_latin": "Saalem",
+   "group": "regular",
+   "file": "faces/saalem.webp",
+   "w": 243,
+   "h": 338,
+   "lines_he": [
+    "זה לא יקרה!",
+    "איזה מטופם!"
+   ],
+   "landmarks": {
+    "left_eye_top": [
+     51,
+     177
+    ],
+    "left_eye_bottom": [
+     58,
+     190
+    ],
+    "left_eye_outer": [
+     42,
+     188
+    ],
+    "left_eye_inner": [
+     74,
+     179
+    ],
+    "right_eye_top": [
+     136,
+     149
+    ],
+    "right_eye_bottom": [
+     137,
+     163
+    ],
+    "right_eye_outer": [
+     157,
+     150
+    ],
+    "right_eye_inner": [
+     118,
+     166
+    ],
+    "mouth_top": [
+     112,
+     262
+    ],
+    "mouth_bottom": [
+     113,
+     266
+    ],
+    "mouth_left": [
+     85,
+     271
+    ],
+    "mouth_right": [
+     155,
+     252
+    ],
+    "nose_tip": [
+     92,
+     228
+    ],
+    "chin": [
+     133,
+     329
+    ],
+    "forehead": [
+     69,
+     111
+    ]
+   }
+  },
+  {
+   "id": "shaiko",
+   "name_he": "שייקו",
+   "name_latin": "Shaiko",
+   "group": "regular",
+   "file": "faces/shaiko.webp",
+   "w": 234,
+   "h": 329,
+   "lines_he": [
+    "חד משמעית",
+    "מי רוצה במבה?"
+   ],
+   "eyes_closed_file": "faces/shaiko-eyes-closed.webp",
+   "landmarks": {
+    "left_eye_top": [
+     64,
+     162
+    ],
+    "left_eye_bottom": [
+     67,
+     169
+    ],
+    "left_eye_outer": [
+     53,
+     170
+    ],
+    "left_eye_inner": [
+     84,
+     164
+    ],
+    "right_eye_top": [
+     143,
+     142
+    ],
+    "right_eye_bottom": [
+     143,
+     150
+    ],
+    "right_eye_outer": [
+     158,
+     144
+    ],
+    "right_eye_inner": [
+     126,
+     153
+    ],
+    "mouth_top": [
+     122,
+     234
+    ],
+    "mouth_bottom": [
+     123,
+     235
+    ],
+    "mouth_left": [
+     90,
+     240
+    ],
+    "mouth_right": [
+     159,
+     222
+    ],
+    "nose_tip": [
+     110,
+     201
+    ],
+    "chin": [
+     138,
+     292
+    ],
+    "forehead": [
+     87,
+     99
+    ]
+   }
+  },
+  {
+   "id": "yontsi",
+   "name_he": "יונצי",
+   "name_latin": "Yontsi",
+   "group": "regular",
+   "file": "faces/yontsi.webp",
+   "w": 270,
+   "h": 350,
+   "lines_he": [
+    "אני פשוט שחקן מעולה!",
+    "חלב ועוגיות מישהו?"
+   ],
+   "eyes_closed_file": "faces/yontsi-eyes-closed.webp",
+   "landmarks": {
+    "left_eye_top": [
+     85,
+     177
+    ],
+    "left_eye_bottom": [
+     90,
+     186
+    ],
+    "left_eye_outer": [
+     74,
+     187
+    ],
+    "left_eye_inner": [
+     107,
+     179
+    ],
+    "right_eye_top": [
+     167,
+     154
+    ],
+    "right_eye_bottom": [
+     166,
+     164
+    ],
+    "right_eye_outer": [
+     182,
+     156
+    ],
+    "right_eye_inner": [
+     148,
+     167
+    ],
+    "mouth_top": [
+     148,
+     257
+    ],
+    "mouth_bottom": [
+     149,
+     258
+    ],
+    "mouth_left": [
+     116,
+     265
+    ],
+    "mouth_right": [
+     188,
+     245
+    ],
+    "nose_tip": [
+     134,
+     222
+    ],
+    "chin": [
+     167,
+     320
+    ],
+    "forehead": [
+     108,
+     113
+    ]
+   }
+  },
+  {
+   "id": "nir",
+   "name_he": "ניר",
+   "name_latin": "Nir",
+   "group": "regular",
+   "file": "faces/nir.webp",
+   "w": 273,
+   "h": 368,
+   "lines_he": [
+    "יצא צבע ניר",
+    "סורי"
+   ],
+   "eyes_closed_file": "faces/nir-eyes-closed.webp",
+   "landmarks": {
+    "left_eye_top": [
+     62,
+     151
+    ],
+    "left_eye_bottom": [
+     67,
+     159
+    ],
+    "left_eye_outer": [
+     50,
+     162
+    ],
+    "left_eye_inner": [
+     86,
+     152
+    ],
+    "right_eye_top": [
+     162,
+     125
+    ],
+    "right_eye_bottom": [
+     161,
+     134
+    ],
+    "right_eye_outer": [
+     179,
+     127
+    ],
+    "right_eye_inner": [
+     140,
+     137
+    ],
+    "mouth_top": [
+     131,
+     240
+    ],
+    "mouth_bottom": [
+     133,
+     244
+    ],
+    "mouth_left": [
+     91,
+     250
+    ],
+    "mouth_right": [
+     181,
+     228
+    ],
+    "nose_tip": [
+     117,
+     201
+    ],
+    "chin": [
+     153,
+     319
+    ],
+    "forehead": [
+     92,
+     71
+    ]
+   }
+  },
+  {
+   "id": "ronzo",
+   "name_he": "רונזו",
+   "name_latin": "Ronzo",
+   "group": "regular",
+   "file": "faces/ronzo.webp",
+   "w": 317,
+   "h": 424,
+   "lines_he": [
+    "אחד גבוה אחד נמוך סוטד",
+    "הבאתי עוגיות"
+   ],
+   "eyes_closed_file": "faces/ronzo-eyes-closed.webp",
+   "landmarks": {
+    "left_eye_top": [
+     99,
+     205
+    ],
+    "left_eye_bottom": [
+     102,
+     211
+    ],
+    "left_eye_outer": [
+     85,
+     213
+    ],
+    "left_eye_inner": [
+     122,
+     208
+    ],
+    "right_eye_top": [
+     196,
+     186
+    ],
+    "right_eye_bottom": [
+     194,
+     192
+    ],
+    "right_eye_outer": [
+     213,
+     188
+    ],
+    "right_eye_inner": [
+     175,
+     197
+    ],
+    "mouth_top": [
+     166,
+     288
+    ],
+    "mouth_bottom": [
+     170,
+     307
+    ],
+    "mouth_left": [
+     115,
+     298
+    ],
+    "mouth_right": [
+     225,
+     272
+    ],
+    "nose_tip": [
+     150,
+     257
+    ],
+    "chin": [
+     183,
+     375
+    ],
+    "forehead": [
+     131,
+     130
+    ]
+   }
+  },
+  {
+   "id": "even",
+   "name_he": "אבן",
+   "name_latin": "Even",
+   "group": "regular",
+   "file": "faces/even.webp",
+   "w": 275,
+   "h": 382,
+   "lines_he": [
+    "קונהצ!",
+    "מישהו רוצה מרק וואנטון?"
+   ],
+   "eyes_closed_file": "faces/even-eyes-closed.webp",
+   "landmarks": {
+    "left_eye_top": [
+     110,
+     167
+    ],
+    "left_eye_bottom": [
+     112,
+     177
+    ],
+    "left_eye_outer": [
+     92,
+     168
+    ],
+    "left_eye_inner": [
+     132,
+     182
+    ],
+    "right_eye_top": [
+     206,
+     192
+    ],
+    "right_eye_bottom": [
+     199,
+     200
+    ],
+    "right_eye_outer": [
+     219,
+     201
+    ],
+    "right_eye_inner": [
+     180,
+     195
+    ],
+    "mouth_top": [
+     131,
+     283
+    ],
+    "mouth_bottom": [
+     124,
+     301
+    ],
+    "mouth_left": [
+     78,
+     258
+    ],
+    "mouth_right": [
+     178,
+     285
+    ],
+    "nose_tip": [
+     145,
+     256
+    ],
+    "chin": [
+     104,
+     366
+    ],
+    "forehead": [
+     183,
+     107
+    ]
+   }
+  },
+  {
+   "id": "daniel",
+   "name_he": "דניאל",
+   "name_latin": "Daniel",
+   "group": "guest",
+   "file": "faces/daniel.webp",
+   "w": 258,
+   "h": 322,
+   "lines_he": [
+    "אול אין!"
+   ],
+   "landmarks": {
+    "left_eye_top": [
+     47,
+     161
+    ],
+    "left_eye_bottom": [
+     49,
+     165
+    ],
+    "left_eye_outer": [
+     34,
+     165
+    ],
+    "left_eye_inner": [
+     65,
+     162
+    ],
+    "right_eye_top": [
+     132,
+     153
+    ],
+    "right_eye_bottom": [
+     131,
+     157
+    ],
+    "right_eye_outer": [
+     151,
+     154
+    ],
+    "right_eye_inner": [
+     113,
+     157
+    ],
+    "mouth_top": [
+     95,
+     244
+    ],
+    "mouth_bottom": [
+     97,
+     256
+    ],
+    "mouth_left": [
+     58,
+     249
+    ],
+    "mouth_right": [
+     145,
+     234
+    ],
+    "nose_tip": [
+     76,
+     213
+    ],
+    "chin": [
+     101,
+     317
+    ],
+    "forehead": [
+     79,
+     92
+    ]
+   }
+  },
+  {
+   "id": "miki",
+   "name_he": "מיקי",
+   "name_latin": "Miki",
+   "group": "guest",
+   "file": "faces/miki.webp",
+   "w": 254,
+   "h": 369,
+   "lines_he": [
+    "אווו פמלה.."
+   ],
+   "landmarks": {
+    "left_eye_top": [
+     50,
+     134
+    ],
+    "left_eye_bottom": [
+     52,
+     139
+    ],
+    "left_eye_outer": [
+     38,
+     141
+    ],
+    "left_eye_inner": [
+     69,
+     133
+    ],
+    "right_eye_top": [
+     133,
+     117
+    ],
+    "right_eye_bottom": [
+     132,
+     123
+    ],
+    "right_eye_outer": [
+     150,
+     119
+    ],
+    "right_eye_inner": [
+     114,
+     125
+    ],
+    "mouth_top": [
+     98,
+     214
+    ],
+    "mouth_bottom": [
+     98,
+     216
+    ],
+    "mouth_left": [
+     64,
+     222
+    ],
+    "mouth_right": [
+     143,
+     209
+    ],
+    "nose_tip": [
+     84,
+     172
+    ],
+    "chin": [
+     106,
+     280
+    ],
+    "forehead": [
+     77,
+     67
+    ]
+   }
+  },
+  {
+   "id": "koko",
+   "name_he": "קוקו",
+   "name_latin": "Koko",
+   "group": "guest",
+   "file": "faces/koko.webp",
+   "w": 230,
+   "h": 341,
+   "lines_he": [
+    "קוקו הגיע!"
+   ],
+   "landmarks": {
+    "left_eye_top": [
+     56,
+     150
+    ],
+    "left_eye_bottom": [
+     60,
+     161
+    ],
+    "left_eye_outer": [
+     42,
+     156
+    ],
+    "left_eye_inner": [
+     79,
+     158
+    ],
+    "right_eye_top": [
+     144,
+     146
+    ],
+    "right_eye_bottom": [
+     140,
+     158
+    ],
+    "right_eye_outer": [
+     159,
+     152
+    ],
+    "right_eye_inner": [
+     122,
+     157
+    ],
+    "mouth_top": [
+     100,
+     239
+    ],
+    "mouth_bottom": [
+     101,
+     254
+    ],
+    "mouth_left": [
+     61,
+     239
+    ],
+    "mouth_right": [
+     145,
+     239
+    ],
+    "nose_tip": [
+     96,
+     212
+    ],
+    "chin": [
+     101,
+     317
+    ],
+    "forehead": [
+     95,
+     84
+    ]
+   }
+  }
+ ]
+}

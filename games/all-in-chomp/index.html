@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>אול-אין!</title>
+<link rel="icon" href="data:,">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="skin.css">
+<style>
+  /* Glue only - never the designer's look-and-feel rules (those are skin.css/tokens.css). .aic-screen has no
+     background of its own (screens.html never needs one: it's a one-shot mockup, not a screen stacked over
+     a live, still-rendering maze), so the game-over screen needs an opaque backdrop to actually hide play. */
+  #chomp-gameover, #chomp-title, #chomp-deal { background: var(--aic-room); }
+  #chomp-title-canvas, #chomp-deal-canvas { display: block; }
+  /* the lamp pool (.aic-app::before) sits behind this opaque screen, so game over re-draws its own glow,
+     roughly over the catcher (THE-713 D2-F: "the lamp glow is missing"). */
+  #chomp-gameover { background: radial-gradient(ellipse 60% 55% at 25% 42%, rgba(255, 210, 122, .16), transparent 70%), var(--aic-room); }
+  /* desktop (THE-713 D2-G): the gutter HUD stays phone-sized otherwise. DESIGN.md's own suggestion was
+     `zoom: 1.3` on .aic-gutter, but that grows the gutter's own box past its JS-set width (= the maze's
+     left margin) and overlaps the maze; scaling just the text hits the same "score >= 40px, labels >= 18px"
+     target without that overlap. */
+  @media (min-width: 1200px) {
+    .aic-app[data-gutter="wide"] .aic-score { font-size: 40px; }
+    .aic-app[data-gutter="wide"] .aic-label { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="aic-app" id="chomp-app" dir="rtl">
+  <div class="aic-stage" id="chomp-stage">
+    <canvas id="chomp-canvas"></canvas>
+  </div>
+  <div class="aic-gutter aic-gutter--start" id="chomp-gutter-start">
+    <div class="aic-label" id="chomp-pot-label">קופה</div>
+    <div class="aic-score" id="chomp-score">0</div>
+    <div class="aic-label" id="chomp-round">סיבוב 1</div>
+    <div class="aic-stacks" id="chomp-stacks"></div>
+    <div class="aic-rail" id="chomp-rail"></div>
+  </div>
+  <div class="aic-gutter aic-gutter--end" id="chomp-gutter-end">
+    <div class="aic-gutter__icons">
+      <button class="aic-iconchip" id="chomp-pause-btn" aria-label="השהה">❚❚</button>
+      <button class="aic-iconchip" id="chomp-sound-btn" aria-label="צליל">♪</button>
+    </div>
+    <div class="aic-talk" id="chomp-talk" hidden></div>
+    <div class="aic-spectators" id="chomp-spectators"></div>
+  </div>
+  <div class="aic-band" id="chomp-band" hidden></div>
+  <div class="aic-over" id="chomp-over">
+    <div class="aic-shout" id="chomp-play-wordmark" style="position:absolute;top:0;left:50%;transform:translateX(-50%) rotate(-4deg);white-space:nowrap">אול-אין!</div>
+    <div class="aic-beat" id="chomp-beat" hidden>
+      <div class="aic-beat__inner">
+        <div class="aic-beat__cards" id="chomp-beat-cards"></div>
+        <div class="aic-beat__name" id="chomp-beat-name"></div>
+        <div class="aic-beat__pay" id="chomp-beat-pay"></div>
+      </div>
+      <div class="aic-shower" id="chomp-beat-shower"></div>
+    </div>
+  </div>
+
+  <div class="aic-screen" id="chomp-title" dir="rtl" hidden>
+    <canvas id="chomp-title-canvas"></canvas>
+    <div class="aic-title__name" id="chomp-title-name">אול-אין!</div>
+    <div class="aic-title__tag" id="chomp-title-tag">ערב פוקר עם הג׳אנקיס</div>
+    <button class="aic-chipbtn" id="chomp-title-deal" style="position:absolute">חלק לי</button>
+    <div class="aic-fan" id="chomp-title-fan" style="left:22px;bottom:12px">
+      <button class="aic-cardbtn" data-pip="♠" id="chomp-title-about">אודות</button>
+      <button class="aic-cardbtn" data-pip="♦" id="chomp-title-book">ספר<br>הידיים</button>
+      <button class="aic-cardbtn" data-pip="♣" id="chomp-title-howto">איך<br>משחקים</button>
+    </div>
+    <div class="aic-title__corner">
+      <button class="aic-chipbtn aic-chipbtn--cream aic-chipbtn--small" id="chomp-title-nightly" style="--s:70px;font-size:15px!important;line-height:1!important">שולחן<br>הערב<br>No.<span id="chomp-title-night-n"></span></button>
+    </div>
+    <div id="chomp-title-plates"></div>
+  </div>
+
+  <div class="aic-screen" id="chomp-deal" dir="rtl" hidden>
+    <canvas id="chomp-deal-canvas"></canvas>
+    <div id="chomp-deal-plates"></div>
+    <div class="aic-deal__head" id="chomp-deal-header"></div>
+    <div class="aic-deal__you" id="chomp-deal-you"></div>
+    <div id="chomp-deal-cards"></div>
+    <div class="aic-talk" id="chomp-deal-talk" style="position:absolute" hidden></div>
+    <div class="aic-deal__skip">הקש לדלג</div>
+  </div>
+
+  <div class="aic-screen" id="chomp-gameover" hidden>
+    <div class="aic-gameover">
+      <div>
+        <h1 class="aic-gameover__title" id="chomp-over-title"></h1>
+        <div class="aic-gameover__score" id="chomp-over-score"></div>
+        <div class="aic-gameover__best" id="chomp-over-best"></div>
+        <div class="aic-gameover__actions">
+          <button class="aic-chipbtn" id="chomp-rebuy">ריבאי</button>
+          <button class="aic-cardbtn" data-pip="♦" id="chomp-nightly" style="width:58px;height:78px">שולחן<br>הערב</button>
+          <button class="aic-cardbtn" data-pip="♥" id="chomp-share" style="width:58px;height:78px" hidden>שתף</button>
+        </div>
+      </div>
+      <div class="aic-gameover__catcher" id="chomp-over-catcher"></div>
+    </div>
+  </div>
+
+  <div class="aic-hint" id="chomp-hint" dir="rtl" hidden>
+    <ol>
+      <li>החליקו או לחצו על החצים: תאכלו את כל הצ'יפים.</li>
+      <li>החברים רודפים אחריכם. נתפסתם? הלך לכם צ'יפ.</li>
+      <li>אול-אין בפינה: עכשיו אתם רודפים אותם. תאספו קלפים ליד.</li>
+    </ol>
+    <div class="aic-hint__tap">הקישו כדי להתחיל</div>
+  </div>
+
+  <div class="aic-turn" id="chomp-portrait" dir="rtl" hidden>
+    <div>
+      <canvas id="chomp-portrait-canvas" width="140" height="140"></canvas>
+      <p>סובבו את הטלפון 🔄</p>
+      <small>המשחק מחכה</small>
+    </div>
+  </div>
+
+  <div class="aic-scrim" id="chomp-pause-scrim" hidden>
+    <div class="aic-sheet" dir="rtl">
+      <h2 class="aic-sheet__title">הפסקה</h2>
+      <button class="aic-cardbtn--row" id="chomp-pause-resume">המשך</button>
+      <button class="aic-cardbtn--row" id="chomp-pause-howto">איך משחקים</button>
+      <button class="aic-cardbtn--row" id="chomp-pause-sound">צליל</button>
+      <button class="aic-cardbtn--row" id="chomp-pause-about">אודות</button>
+      <button class="aic-cardbtn--row" id="chomp-pause-quit">לשולחן הראשי</button>
+    </div>
+  </div>
+
+  <div class="aic-scrim" id="chomp-howto-scrim" hidden>
+    <div class="aic-sheet" dir="rtl">
+      <h2 class="aic-sheet__title">איך משחקים</h2>
+      <p>החליקו או לחצו על החצים כדי לנוע במבוך ולאכול צ'יפים.</p>
+      <p>חברים רודפים אחריכם. חטיפה עולה צ'יפ.</p>
+      <p>ALL IN בפינה הופך אתכם לרודפים: אכלו את מי שמקפל.</p>
+      <p>אספו קלפים ליד הדילר לקראת תשלום על היד.</p>
+      <button class="aic-cardbtn--row" id="chomp-howto-close">סגור</button>
+    </div>
+  </div>
+
+  <div class="aic-scrim" id="chomp-about-scrim" hidden>
+    <div class="aic-sheet" dir="rtl">
+      <h2 class="aic-sheet__title">אודות</h2>
+      <p>גופנים: Rubik Doodle Shadow, Karantina, Fredoka (SIL OFL 1.1), ראו licenses/.</p>
+      <p id="chomp-about-studio">נוצר על ידי The Game Company.</p>
+      <button class="aic-cardbtn--row" id="chomp-about-close">סגור</button>
+    </div>
+  </div>
+
+  <div class="aic-scrim" id="chomp-book-scrim" hidden>
+    <div class="aic-sheet" dir="rtl">
+      <h2 class="aic-sheet__title">ספר הידיים</h2>
+      <div id="chomp-book-list"></div>
+      <button class="aic-cardbtn--row" id="chomp-book-close">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- theme.js is a classic script (the Game Standard v2 re-skin contract), loaded before game.js's module. -->
+<script src="theme.js"></script>
+<script type="module" src="game.js"></script>
+<script src="register-sw.js"></script>
+</body>
+</html>

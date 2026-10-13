@@ -1,0 +1,296 @@
+/* All-In Chomp skin (THE-687). Load after tokens.css (and after ui-kit.css if the kit is used): a full override.
+   The UI is the table itself: chips are buttons, playing cards are panels, comic bubbles carry the talk.
+   Every class here is used by design/all-in-chomp/screens.html, which is the markup reference (DESIGN.md §6).
+   All text is DOM and RTL (G10). Nothing draws over the maze except .aic-over children. */
+
+/* ------------------------------------------------------------ base */
+.aic-app, .aic-app * { box-sizing: border-box; }
+.aic-app {
+  position: fixed; inset: 0; overflow: hidden; direction: rtl;
+  background: var(--aic-room); color: var(--aic-cream);
+  font: 500 16px/1.35 var(--aic-font-body);
+  -webkit-tap-highlight-color: transparent; user-select: none; touch-action: none;
+}
+.aic-app::before { /* the lamp's pool on the room */
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 70% 75% at 50% 50%, rgba(255, 210, 122, .10), transparent 70%);
+}
+.aic-app button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.aic-app button:focus-visible { outline: 3px solid var(--aic-marigold); outline-offset: 3px; }
+.aic-screen { position: absolute; inset: 0; }
+.aic-screen[hidden] { display: none; }
+
+/* ------------------------------------------------------------ chip button (the big "חלק לי", "ריבאי") */
+.aic-chipbtn {
+  --s: 84px; --c: var(--aic-hot); --c-lo: var(--aic-hot-lo); --t: var(--aic-cream);
+  position: relative; width: var(--s); height: var(--s); border-radius: 50%;
+  display: grid; place-items: center; text-align: center;
+  font: 700 calc(var(--s) * .3)/0.95 var(--aic-font-label) !important; color: var(--t) !important;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .35); letter-spacing: .01em;
+  background: radial-gradient(circle, var(--c) 0 52%, var(--aic-cream) 52% 55.5%, var(--c) 55.5%) !important;
+  box-shadow: 0 0 0 3px var(--aic-ink), 0 5px 0 3px var(--c-lo), 0 10px 18px rgba(0, 0, 0, .5);
+  transition: transform var(--aic-t-clack) var(--aic-ease-clack), box-shadow var(--aic-t-clack);
+}
+.aic-chipbtn::before { /* the edge spots */
+  content: ""; position: absolute; inset: 3px; border-radius: 50%;
+  background: repeating-conic-gradient(var(--aic-cream) 0 14deg, transparent 14deg 45deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 73%, #000 74%); mask: radial-gradient(circle, transparent 0 73%, #000 74%);
+}
+.aic-chipbtn > span, .aic-chipbtn { z-index: 0; }
+.aic-chipbtn:hover { transform: translateY(-2px) rotate(-8deg); }
+.aic-chipbtn:active, .aic-chipbtn.is-pressed { transform: translateY(2px) rotate(22deg); box-shadow: 0 0 0 3px var(--aic-ink), 0 2px 0 3px var(--c-lo), 0 4px 8px rgba(0, 0, 0, .5); }
+.aic-chipbtn--small { --s: 62px; }
+.aic-chipbtn--cream { --c: var(--aic-cream); --c-lo: var(--aic-cream-2); --t: var(--aic-ink); text-shadow: none; }
+.aic-chipbtn--cream { background: radial-gradient(circle, var(--aic-cream) 0 52%, var(--aic-hot) 52% 55.5%, var(--aic-cream) 55.5%) !important; }
+.aic-chipbtn--cream::before { background: repeating-conic-gradient(var(--aic-hot) 0 14deg, transparent 14deg 45deg); }
+.aic-chipbtn--blue { --c: var(--aic-b-ambush); --c-lo: #183C80; }
+
+/* small round icon chips (pause, sound) */
+.aic-iconchip {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--aic-rail-2) !important; color: var(--aic-cream); font: 700 13px/1 system-ui !important;
+  box-shadow: 0 0 0 2px #5A4135, 0 3px 0 2px var(--aic-ink);
+  transition: transform var(--aic-t-clack) var(--aic-ease-clack);
+  position: relative;
+}
+/* the chip draws at 32 px, the hit area is 44 x 44 (THE-692 r2: it was 32 x 32) */
+.aic-iconchip::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; }
+.aic-iconchip:active { transform: translateY(2px) rotate(30deg); box-shadow: 0 0 0 2px #5A4135, 0 1px 0 2px var(--aic-ink); }
+.aic-iconchip.is-off { opacity: .55; text-decoration: line-through; }
+
+/* ------------------------------------------------------------ playing-card buttons + the fan menu */
+.aic-cardbtn {
+  position: relative; width: 64px; height: 88px; border-radius: var(--aic-r-card);
+  background: var(--aic-cream) !important; color: var(--aic-ink) !important; border: 2px solid var(--aic-ink) !important;
+  box-shadow: var(--aic-shadow-card); font: 700 17px/1.02 var(--aic-font-label) !important;
+  display: grid; place-items: center; text-align: center; padding: 14px 4px 4px !important;
+  transition: transform 140ms var(--aic-ease-deal);
+}
+.aic-cardbtn::before { content: attr(data-pip); position: absolute; top: 3px; right: 5px; font: 13px/1 system-ui; color: var(--aic-suit-heart); }
+.aic-cardbtn[data-pip="♠"]::before { color: var(--aic-suit-spade); }
+.aic-cardbtn[data-pip="♦"]::before { color: var(--aic-suit-diamond); }
+.aic-cardbtn[data-pip="♣"]::before { color: var(--aic-suit-club); }
+.aic-cardbtn:hover, .aic-cardbtn:focus-visible { transform: translateY(-4px) rotate(-3deg); }
+.aic-cardbtn--row { width: 100%; height: 44px; padding: 0 !important; font-size: 21px !important; margin-top: 8px; }
+.aic-cardbtn--row::before { top: 50%; transform: translateY(-50%); right: 10px; font-size: 16px; }
+/* a loose fan: each card shows its whole label (the cards only overlap at their corners) */
+.aic-fan { position: absolute; width: 196px; height: 104px; }
+.aic-fan .aic-cardbtn { position: absolute; bottom: 0; transform-origin: 50% 110%; }
+.aic-fan .aic-cardbtn:nth-child(1) { left: 0; transform: rotate(-12deg); }
+.aic-fan .aic-cardbtn:nth-child(2) { left: 64px; transform: translateY(-6px); }
+.aic-fan .aic-cardbtn:nth-child(3) { left: 128px; transform: rotate(12deg); }
+.aic-fan .aic-cardbtn:nth-child(1):hover { transform: rotate(-12deg) translateY(-4px) rotate(-3deg); }
+.aic-fan .aic-cardbtn:nth-child(2):hover { transform: translateY(-10px) rotate(-3deg); }
+.aic-fan .aic-cardbtn:nth-child(3):hover { transform: rotate(12deg) translateY(-4px) rotate(-3deg); }
+/* Narrow phones (664 wide): the full fan overlaps the nearest seat's face (THE-692 D2-2). 64 px cards x 0.85 = 54 px, still >= 44. */
+@media (max-width: 720px) { #chomp-title-fan { transform: scale(0.85); transform-origin: 0 100%; } }
+
+/* ------------------------------------------------------------ sheets (pause, how-to, about, hand book) = a big card */
+.aic-scrim { position: absolute; inset: 0; background: rgba(17, 12, 10, .72); display: grid; place-items: center; }
+.aic-sheet {
+  position: relative; width: min(330px, 86vw); max-height: 92vh; overflow: auto;
+  background: var(--aic-cream); color: var(--aic-ink); border: 2.5px solid var(--aic-ink); border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .55); padding: 14px 16px 16px;
+  animation: aic-deal-in var(--aic-t-screen) var(--aic-ease-deal) both;
+}
+.aic-sheet::before, .aic-sheet::after { content: "♥"; position: absolute; top: 6px; right: 10px; font: 18px/1 system-ui; color: var(--aic-suit-heart); }
+.aic-sheet::after { top: auto; right: auto; bottom: 6px; left: 10px; transform: rotate(180deg); }
+.aic-sheet__title { font: 30px/1.1 var(--aic-font-display); text-align: center; margin: 2px 0 8px; color: var(--aic-ink); }
+.aic-sheet p { font: 500 15px/1.4 var(--aic-font-body); margin: 6px 0; }
+.aic-howto { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.aic-howto figure { margin: 0; text-align: center; font: 600 13px/1.25 var(--aic-font-body); }
+.aic-howto canvas { width: 100%; aspect-ratio: 1; border-radius: 8px; background: var(--aic-baize); border: 2px solid var(--aic-ink); }
+
+/* ------------------------------------------------------------ play: stage + gutters (G10) */
+.aic-stage { position: absolute; } /* the canvas box; the game sets left/top/width/height = the maze rect */
+.aic-stage canvas { display: block; width: 100%; height: 100%; }
+.aic-gutter {
+  position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 10px 4px; text-align: center;
+}
+.aic-gutter--start { right: 0; }  /* RTL start: score, round, buy-ins, hand rail */
+.aic-gutter--end { left: 0; }     /* table talk, spectators, pause/sound */
+.aic-gutter__icons { display: flex; gap: 12px; } /* 12 px so the 44 px hit areas don't overlap */
+.aic-app[data-gutter="narrow"] .aic-gutter__icons { flex-direction: column; }
+.aic-label { font: 700 15px/1 var(--aic-font-label); color: var(--aic-muted); letter-spacing: .04em; }
+.aic-score { font: 700 30px/0.9 var(--aic-font-label); color: var(--aic-marigold); font-variant-numeric: tabular-nums; direction: ltr; }
+.aic-app[data-gutter="narrow"] .aic-score { font-size: 23px; }
+.aic-app[data-gutter="narrow"] .aic-label { font-size: 13px; }
+.aic-score.is-bump { animation: aic-bump 180ms var(--aic-ease-clack); }
+
+/* buy-ins: red chip stacks, pure CSS. <div class="aic-stacks" data-n="3"><i></i><i></i><i></i></div> (max 4) */
+.aic-stacks { display: flex; gap: 4px; direction: ltr; }
+.aic-stacks i { /* the top chip is the element; the two below are box-shadows (hot body over an ink outline) */
+  --w: 22px; --d: calc(var(--w) * .2); display: block; width: var(--w); height: calc(var(--w) * .42);
+  margin-bottom: calc(var(--d) * 2); border-radius: 50%; background: var(--aic-hot); border: 1.5px solid var(--aic-ink);
+  box-shadow: inset 0 0 0 2px var(--aic-hot), inset 0 0 0 3px var(--aic-cream),
+    0 var(--d) 0 -1.5px var(--aic-hot), 0 var(--d) 0 0 var(--aic-ink),
+    0 calc(var(--d) * 2) 0 -1.5px var(--aic-hot), 0 calc(var(--d) * 2) 0 0 var(--aic-ink);
+}
+.aic-app[data-gutter="narrow"] .aic-stacks i { --w: 16px; }
+.aic-stacks i.is-lost { animation: aic-stack-lost 400ms var(--aic-ease-clack) forwards; }
+
+/* the 5-slot hand rail. <div class="aic-rail"><div class="aic-card" data-suit="h"><b>K</b><i>♥</i></div><div class="aic-slot"></div>…</div> */
+.aic-rail { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.aic-app[data-gutter="wide"] .aic-rail { flex-direction: row; flex-wrap: wrap; justify-content: center; max-width: 132px; margin-top: auto; }
+.aic-slot, .aic-card { width: 24px; height: 33px; border-radius: 4px; flex: none; }
+.aic-app[data-gutter="wide"] :is(.aic-slot, .aic-card) { width: 34px; height: 47px; border-radius: 5px; }
+.aic-slot { border: 1.5px dashed rgba(255, 244, 220, .35); }
+.aic-card {
+  position: relative; background: var(--aic-cream); border: 1.5px solid var(--aic-ink); color: var(--aic-suit-spade);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; direction: ltr;
+  font: 700 14px/0.9 var(--aic-font-label); box-shadow: 0 2px 0 rgba(0, 0, 0, .35);
+}
+.aic-card i { font: 11px/1 system-ui; font-style: normal; }
+.aic-app[data-gutter="wide"] .aic-card { font-size: 20px; }
+.aic-app[data-gutter="wide"] .aic-card i { font-size: 15px; }
+.aic-card[data-suit="h"] { color: var(--aic-suit-heart); }
+.aic-card[data-suit="d"] { color: var(--aic-suit-diamond); }
+.aic-card[data-suit="c"] { color: var(--aic-suit-club); }
+.aic-card.is-new { animation: aic-card-land 300ms var(--aic-ease-clack); }
+
+/* table talk: a mini head + a comic bubble, 1 at a time. On narrow gutters it's .aic-band under the maze. */
+.aic-talk { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: auto 0; max-width: 100%; }
+.aic-talk[hidden] { display: none; }
+.aic-mini { width: 54px; height: 58px; display: block; }
+.aic-bubble {
+  position: relative; background: var(--aic-cream); color: var(--aic-ink); border: 2px solid var(--aic-ink);
+  border-radius: var(--aic-r-bubble); padding: 5px 9px 6px; font: 600 14px/1.25 var(--aic-font-body); text-align: center;
+  animation: aic-pop-in 160ms var(--aic-ease-clack);
+}
+.aic-bubble::after { content: ""; position: absolute; top: -9px; right: 50%; margin-right: -8px; border: 8px solid transparent; border-bottom-color: var(--aic-ink); border-top: 0; }
+.aic-bubble__who { display: block; font: 700 14px/1.1 var(--aic-font-label); color: var(--aic-ink-2); }
+.aic-bubble--dealer { background: var(--aic-room-2); color: var(--aic-cream); border-color: var(--aic-marigold); }
+.aic-bubble--dealer .aic-bubble__who { color: var(--aic-marigold); }
+.aic-bubble--dealer::after { border-bottom-color: var(--aic-marigold); }
+.aic-band { position: absolute; bottom: 2px; display: flex; align-items: center; gap: 6px; direction: rtl; }
+.aic-band .aic-mini { width: 30px; height: 32px; }
+.aic-band .aic-bubble { padding: 2px 9px; font-size: 12.5px; border-radius: 10px; white-space: nowrap; display: flex; gap: 5px; align-items: baseline; }
+.aic-band .aic-bubble__who { display: inline; font-size: 13px; }
+.aic-band .aic-bubble::after { top: 50%; right: -9px; margin: -6px 0 0; border: 6px solid transparent; border-left-color: var(--aic-ink); border-right: 0; }
+.aic-band .aic-bubble--dealer::after { border-left-color: var(--aic-marigold); }
+
+/* rail spectators (the 3 regulars not dealt) */
+.aic-spectators { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; margin-top: auto; max-width: 100%; }
+.aic-spectators .aic-mini { width: 31px; height: 34px; }
+.aic-app[data-gutter="wide"] .aic-spectators .aic-mini { width: min(40px, calc((100% - 4px) / 3)); height: auto; aspect-ratio: 40 / 43; }
+.aic-spectators .aic-mini.is-hop { animation: aic-hop 300ms var(--aic-ease-clack); }
+.aic-app[data-gutter="narrow"] .aic-spectators { display: none; }
+
+/* ------------------------------------------------------------ over the maze (DOM layer above the canvas) */
+.aic-over { position: absolute; pointer-events: none; } /* same rect as .aic-stage */
+.aic-tag { /* "פולד" on a folded ghost; the eaten nickname; positioned by the game at the actor (translate(-50%)) */
+  position: absolute; transform: translate(50%, 0); white-space: nowrap;
+  font: 700 12px/1 var(--aic-font-label); letter-spacing: .03em;
+  background: var(--aic-fold); color: var(--aic-ink); border: 1.5px solid var(--aic-ink); border-radius: 6px; padding: 2px 4px 1px;
+}
+.aic-tag--eaten { background: var(--aic-room-2); color: var(--aic-cream); border-color: var(--aic-cream); }
+.aic-pop { /* eat-freeze score pop, "ריבאי!" */
+  position: absolute; transform: translate(50%, -50%); white-space: nowrap;
+  font: 700 18px/1 var(--aic-font-label); color: var(--aic-marigold); text-shadow: 0 2px 0 var(--aic-ink), 0 0 6px var(--aic-ink);
+  animation: aic-pop-up 500ms var(--aic-ease-clack) both; direction: ltr;
+}
+.aic-pop--shout { font: 22px/1 var(--aic-font-display); color: var(--aic-cream); direction: rtl; }
+.aic-plate { /* the guest's "אורח · 1,000" and the title seat names */
+  position: absolute; transform: translate(50%, 0); white-space: nowrap;
+  font: 700 15px/1 var(--aic-font-label); color: var(--aic-cream); background: rgba(17, 12, 10, .8);
+  padding: 3px 7px 2px; border-radius: 9px;
+}
+.aic-plate--gold { background: var(--aic-marigold); color: var(--aic-ink); border: 1.5px solid var(--aic-ink); }
+.aic-shout { /* the dealer's shout over the top rail: "פולד!", "ריבר!", "אול-אין!" */
+  position: absolute; white-space: nowrap; font: 26px/1 var(--aic-font-display); color: var(--aic-marigold);
+  text-shadow: 0 2px 0 var(--aic-ink); transform: rotate(-4deg); animation: aic-slam 260ms var(--aic-ease-clack) both;
+}
+
+/* ------------------------------------------------------------ the hand beat (clear, 1.5 s; screenshot at 0.8 s) */
+.aic-beat { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(17, 12, 10, .62), rgba(17, 12, 10, .2) 70%); }
+.aic-beat__inner { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.aic-beat__cards { display: flex; gap: 6px; direction: ltr; perspective: 600px; }
+.aic-beat__cards .aic-card { width: 52px; height: 72px; border-radius: 7px; border-width: 2px; font-size: 30px; box-shadow: 0 6px 12px rgba(0, 0, 0, .5);
+  animation: aic-flip var(--aic-t-flip) var(--aic-ease-deal) both; }
+.aic-beat__cards .aic-card i { font-size: 22px; }
+.aic-beat__cards .aic-card:nth-child(2) { animation-delay: 180ms; }
+.aic-beat__cards .aic-card:nth-child(3) { animation-delay: 360ms; }
+.aic-beat__cards .aic-card:nth-child(4) { animation-delay: 540ms; }
+.aic-beat__cards .aic-card:nth-child(5) { animation-delay: 720ms; }
+.aic-beat__cards .aic-card.is-lift { transform: translateY(-10px); box-shadow: 0 0 0 3px var(--aic-marigold), 0 10px 14px rgba(0, 0, 0, .5); }
+.aic-beat__cards .aic-slot { width: 52px; height: 72px; border-radius: 7px; }
+.aic-beat__name { font: 48px/1 var(--aic-font-display); color: var(--aic-cream); text-shadow: 0 3px 0 var(--aic-ink); transform: rotate(-3deg);
+  animation: aic-slam 260ms var(--aic-ease-clack) 900ms both; }
+.aic-beat__pay { font: 700 34px/1 var(--aic-font-label); color: var(--aic-marigold); text-shadow: 0 2px 0 var(--aic-ink); direction: ltr; }
+.aic-app[data-gutter="narrow"] .aic-beat__cards .aic-card, .aic-app[data-gutter="narrow"] .aic-beat__cards .aic-slot { width: 44px; height: 61px; font-size: 25px; }
+.aic-app[data-gutter="narrow"] .aic-beat__name { font-size: 40px; }
+
+/* chip shower (celebration: hand >= full house, new best). <div class="aic-shower"><i style="--x:..;--d:..;--c:.."></i>…</div> */
+.aic-shower { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.aic-shower i { position: absolute; top: -20px; left: var(--x); width: 16px; height: 16px; border-radius: 50%;
+  background: radial-gradient(circle, var(--c, var(--aic-hot)) 0 50%, var(--aic-cream) 50% 60%, var(--c, var(--aic-hot)) 60%); border: 1.5px solid var(--aic-ink);
+  animation: aic-chipfall 900ms cubic-bezier(.5, 0, .9, .6) var(--d, 0ms) both; }
+
+/* ------------------------------------------------------------ title */
+.aic-title__name { position: absolute; left: 50%; transform: translateX(-50%) rotate(-3deg); white-space: nowrap;
+  font: 64px/1 var(--aic-font-display); color: var(--aic-cream); text-shadow: 0 2px 0 rgba(10, 30, 20, .6); }
+.aic-title__tag { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; font: 600 16px/1 var(--aic-font-body); color: var(--aic-lamp); }
+.aic-title__corner { position: absolute; top: 12px; right: 14px; text-align: right; }
+.aic-title__corner .aic-score { font-size: 24px; }
+
+/* ------------------------------------------------------------ the deal */
+.aic-deal__head { position: absolute; top: 14px; left: 0; right: 0; text-align: center; font: 700 18px/1 var(--aic-font-label); color: var(--aic-muted); letter-spacing: .04em; }
+.aic-deal__you { position: absolute; left: 0; right: 0; text-align: center; font: 30px/1 var(--aic-font-display); color: var(--aic-cream); text-shadow: 0 2px 0 var(--aic-ink); }
+.aic-deal__you b { color: var(--aic-marigold); font-weight: 400; }
+.aic-deal__skip { position: absolute; bottom: 10px; left: 14px; font: 600 13px/1 var(--aic-font-body); color: var(--aic-muted); }
+.aic-dealcard { position: absolute; transform: translate(50%, -50%); transform-style: preserve-3d; }
+.aic-dealcard__role { position: absolute; left: 50%; transform: translate(-50%, 0); white-space: nowrap; font: 700 15px/1 var(--aic-font-label);
+  padding: 3px 7px 2px; border-radius: 8px; border: 1.5px solid var(--aic-ink); color: var(--aic-cream); background: var(--b, var(--aic-hot)); }
+.aic-dealcard__role[data-b="direct"] { --b: var(--aic-b-direct); }
+.aic-dealcard__role[data-b="ambush"] { --b: var(--aic-b-ambush); }
+.aic-dealcard__role[data-b="flank"] { --b: var(--aic-b-flank); color: var(--aic-ink); }
+.aic-dealcard__role[data-b="shy"] { --b: var(--aic-b-shy); }
+.aic-dealcard__name { position: absolute; left: 50%; transform: translate(-50%, 0); white-space: nowrap; font: 700 16px/1 var(--aic-font-label); color: var(--aic-cream); }
+
+/* first-run hint card */
+.aic-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-1.5deg); width: min(360px, 80vw);
+  background: var(--aic-cream); color: var(--aic-ink); border: 2.5px solid var(--aic-ink); border-radius: 12px; padding: 12px 16px 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .55); font: 500 15px/1.35 var(--aic-font-body); }
+.aic-hint ol { margin: 0; padding: 0 20px 0 0; }
+.aic-hint li { margin: 3px 0; }
+.aic-hint li::marker { font: 700 16px var(--aic-font-label); color: var(--aic-hot); }
+.aic-hint__tap { display: block; text-align: center; margin-top: 6px; font: 700 14px/1 var(--aic-font-label); color: var(--aic-ink-2); }
+
+/* ------------------------------------------------------------ game over: "נגמרו הצ'יפים" */
+.aic-gameover { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; align-items: center; padding: 18px 28px; gap: 16px; }
+.aic-gameover__title { font: 46px/1 var(--aic-font-display); color: var(--aic-cream); text-shadow: 0 3px 0 var(--aic-ink); transform: rotate(-2deg); margin: 0 0 6px; }
+.aic-gameover__score { font: 700 58px/0.9 var(--aic-font-label); color: var(--aic-marigold); direction: ltr; text-align: right; }
+.aic-gameover__best { font: 700 18px/1.2 var(--aic-font-label); color: var(--aic-muted); }
+.aic-gameover__best.is-new { color: var(--aic-marigold); }
+.aic-gameover__actions { display: flex; gap: 14px; align-items: center; margin-top: 12px; }
+.aic-gameover__catcher { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.aic-bagrow { display: flex; gap: 4px; justify-content: center; margin-top: 8px; }
+.aic-bagrow figure { margin: 0; text-align: center; opacity: .45; filter: grayscale(.7); }
+.aic-bagrow figure.is-lit { opacity: 1; filter: none; }
+.aic-bagrow .aic-mini { width: 34px; height: 37px; }
+.aic-bagrow figcaption { font: 700 12px/1 var(--aic-font-label); color: var(--aic-muted); direction: ltr; }
+.aic-bagrow__count { text-align: center; font: 700 14px/1 var(--aic-font-label); color: var(--aic-muted); margin-top: 4px; }
+
+/* ------------------------------------------------------------ turn your phone */
+.aic-turn { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; background: var(--aic-room); }
+.aic-turn p { font: 600 18px/1.35 var(--aic-font-body); color: var(--aic-cream); margin: 12px 20px 0; }
+.aic-turn small { display: block; font: 700 15px/1 var(--aic-font-label); color: var(--aic-muted); margin-top: 8px; }
+.aic-turn canvas { margin: 0 auto; animation: aic-turn 2.4s ease-in-out infinite; }
+
+/* ------------------------------------------------------------ motion */
+@keyframes aic-flip { from { transform: rotateY(90deg) translateY(12px); } to { transform: rotateY(0) translateY(0); } }
+@keyframes aic-slam { from { transform: scale(1.8) rotate(-3deg); opacity: 0; } 60% { opacity: 1; } to { transform: scale(1) rotate(-3deg); } }
+@keyframes aic-pop-in { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes aic-pop-up { from { transform: translate(50%, -20%) scale(.7); opacity: 0; } 30% { opacity: 1; } to { transform: translate(50%, -90%) scale(1); } }
+@keyframes aic-bump { 50% { transform: scale(1.18); } }
+@keyframes aic-card-land { from { transform: translateX(-40px) rotate(-20deg) scale(1.4); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes aic-stack-lost { to { transform: translateY(14px) rotate(40deg); opacity: 0; } }
+@keyframes aic-hop { 40% { transform: translateY(-6px) scale(1.06, .9); } }
+@keyframes aic-chipfall { from { transform: translateY(0) rotate(0); } to { transform: translateY(var(--y, 360px)) rotate(540deg); } }
+@keyframes aic-deal-in { from { transform: translateX(-60vw) rotate(-14deg); } to { transform: none; } }
+@keyframes aic-turn { 0%, 30% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .aic-app *, .aic-app *::before, .aic-app *::after { animation-duration: 0ms !important; animation-delay: 0ms !important; transition-duration: 0ms !important; }
+  .aic-shower { display: none; }
+}
