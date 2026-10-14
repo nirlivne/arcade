@@ -1,0 +1,127 @@
+/* Squawk 7700 tokens (THE-734). Load first; skin.css (loaded last) uses only these variables.
+   Look: dusk faceted low-poly sky behind instrument glass. Words are RTL Hebrew; numbers and instruments are LTR
+   with Latin digits. Values for the 3D world (vertex colours) live in theme.js / design/squawk-7700/recipe.md;
+   the --sky-* and --dl-* copies here are for DOM screens that must match the scene (title glow, results, icons). */
+
+/* Fonts: 5 woff2 subsets, 64.7 KB in total, each with Basic Latin (digits, A–Z), ° · × – — ′ ″ ← ↑ → ↓ −;
+   the two text faces also carry Hebrew. One file per weight, no unicode-range split, so digits can never go
+   missing (the game #10 bug). Plex subsets are renamed "Squawk …" (OFL reserved font name rule). */
+@font-face { font-family: "Secular One"; font-weight: 400; src: url(fonts/secularone-400.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Squawk Sans Hebrew"; font-weight: 400; src: url(fonts/plexhebrew-400.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Squawk Sans Hebrew"; font-weight: 600; src: url(fonts/plexhebrew-600.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Squawk Mono"; font-weight: 500; src: url(fonts/plexmono-500.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Squawk Mono"; font-weight: 700; src: url(fonts/plexmono-700.woff2) format("woff2"); font-display: swap; }
+
+:root {
+  /* ---- instrument glass: the UI ground ---- */
+  --sq-glass: #0D1015;
+  --sq-glass-hi: #171B22;
+  --sq-glass-a: rgba(8, 10, 14, .62);   /* tapes and readouts over the 3D scene */
+  --sq-bezel: #262B33;
+  --sq-bezel-hi: #2C323B;
+  --sq-bezel-lo: #15181D;
+  --sq-rim: #313945;
+  --sq-screw: #5A616C;
+  --sq-cap-hi: #2A3038;                  /* push-button cap */
+  --sq-cap-lo: #1A1E24;
+  --sq-ring: #39414C;
+  --sq-shadow: #0A0C0F;
+
+  /* ---- instrument inks ---- */
+  --sq-ink: #EEF2F6;
+  --sq-ink-dim: #9AA6B4;
+  --sq-tick: #C9D2DC;
+  --sq-amber: #FFB224;                   /* accent: XPDR, primary buttons, edge lights */
+  --sq-amber-lo: #8A5A08;
+  --sq-cyan: #5EE6F0;                    /* labels, secondary buttons */
+  --sq-magenta: #F25CD0;                 /* target bug, glide path */
+  --sq-ok: #4ADE80;                      /* in range, level, souls */
+  --sq-alarm: #FF3344;                   /* danger only */
+  --sq-alarm-deep: #B3122A;
+  --sq-barber-a: #E01E37;                /* overspeed barber pole, red + white: not colour alone */
+  --sq-barber-b: #FFFFFF;
+  --sq-off: #56606C;                     /* unlit legend */
+
+  /* ---- paper (flight strips on the results screen) ---- */
+  --sq-strip: #F4F1EA;
+  --sq-strip-lo: #E9E4D8;
+  --sq-strip-ink: #1A1F2B;
+  --sq-strip-dim: #4E5866;
+  --sq-gold: #C98A12;
+  --sq-silver: #5D6776;
+  --sq-bronze: #9A5A3A;
+
+  /* ---- world copies (must match theme.js) ---- */
+  --sq-sky-cruise-z: #17143A; --sq-sky-cruise-h: #C66A86;
+  --sq-sky-dive-z: #2A1F5C;   --sq-sky-dive-h: #F2A272;
+  --sq-sky-escort-z: #3A3678; --sq-sky-escort-h: #F7B878;
+  --sq-sky-land-z: #231D4C;   --sq-sky-land-h: #FF9A5C;
+  --sq-sky-dawn-z: #3B4C8A;   --sq-sky-dawn-h: #FFD2A1;
+  --sq-sand: #C9834F;
+  --sq-hull: #F4F1EA;
+  --sq-dl-teal: #1C6B74;
+  --sq-dl-fin: #135560;
+  --sq-dl-apricot: #F2994A;
+  --sq-dl-cream: #F7E7C4;
+  --sq-mask: #FFC93C;
+
+  /* ---- overlays (one CSS layer each, no post-processing) ---- */
+  --sq-vig-grey: #05060A;                /* g > 3 tunnel */
+  --sq-vig-red: #FF3344;                 /* g < 0 edge, aisle floats */
+  --sq-flash: #FFFFFF;                   /* fail flash 160 ms, pull-out 120 ms */
+
+  /* contrast: --sq-ink on --sq-glass >= 4.5 */
+  /* contrast: --sq-ink-dim on --sq-glass >= 4.5 */
+  /* contrast: --sq-ink-dim on --sq-bezel >= 4.5 */
+  /* contrast: --sq-amber on --sq-glass >= 4.5 */
+  /* contrast: --sq-amber on --sq-cap-lo >= 4.5 */
+  /* contrast: --sq-cyan on --sq-glass >= 4.5 */
+  /* contrast: --sq-cyan on --sq-cap-lo >= 4.5 */
+  /* contrast: --sq-alarm on --sq-glass >= 4.5 */
+  /* contrast: --sq-ok on --sq-glass >= 4.5 */
+  /* contrast: --sq-magenta on --sq-glass >= 3 */
+  /* contrast: --sq-off on --sq-cap-lo >= 2 */
+  /* contrast: --sq-strip-ink on --sq-strip >= 4.5 */
+  /* contrast: --sq-strip-dim on --sq-strip-lo >= 4.5 */
+  /* contrast: --sq-strip-ink on --sq-gold >= 4.5 */
+  /* contrast: --sq-ink on --sq-silver >= 4.5 */
+  /* contrast: --sq-ink on --sq-bronze >= 4.5 */
+  /* contrast: --sq-ink on --sq-sky-cruise-z >= 4.5 */
+  /* contrast: --sq-dl-cream on --sq-sky-cruise-z >= 4.5 */
+  /* contrast: --sq-barber-a on --sq-barber-b >= 3 */
+  /* contrast: --sq-mask on --sq-dl-teal >= 3 */
+
+  /* ---- type ---- */
+  --sq-f-display: "Secular One", "Squawk Sans Hebrew", system-ui, sans-serif;  /* title, prompts, buttons, phase names */
+  --sq-f-body: "Squawk Sans Hebrew", system-ui, sans-serif;                    /* body, how-to, About */
+  --sq-f-num: "Squawk Mono", ui-monospace, monospace;                          /* every number + instrument label */
+  --sq-fs-prompt: 40px;        /* 844×390; scaled by --sq-scale on desktop */
+  --sq-fs-title: 30px;
+  --sq-fs-body: 15px;
+  --sq-fs-label: 11px;
+  --sq-fs-read: 22px;          /* HUD readouts */
+
+  /* ---- shape: instrument geometry, small square-ish radii, 4 screws on every panel ---- */
+  --sq-r-btn: 7px;
+  --sq-r-panel: 12px;
+  --sq-r-glass: 6px;
+  --sq-r-strip: 4px;
+
+  /* ---- layout (844×390 reference; see skin.css media queries for 664 and desktop) ---- */
+  --sq-edge: 14px;             /* safe inset from the screen edge (notch side included) */
+  --sq-tape-w: 64px;
+  --sq-tape-h: 230px;
+  --sq-xpdr-w: 140px;
+  --sq-ctx: 72px;              /* context button */
+  --sq-hit: 44px;              /* smallest hit target */
+  --sq-scale: 1;               /* desktop HUD scale (1.4 at 1280×800, 1.2 at 1024×768) */
+
+  /* ---- motion: instrument needles, fast linear with one overshoot ---- */
+  --sq-e-needle: cubic-bezier(.3, 1.45, .5, 1);
+  --sq-e-out: cubic-bezier(.2, .7, .2, 1);
+  --sq-t-tick: 90ms;
+  --sq-t-press: 120ms;
+  --sq-t-panel: 260ms;
+  --sq-t-strip: 180ms;         /* results: strips drop 180 ms apart */
+  --sq-t-flash: 160ms;
+}
