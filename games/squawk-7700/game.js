@@ -109,7 +109,24 @@ function resizeCanvas() {
   resize(w, h);
 }
 window.addEventListener("resize", resizeCanvas);
+document.addEventListener("fullscreenchange", resizeCanvas);
 resizeCanvas();
+
+// THE-779: a phone browser keeps its address bar and toolbars up unless asked, which boxes the game
+// in on a landscape phone. Called from the start/resume taps (inside their user gesture): go
+// fullscreen, then lock landscape once granted. Touch only (desktop keeps its window); skipped when
+// already fullscreen or launched from the home screen; iPhone Safari has no element fullscreen API,
+// so it's a no-op there. Leaving fullscreen (back gesture / Esc) is respected until the next start tap.
+function goFullscreen() {
+  const el = document.documentElement;
+  if (!touch || !el.requestFullscreen || document.fullscreenElement) return;
+  if (matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches) return;
+  try {
+    Promise.resolve(el.requestFullscreen({ navigationUI: "hide" }))
+      .then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock("landscape"))
+      .catch(() => {});
+  } catch (e) { /* old engines throw synchronously; the game still plays in the window */ }
+}
 
 function setPaused(on, source) {
   if (on) pauseSources.add(source); else pauseSources.delete(source);
@@ -126,6 +143,7 @@ function startRun(seed, opts) {
   prevPhase = null; // force the first tick's onPhaseEnter("card") to fire and show the cut card
   mode = opts && opts.practice ? "practice" : "run";
   setPaused(false, "menu");
+  goFullscreen();
 }
 
 function openPause() {
@@ -137,6 +155,7 @@ function closeMenuAndResume() {
   menu.hideAll();
   setPaused(false, "menu");
   input.rezero();
+  goFullscreen();
 }
 
 function todayShareText() {
