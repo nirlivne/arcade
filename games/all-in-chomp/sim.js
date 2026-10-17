@@ -1,48 +1,51 @@
-// The rules, stepped by index only (1 step = 1/60s). S6 scope adds maze B + level scaling (speeds +4%/level
-// to L8, fold -0.5s/level floor 2s), alternating mazes, the nightly table (seeded lineup/deck, dealt
-// outside this module - see deal.js's dealNightly), and mid-level reload (levelSnapshot/resumeLevel). No
-// DOM, no clock, no Math.random. Pure.
+// The rules, stepped by index only (1 step = 1/60s): the maze chase, the fold, the rebuy wait, the joker
+// (board 2026-10-17: cards and poker hands are gone), level scaling (+7 %/level to L6, fold -0.5s/level
+// floor 2s, chasers released a second sooner each level), alternating mazes, the nightly table (seeded
+// lineup, dealt outside this module - deal.js's dealNightly) and mid-level reload (levelSnapshot/
+// resumeLevel). No DOM, no clock, no Math.random. Pure.
 import { mulberry32 } from "./rng.js";
 import { MAZE_A, MAZE_B, parse } from "./maze.js";
 import { stepActor, placeAtTile, tileIndexOf, segIndexOf, isAtCentre, tileCenter, actorAtCentre, OPPOSITE, DELTA } from "./move.js";
 import { modeAt, targetTile, pickDirection, foldDirection, eyesDirection } from "./ghosts.js";
-import { dealHand, bestHand } from "./cards.js";
 import { createTalkState, updateTalk } from "./talk.js";
 
 export const READY_STEPS = 90; // 1.5s at 60Hz
 export const DYING_STEPS = 90;
 export const EAT_FREEZE_STEPS = 30; // 0.5s
-export const CLEAR_STEPS = 90; // 1.5s, the hand beat
+export const CLEAR_STEPS = 120; // 2s, the level-clear show (board 2026-10-17; was 1.5s for the hand beat)
 export const START_BUY_INS = 3;
 export const FOLD_STEPS_L1 = 360; // 6s at L1; -0.5s/level, floor 2s (120 steps)
 export const FREE_FIRST_RUN_STEPS = 20 * 60; // 20s
 export const BONUS_BUY_IN_SCORE = 10000;
 export const MAX_BUY_INS = 4; // the +1 bonus buy-in caps here, same cap the game-over check never exceeds
-export const CARD_THRESHOLDS = [25, 50, 75, 100, 125];
-export const CARD_DURATION_STEPS = 9 * 60; // 9s
 export const REBUY_WAIT_STEPS = 240; // 4s: an eaten chaser sits in the seat before it comes back out (board, 2026-10-17)
-export const MAX_SCALE_LEVEL = 8;
+export const MAX_SCALE_LEVEL = 6;
+const SPEED_STEP_PER_LEVEL = 0.07; // +7 %/level to MAX_SCALE_LEVEL (board 2026-10-17; was +4 % to L8)
+export const JOKER_AT_CHIPS = 60; // the joker shows once per level after this many chips (40 % of a table)
+export const JOKER_STEPS = 600; // 10s on the felt
 const FOLD_STEPS_PER_LEVEL = 30; // -0.5s a level
 const FOLD_STEPS_FLOOR = 120; // 2s, the fold duration never scales below this
 const CHOMPER_SPEED_L1 = 30; // 7.5 t/s
 const GHOST_SPEED_L1 = 28; // 7.0 t/s
 const FOLD_SPEED_L1 = 18; // 4.5 t/s
 const EYES_SPEED = 56; // 14 t/s - eyes/chip glide never scales with level
-// Release order follows the dealt slot order (G2/spec §3): 4/8/12/16s of level time.
-const RELEASE_STEPS = [4, 8, 12, 16].map((s) => s * 60);
 
-// Every speed +4%/level to L8, then flat; rounded to the nearest whole sub-unit.
+// Every speed +7 %/level to L6, then flat; rounded to the nearest whole sub-unit.
 function scaleSpeed(base, level) {
-  const mult = 1 + 0.04 * (Math.min(level, MAX_SCALE_LEVEL) - 1);
+  const mult = 1 + SPEED_STEP_PER_LEVEL * (Math.min(level, MAX_SCALE_LEVEL) - 1);
   return Math.round(base * mult);
+}
+// Release order follows the dealt slot order (G2/spec §3): 4/8/12/16s of level time at L1, a second sooner
+// each level, never under 1/2/3/4s (board 2026-10-17).
+export function releaseStepsForLevel(level, slot) {
+  return Math.max(slot + 1, 4 * (slot + 1) - (level - 1)) * 60;
 }
 function foldStepsForLevel(level) {
   return Math.max(FOLD_STEPS_FLOOR, FOLD_STEPS_L1 - FOLD_STEPS_PER_LEVEL * (level - 1));
 }
-// L1-2 maze A, then B, A, B... (spec §3 / design §3).
+// A and B alternate from level 1: odd levels the felt, even levels the kitchen table (board 2026-10-17).
 export function mazeKeyForLevel(level) {
-  if (level <= 2) return "A";
-  return level % 2 === 0 ? "A" : "B";
+  return level % 2 === 1 ? "A" : "B";
 }
 function mazeRowsForLevel(level) {
   return mazeKeyForLevel(level) === "A" ? MAZE_A : MAZE_B;
@@ -69,19 +72,10 @@ function freshActors(maze, ghostIds, behaviours) {
   return { player, ghosts };
 }
 
-// A fresh level's card deck + bonus-slot state, drawn from the run's own rng (the "sim" stream: deck,
-// folded-ghost turns - spec's "fx" stream for talk/cosmetics is S5).
-function freshLevelCards(rng) {
-  const { handClass, cards } = dealHand(rng);
-  return {
-    deckClass: handClass,
-    deckCards: cards,
-    cardsCollected: [],
-    cardsSpawned: 0,
-    cardsDue: 0,
-    cardSlot: null,
-    chipsEatenLevel: 0,
-  };
+// A fresh level's joker state: nothing showing, not yet spawned this level. The held joker (run.joker) is
+// the run's, not the level's: createRun/resumeLevel set it and a level clear never resets it.
+function freshLevelJoker() {
+  return { jokerSlot: null, jokerSpawnedLevel: false, chipsEatenLevel: 0 };
 }
 
 // Two RNG streams seeded from the same run seed + a constant, so talk/cosmetic picks never move the sim
@@ -133,10 +127,9 @@ export function createRun({
     buyIns: START_BUY_INS,
     chipsLeft: maze.chipCount,
     eaten: new Set(),
-    lastHand: null,
     lastCatcherId: null,
-    bestHandThisRun: null, // the best hand made across every level this run (for the nightly share line)
-    ...freshLevelCards(rng),
+    joker: false, // the held joker (board 2026-10-17): the run's, kept across levels, spent on a catch
+    ...freshLevelJoker(),
     player,
     ghosts,
   };
@@ -195,9 +188,8 @@ function awardScore(run, points) {
   return null;
 }
 
-// A chip under the chomper is eaten once. Reaching a card threshold (25/50/75/100/125 this level) queues a
-// card; reaching 0 chips left is the level clear, handled by the caller (step()) once all of this step's
-// pickups are resolved. Returns a talk candidate, if any (the bonus buy-in).
+// A chip under the chomper is eaten once. Reaching 0 chips left is the level clear, handled by the caller
+// (step()) once all of this step's pickups are resolved. Returns a talk candidate, if any (the bonus buy-in).
 function eatChip(run) {
   const tile = currentTile(run.player);
   const key = `${tile.x},${tile.y}`;
@@ -206,42 +198,35 @@ function eatChip(run) {
     run.chipsLeft -= 1;
     run.chipsEatenLevel += 1;
     const bonus = awardScore(run, 10);
-    if (CARD_THRESHOLDS.includes(run.chipsEatenLevel)) run.cardsDue += 1;
     return bonus;
   }
   return null;
 }
 
-// The single bonus slot: shows the next due card once free, 9s each, grabbed by running over it at the
-// bonus spot (BONUS_SPOT = the chomper's start tile, (12,9) on both mazes, design/all-in-chomp/mazes.mjs).
-// Missed/queued cards are simply lost, never scored. Returns any talk candidates raised this step.
-function updateCardSlot(run) {
+// The joker (board 2026-10-17): once per level, after JOKER_AT_CHIPS chips, a joker card shows at the bonus
+// spot (BONUS_SPOT = the chomper's start tile, (12,9) on both mazes) for JOKER_STEPS, unless one is already
+// held. Missed = gone for this level. Returns any talk candidates raised this step.
+function updateJoker(run) {
   const candidates = [];
-  if (run.cardSlot) {
-    run.cardSlot.left -= 1;
-    if (run.cardSlot.left <= 0) {
-      run.cardSlot = null; // missed = gone
-      candidates.push({ event: "cardMissed", who: null });
-    }
+  if (run.jokerSlot) {
+    run.jokerSlot.left -= 1;
+    if (run.jokerSlot.left <= 0) run.jokerSlot = null;
   }
-  if (!run.cardSlot && run.cardsDue > 0 && run.cardsSpawned < run.deckCards.length) {
-    run.cardSlot = { card: run.deckCards[run.cardsSpawned], left: CARD_DURATION_STEPS };
-    run.cardsSpawned += 1;
-    run.cardsDue -= 1;
-    if (run.cardsSpawned === 1) candidates.push({ event: "firstCard", who: null });
-    if (run.cardsSpawned === 5) candidates.push({ event: "fifthCard", who: null });
+  if (!run.jokerSlot && !run.joker && !run.jokerSpawnedLevel && run.chipsEatenLevel >= JOKER_AT_CHIPS) {
+    run.jokerSlot = { left: JOKER_STEPS };
+    run.jokerSpawnedLevel = true;
+    candidates.push({ event: "jokerOut", who: null });
   }
   return candidates;
 }
 
-function tryGrabCard(run) {
-  if (!run.cardSlot) return;
+function tryGrabJoker(run) {
+  if (!run.jokerSlot) return [];
   const tile = currentTile(run.player);
-  const spot = BONUS_SPOT;
-  if (tile.x === spot.x && tile.y === spot.y) {
-    run.cardsCollected.push(run.cardSlot.card);
-    run.cardSlot = null;
-  }
+  if (tile.x !== BONUS_SPOT.x || tile.y !== BONUS_SPOT.y) return [];
+  run.joker = true;
+  run.jokerSlot = null;
+  return [{ event: "jokerTaken", who: null }];
 }
 
 // A new ALL IN restarts the fold for every ghost not gliding home (eaten) and resets the chain to 200,
@@ -267,7 +252,7 @@ function tryGrabAllIn(run) {
 
 function releaseGhosts(run) {
   for (const g of run.ghosts) {
-    if (!g.active && run.levelSteps >= RELEASE_STEPS[g.slot]) {
+    if (!g.active && run.levelSteps >= releaseStepsForLevel(run.level, g.slot)) {
       g.active = true;
       const c = tileCenter(run.maze.door.x, run.maze.door.y);
       g.x = c.x;
@@ -384,11 +369,10 @@ export function step(run) {
       run.eaten.clear();
       run.chipsLeft = run.maze.chipCount;
       run.allInEaten.clear();
-      // Bank the RNG state before drawing this level's deck, not after: resumeLevel() restores to
-      // rngAtLevelStart and redraws from there, so recording it post-draw (as before) replayed a *different*
-      // deck on reload - the live deal had already consumed the state resumeLevel then redrew from (THE-690 #3).
+      // Bank the RNG state at the level start: resumeLevel() restores to rngAtLevelStart, so the level's
+      // fold rolls replay identically on a reload (THE-690 #3).
       run.rngAtLevelStart = run.rng.state >>> 0;
-      Object.assign(run, freshLevelCards(run.rng));
+      Object.assign(run, freshLevelJoker());
       const { player, ghosts } = freshActors(run.maze, run.ghostIds, run.behaviours);
       run.player = player;
       run.ghosts = ghosts;
@@ -407,7 +391,7 @@ export function step(run) {
     // levelSteps resets on every respawn, so gating on it kept granting a free catch indefinitely).
     if (run.firstRun) run.firstRunSteps += 1;
     updateGhostTimers(run);
-    talkCandidates.push(...updateCardSlot(run));
+    talkCandidates.push(...updateJoker(run));
 
     // The scatter/chase schedule pauses while any ghost is folded.
     const anyFolded = run.ghosts.some((g) => g.active && g.folded);
@@ -431,7 +415,16 @@ export function step(run) {
 
     // Catches (by active, non-folded, non-eaten ghosts) beat grabs this step - no pickup is applied.
     const caughtBy = run.ghosts.find((g) => g.active && !g.folded && !g.eaten && !g.rebuyLeft && caught(run.player, g, prevPlayerTile, prevGhostTiles[g.slot]));
-    if (caughtBy) {
+    if (caughtBy && run.joker) {
+      // The joker saves you once (board 2026-10-17): spent instead of a buy-in, the catcher rolls home as
+      // eyes into the rebuy wait, and play goes on with the fold, the chain and every other chaser untouched.
+      // No pickup applies this step (a catch still beats a grab); the next catch is checked next step.
+      run.joker = false;
+      caughtBy.folded = false;
+      caughtBy.foldLeft = 0;
+      caughtBy.eaten = true;
+      talkCandidates.push({ event: "jokerSaved", who: null });
+    } else if (caughtBy) {
       // A1: the fold ends - folded (and already-eaten) ghosts go home unfolded, no chain score, chain resets.
       for (const g of run.ghosts) {
         if (g.active && g.folded) {
@@ -441,14 +434,9 @@ export function step(run) {
         }
       }
       run.chain = 200;
-      // A card still showing at the catch is orphaned by the respawn, not earned: without this, a card
-      // left standing at the bonus spot (which is also the respawn/start tile) would be auto-grabbed for
-      // free the instant the chomper re-seats there, with no actual play involved (THE-690 #7). Any queued
-      // (not yet shown) cards are dropped too (THE-690 r2 #3): clearing only the showing one left cardsDue
-      // untouched, so the very next play step spawned the next queued card onto that same respawn tile and
-      // it was grabbed just as free, repeating for every card still in the queue.
-      run.cardSlot = null;
-      run.cardsDue = 0;
+      // A joker still showing at the catch is orphaned by the respawn, not earned: the bonus spot is also the
+      // respawn tile, so it would be grabbed for free the instant the chomper re-seats there (THE-690 #7).
+      run.jokerSlot = null;
       run.lastCatcherId = caughtBy.id; // survives into game over for the catcher portrait (game.js)
 
       const freeCatch = run.firstRun && run.firstRunSteps <= FREE_FIRST_RUN_STEPS;
@@ -465,7 +453,7 @@ export function step(run) {
       const chipBonus = eatChip(run);
       if (chipBonus) talkCandidates.push(chipBonus);
       talkCandidates.push(...tryGrabAllIn(run));
-      tryGrabCard(run);
+      talkCandidates.push(...tryGrabJoker(run));
 
       const grabbed = run.ghosts.find((g) => g.active && g.folded && !g.eaten && caught(run.player, g, prevPlayerTile, prevGhostTiles[g.slot]));
       if (grabbed) {
@@ -481,16 +469,11 @@ export function step(run) {
         if (bonus) talkCandidates.push(bonus);
       }
 
-      // The last chip clears the level: every timer stops before scoring, overriding whatever phase the
-      // grab above just set.
+      // The last chip clears the level: every timer stops, overriding whatever phase the grab above just set.
       if (run.chipsLeft <= 0) {
-        run.lastHand = bestHand(run.cardsCollected);
-        if (!run.bestHandThisRun || run.lastHand.rank > run.bestHandThisRun.rank) run.bestHandThisRun = run.lastHand;
-        const bonus = awardScore(run, run.lastHand.payout);
         run.phase = "clear";
         run.timer = CLEAR_STEPS;
-        talkCandidates.push({ event: run.lastHand.key === "highCard" ? "clearNoHand" : run.lastHand.rank >= 6 ? "clearBigHand" : null, who: null });
-        if (bonus) talkCandidates.push(bonus);
+        talkCandidates.push({ event: "clear", who: null });
       }
     }
   }
@@ -518,7 +501,7 @@ export function levelSnapshot(run) {
     nightly: run.nightly,
     nightNumber: run.nightNumber,
     ownLineCount: run.ownLineCount,
-    bestHandThisRun: run.bestHandThisRun,
+    joker: run.joker,
   };
 }
 
@@ -540,7 +523,7 @@ export function resumeLevel(snapshot) {
   run.buyInsAtLevelStart = snapshot.buyIns;
   if (snapshot.firstRunSteps != null) run.firstRunSteps = snapshot.firstRunSteps;
   run.bonusBuyInUsed = snapshot.bonusBuyInUsed;
-  if (snapshot.bestHandThisRun !== undefined) run.bestHandThisRun = snapshot.bestHandThisRun;
+  run.joker = snapshot.joker === true;
   return run;
 }
 
@@ -563,12 +546,9 @@ export function hash(run) {
     DIR_CODE[run.player.want] || 0,
     run.chipsLeft,
     run.chipsEatenLevel,
-    run.cardsSpawned,
-    run.cardsDue,
-    run.cardsCollected.length,
-    run.cardSlot ? run.cardSlot.card.rank : 0,
-    run.cardSlot ? run.cardSlot.card.suit : 0,
-    run.cardSlot ? run.cardSlot.left : 0,
+    run.joker ? 1 : 0,
+    run.jokerSlot ? run.jokerSlot.left : 0,
+    run.jokerSpawnedLevel ? 1 : 0,
     run.rng.state >>> 0,
     run.talk.active ? 1 : 0,
     run.talk.stepsLeft,

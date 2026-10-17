@@ -1,12 +1,9 @@
-// One versioned key, sanitised on load, injected storage (THE-688 S1 scope: the bag + best scores only;
-// later slices extend the schema). Pure except for the injected storage calls.
+// One versioned key, sanitised on load, injected storage. Schema v2 (board 2026-10-17): the hand book is
+// gone, the night keeps the round reached instead of a hand, and the run snapshot carries the held joker. A
+// v1 save loads with those parts ignored and everything else kept. Pure except for the injected storage calls.
 import { REGULARS, BEHAVIOURS } from "./deal.js";
-import { HAND_INFO } from "./cards.js";
 
-export const SAVE_KEY = "all-in-chomp:v1";
-const BOOK_KEYS = new Set(HAND_INFO.filter((h) => h.key !== "highCard").map((h) => h.key));
-const HAND_KEYS = new Set(HAND_INFO.map((h) => h.key));
-const HAND_BY_KEY = Object.fromEntries(HAND_INFO.map((h) => [h.key, h]));
+export const SAVE_KEY = "all-in-chomp:v1"; // the storage key never changed; the `v` field inside did
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function sanitiseBag(raw) {
@@ -19,37 +16,14 @@ function sanitiseBag(raw) {
   return { order: raw.order, i: raw.i, last };
 }
 
-function sanitiseBook(raw) {
-  const out = {};
-  if (!raw || typeof raw !== "object") return out;
-  for (const [key, entry] of Object.entries(raw)) {
-    if (!BOOK_KEYS.has(key)) continue;
-    if (!entry || typeof entry !== "object") continue;
-    if (!REGULARS.includes(entry.chomper) || !DATE_RE.test(entry.date)) continue;
-    out[key] = { chomper: entry.chomper, date: entry.date };
-  }
-  return out;
-}
-
 function sanitiseNight(raw) {
   if (!raw || typeof raw !== "object") return null;
   if (!DATE_RE.test(raw.date)) return null;
   if (!Number.isInteger(raw.n) || raw.n < 1) return null;
   if (!Number.isInteger(raw.best) || raw.best < 0) return null;
   if (!REGULARS.includes(raw.chomper)) return null;
-  if (!HAND_KEYS.has(raw.hand)) return null;
-  return { date: raw.date, n: raw.n, best: raw.best, chomper: raw.chomper, hand: raw.hand };
-}
-
-// bestHandThisRun is either null or one of cards.js's HAND_INFO entries verbatim (bestHand()'s own return
-// value) - validate shape+hand-key membership rather than trust the saved rank/name_he/payout blindly.
-function sanitiseBestHand(raw) {
-  if (raw == null) return null;
-  if (typeof raw !== "object" || !HAND_KEYS.has(raw.key)) return null;
-  const canonical = HAND_BY_KEY[raw.key];
-  if (!Number.isInteger(raw.rank) || raw.rank !== canonical.rank) return null;
-  if (raw.name_he !== canonical.name_he || raw.payout !== canonical.payout) return null;
-  return { rank: canonical.rank, key: canonical.key, name_he: canonical.name_he, payout: canonical.payout };
+  const level = Number.isInteger(raw.level) && raw.level >= 1 ? raw.level : 1; // v1 nights had a hand, no level
+  return { date: raw.date, n: raw.n, best: raw.best, chomper: raw.chomper, level };
 }
 
 function sanitiseRunSnapshot(raw) {
@@ -78,7 +52,7 @@ function sanitiseRunSnapshot(raw) {
     nightly: raw.nightly === true,
     nightNumber: Number.isInteger(raw.nightNumber) ? raw.nightNumber : null,
     date: raw.nightly === true ? raw.date : null,
-    bestHandThisRun: sanitiseBestHand(raw.bestHandThisRun),
+    joker: raw.joker === true,
   };
 }
 
@@ -91,18 +65,17 @@ function sanitiseSettings(raw) {
 }
 
 function freshSave() {
-  return { v: 1, bag: null, best: {}, firstRunDone: false, book: {}, night: null, run: null, hintSeen: false, settings: sanitiseSettings(null) };
+  return { v: 2, bag: null, best: {}, firstRunDone: false, night: null, run: null, hintSeen: false, settings: sanitiseSettings(null) };
 }
 
 export function sanitise(raw) {
-  if (!raw || typeof raw !== "object" || raw.v !== 1) return freshSave();
+  if (!raw || typeof raw !== "object" || (raw.v !== 1 && raw.v !== 2)) return freshSave();
   const out = freshSave();
   out.bag = sanitiseBag(raw.bag);
   for (const [id, score] of Object.entries(raw.best || {})) {
     if (REGULARS.includes(id) && Number.isInteger(score) && score >= 0) out.best[id] = score;
   }
   out.firstRunDone = raw.firstRunDone === true;
-  out.book = sanitiseBook(raw.book);
   out.night = sanitiseNight(raw.night);
   out.run = sanitiseRunSnapshot(raw.run);
   out.hintSeen = raw.hintSeen === true;
@@ -160,28 +133,17 @@ export function createSave(storage, key = SAVE_KEY) {
       write();
     }
   }
-  function loadBook() {
-    return load().book;
-  }
-  // Stamped the first time a hand is made, with the dealt chomper and the date - never overwritten after.
-  function stampHand(key, chomper, date) {
-    if (!BOOK_KEYS.has(key)) return;
-    const d = load();
-    if (d.book[key]) return;
-    d.book[key] = { chomper, date };
-    write();
-  }
   // The nightly table (G18): one slot, the night's best run (replaced only by a higher score that same
-  // night; a new date starts fresh).
+  // night; a new date starts fresh). `level` is the round that run reached (the share line names it).
   function loadNight(date) {
     const d = load();
     if (d.night && d.night.date !== date) return null;
     return d.night;
   }
-  function saveNightResult(date, n, { score, chomper, hand }) {
+  function saveNightResult(date, n, { score, chomper, level }) {
     const d = load();
     if (d.night && d.night.date === date && d.night.best >= score) return d.night;
-    d.night = { date, n, best: score, chomper, hand };
+    d.night = { date, n, best: score, chomper, level };
     write();
     return d.night;
   }
@@ -228,8 +190,6 @@ export function createSave(storage, key = SAVE_KEY) {
     saveBest,
     firstRunDone,
     markFirstRunDone,
-    loadBook,
-    stampHand,
     loadNight,
     saveNightResult,
     loadRunSnapshot,

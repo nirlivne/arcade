@@ -1,13 +1,13 @@
 // Table talk (G9/G10): 1 line at a time, 2.2s on, >=6s cooldown, event-fired. Faces say only their own
 // lines_he (the chomper at the deal, the catcher on a catch at 50% via the fx stream, else the dealer; a
 // guest when it walks in); every other line is the dealer's 23. Priority when two are due the same step:
-// caught > gameOver > allIn > hand > the rest; the lower one is dropped, not queued. Pure.
+// caught > gameOver > allIn > clear > the rest; the lower one is dropped, not queued. Pure.
 export const LINE_STEPS = 132; // 2.2s
 export const COOLDOWN_STEPS = 360; // 6s, counted from when the line ends
 
-// Lower number = higher priority. Unlisted events fall in "the rest" (lowest). "hand" covers both clear
-// outcomes (a hand was made, or not) - spec's "ALL IN > hand > the rest" tier.
-const PRIORITY = { caught: 0, gameOver: 1, allin: 2, hand: 3, clearNoHand: 3, clearBigHand: 3 };
+// Lower number = higher priority. Unlisted events fall in "the rest" (lowest). "clear" is the level clear
+// (board 2026-10-17: the poker hand that used to sit in this tier is gone).
+const PRIORITY = { caught: 0, gameOver: 1, allin: 2, clear: 3 };
 function priorityOf(event) {
   return PRIORITY[event] ?? 4;
 }
@@ -26,11 +26,10 @@ export const DEALER_EVENT_LINES = {
   caught: [9, 10],
   lastBuyIn: [11],
   gameOver: [12],
-  firstCard: [13],
-  fifthCard: [14],
-  cardMissed: [15],
-  clearNoHand: [16],
-  clearBigHand: [17],
+  jokerOut: [13],
+  jokerTaken: [14],
+  jokerSaved: [15],
+  clear: [16, 17],
   guestIn: [18],
   freeRedeal: [19],
   newBest: [20],

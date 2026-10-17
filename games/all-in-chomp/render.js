@@ -6,17 +6,18 @@ import * as R from "./recipe.js";
 import { BONUS_SPOT } from "./sim.js";
 
 export const BEHAVIOUR_KEY = { direct: "direct", ambusher: "ambush", flanker: "flank", shy: "shy" };
-const SUIT_KEY = ["s", "h", "d", "c"]; // cards.js's SUITS = [0,1,2,3] index order
 const FLASH_STEPS = 120; // last 2s of a fold (foldLeft<=120) flips the stack/tint back at 4Hz (DESIGN.md "flash")
 
-export function createRenderer(ctx, C) {
-  // The static table (felt/wood, walls, the seat) is the same every frame for a given maze/tile/origin, so
-  // cache it on an offscreen canvas instead of repainting every wall tube and wall block each frame.
+// levelLooks: theme.js's per-level token overrides for the table's colours (board 2026-10-17), indexed by
+// (level - 1) % length; an empty list or entry keeps the tokens.
+export function createRenderer(ctx, C, levelLooks = []) {
+  // The static table (felt/wood, walls, the seat) is the same every frame for a given maze/tile/origin/level,
+  // so cache it on an offscreen canvas instead of repainting every wall tube and wall block each frame.
   let tableCanvas = null;
   let cacheKey = "";
 
-  function ensureTable(maze, kind, T, ox, oy, w, h, dpr) {
-    const key = `${kind}:${T}:${ox}:${oy}:${w}:${h}:${dpr}`;
+  function ensureTable(maze, kind, T, ox, oy, w, h, dpr, level) {
+    const key = `${kind}:${level}:${T}:${ox}:${oy}:${w}:${h}:${dpr}`;
     if (cacheKey === key && tableCanvas) return;
     cacheKey = key;
     tableCanvas = document.createElement("canvas");
@@ -24,7 +25,8 @@ export function createRenderer(ctx, C) {
     tableCanvas.height = Math.max(1, Math.ceil(h * dpr));
     const tg = tableCanvas.getContext("2d");
     tg.scale(dpr, dpr);
-    R.drawTable(tg, maze.rows, T, C, kind, ox, oy, w, h);
+    const look = levelLooks.length ? levelLooks[(level - 1) % levelLooks.length] || {} : {};
+    R.drawTable(tg, maze.rows, T, { ...C, ...look }, kind, ox, oy, w, h);
   }
 
   function actorScreen(actor, T, ox, oy) {
@@ -54,7 +56,7 @@ export function createRenderer(ctx, C) {
     const maze = run.maze;
     const dpr = ctx.getTransform().a || 1;
     const w = maze.w * T + ox * 2, h = maze.h * T + oy * 2;
-    ensureTable(maze, mazeKind, T, ox, oy, w, h, dpr);
+    ensureTable(maze, mazeKind, T, ox, oy, w, h, dpr, run.level);
     ctx.clearRect(0, 0, ctx.canvas.width / dpr, ctx.canvas.height / dpr);
     ctx.drawImage(tableCanvas, 0, 0, tableCanvas.width / dpr, tableCanvas.height / dpr);
 
@@ -64,12 +66,12 @@ export function createRenderer(ctx, C) {
     for (const k of run.allInEaten) gone.add(k);
     R.drawPickups(ctx, maze.rows, T, C, ox, oy, gone, t);
 
-    if (run.cardSlot) {
+    if (run.jokerSlot) {
       // The bonus spot is the chomper's start tile (sim.js's BONUS_SPOT = START_PLAYER, (12,9)), not the
-      // seat door - maze.door is a different tile a few rows up.
+      // seat door - maze.door is a different tile a few rows up. The joker blinks for its last 1.5 s.
       const spot = BONUS_SPOT;
-      const fading = run.cardSlot.left < 90 && Math.floor(run.cardSlot.left / 8) % 2 === 0;
-      if (!fading) R.cardOnFelt(ctx, ox + (spot.x + 0.5) * T, oy + (spot.y + 0.5) * T, T, C, SUIT_KEY[run.cardSlot.card.suit], t);
+      const fading = run.jokerSlot.left < 90 && Math.floor(run.jokerSlot.left / 8) % 2 === 0;
+      if (!fading) R.jokerOnFelt(ctx, ox + (spot.x + 0.5) * T, oy + (spot.y + 0.5) * T, T, C, t);
     }
 
     for (const g of run.ghosts) {

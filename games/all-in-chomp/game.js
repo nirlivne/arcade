@@ -7,7 +7,6 @@ import { attachKeyboard, attachStick } from "./input.js";
 import { createSave } from "./save.js";
 import { nextChomper, dealGhosts, dealNightly, nightlySeed, nightNumber, localDateString, REGULARS } from "./deal.js";
 import { shareText } from "./share.js";
-import { HAND_INFO } from "./cards.js";
 import { createAudio } from "./audio.js";
 import { mulberry32 } from "./rng.js";
 
@@ -21,14 +20,6 @@ const DEALER_LINES = THEME.dealerLines;
 // Fills `{key}` placeholders in a theme string, e.g. format(TEXT.round, { n: 3 }) -> "סיבוב 3".
 function format(str, vars) {
   return str.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
-}
-
-const HAND_BY_KEY = Object.fromEntries(HAND_INFO.map((h) => [h.key, h]));
-for (const h of HAND_INFO) if (THEME.hands && THEME.hands[h.key]) h.name_he = THEME.hands[h.key];
-
-const RANK_LABEL = { 11: "J", 12: "Q", 13: "K", 14: "A" };
-function cardLabel(c) {
-  return `${RANK_LABEL[c.rank] || c.rank}${"♠♥♦♣"[c.suit]}`;
 }
 
 const STEP_MS = 1000 / 60;
@@ -48,11 +39,9 @@ let facesById = {};
 let bestSaved = false;
 let runWasFirstRun = false;
 let firstRunMarked = false;
-let clearHandStamped = false;
 let overHandled = false;
 let snapshotRngAtLevelStart = null;
 
-const BEHAVIOUR_LABEL = THEME.behaviours;
 let dealing = false;
 let dealStartTime = 0;
 let dealDurationMs = 2000;
@@ -63,7 +52,9 @@ let titleShowing = false; // the title shell (THE-705): shown on a fresh boot (n
 let audio = null;
 let prevChipsEaten = 0;
 let prevAllInCount = 0;
-let prevCardsCollected = 0;
+let prevJoker = false; // last frame's held joker (the snap on take, the shout on spend)
+let prevLevel = 0; // last frame's level (the level chip bumps on a change)
+let clearShowRendered = false;
 let prevPhase = null;
 let prevRebuyLeft = []; // per ghost slot, last frame's rebuyLeft (the rebuy shout fires on the 1 -> 0 edge)
 
@@ -216,11 +207,12 @@ function updateAudioCues() {
   prevChipsEaten = run.chipsEatenLevel;
   if (run.allInEaten.size > prevAllInCount) audio.allin();
   prevAllInCount = run.allInEaten.size;
-  if (run.cardsCollected.length > prevCardsCollected) audio.cardGrab();
-  prevCardsCollected = run.cardsCollected.length;
+  if (run.joker && !prevJoker) audio.cardGrab(); // the joker card snaps into the hand
+  if (!run.joker && prevJoker && run.phase === "play") showJokerSpent(); // spent on a catch, play went on
+  prevJoker = run.joker;
   if (run.phase === "eatFreeze" && prevPhase !== "eatFreeze") audio.foldEaten();
   if (run.phase === "dying" && prevPhase !== "dying") audio.caught();
-  if (run.phase === "clear" && prevPhase !== "clear") audio.handBeat(run.lastHand.rank >= 6);
+  if (run.phase === "clear" && prevPhase !== "clear") audio.handBeat(false); // the clear chord
   prevPhase = run.phase;
 }
 
@@ -247,6 +239,50 @@ function showBackInGame(id) {
   setTimeout(() => pop.remove(), 900);
 }
 
+// The joker was spent on a catch (board 2026-10-17): a shout over the chomper, same pop as the rebuy shout.
+function showJokerSpent() {
+  const pop = document.createElement("div");
+  pop.className = "aic-pop aic-pop--shout";
+  pop.textContent = TEXT.jokerShout;
+  const x = (run.player.x / 240) * tile, y = (run.player.y / 240) * tile;
+  pop.style.right = `${run.maze.w * tile - x}px`;
+  pop.style.top = `${y}px`;
+  document.getElementById("chomp-over").appendChild(pop);
+  setTimeout(() => pop.remove(), 900);
+}
+
+// The level-clear show (board 2026-10-17): shown for the whole `clear` phase (CLEAR_STEPS, 2 s), driven by
+// run.phase like every other screen. Toggling `hidden` restarts the slam and the card flip each time.
+function updateClearShow() {
+  const el = document.getElementById("chomp-clearshow");
+  const show = run.phase === "clear";
+  el.hidden = !show;
+  if (!show) {
+    clearShowRendered = false;
+    return;
+  }
+  if (clearShowRendered) return;
+  clearShowRendered = true;
+  document.getElementById("chomp-clear-shout").textContent = TEXT.clearShout;
+  document.getElementById("chomp-clear-round").textContent = format(TEXT.round, { n: run.level + 1 });
+  document.getElementById("chomp-clear-next").textContent = TEXT.clearNext;
+}
+
+// The bests sheet (board 2026-10-17, in place of the hand book): the best score per dealt face, highest
+// first, faces that never scored last.
+function renderBests() {
+  const list = document.getElementById("chomp-bests-list");
+  list.innerHTML = "";
+  const rows = REGULARS.map((id) => ({ id, score: save.best(id) })).sort((a, b) => b.score - a.score);
+  for (const { id, score } of rows) {
+    const p = document.createElement("p");
+    const name = document.createElement("b");
+    name.textContent = facesById[id]?.name_he || id;
+    p.append(name, " — ", score > 0 ? String(score) : TEXT.bestsEmpty);
+    list.appendChild(p);
+  }
+}
+
 // A mini inked head on a small canvas (talk, spectators) - recipe.js's drawSprite onto a dpr-scaled canvas.
 function miniHead(id, w, h, closed = false) {
   const c = document.createElement("canvas");
@@ -261,27 +297,6 @@ function miniHead(id, w, h, closed = false) {
   const sp = sprites[id];
   if (sp) R.drawSprite(g, (closed && sp.closed) || sp.normal, w / 2, h / 2);
   return c;
-}
-
-function cardEl(c) {
-  const el = document.createElement("div");
-  el.className = "aic-card";
-  el.dataset.suit = ["s", "h", "d", "c"][c.suit];
-  const rank = document.createElement("b");
-  rank.textContent = RANK_LABEL[c.rank] || c.rank;
-  const suit = document.createElement("i");
-  suit.textContent = "♠♥♦♣"[c.suit];
-  el.append(rank, suit);
-  return el;
-}
-
-function updateHandRail() {
-  const rail = document.getElementById("chomp-rail");
-  rail.innerHTML = "";
-  for (let i = 0; i < 5; i++) {
-    const c = run.cardsCollected[i];
-    rail.appendChild(c ? cardEl(c) : Object.assign(document.createElement("div"), { className: "aic-slot" }));
-  }
 }
 
 function updateStacks() {
@@ -366,6 +381,7 @@ function updateGameOverScreen() {
   const bestEl = document.getElementById("chomp-over-best");
   bestEl.textContent = format(TEXT.best, { name: facesById[run.chomper]?.name_he || run.chomper, score: best });
   bestEl.classList.toggle("is-new", run.score > 0 && run.score >= best);
+  document.getElementById("chomp-over-level").textContent = format(TEXT.reachedLevel, { n: run.level });
 
   const catcherEl = document.getElementById("chomp-over-catcher");
   catcherEl.innerHTML = "";
@@ -401,56 +417,23 @@ function updateGameOverScreen() {
   catcherEl.appendChild(countEl);
 }
 
-let beatRendered = false;
-const SHOWER_XS = [8, 18, 27, 36, 44, 53, 61, 70, 79, 88, 14, 31, 49, 66, 83]; // screens.html's beat()
-
-// The hand-payout beat (THE-713 D1-C, screens.html's beat(), `.aic-beat*` in skin.css): shown for the whole
-// `clear` phase (sim.js's CLEAR_STEPS, 1.5 s) - driven by run.phase like every other screen, so it freezes
-// and resumes with the sim's own step loop (pause, blur) rather than a timer of its own. A no-hand clear
-// (highCard) shows nothing here; only the dealer's line (the existing talk system) speaks.
-function updateBeatScreen() {
-  const beatEl = document.getElementById("chomp-beat");
-  const show = run.phase === "clear" && run.lastHand && run.lastHand.key !== "highCard";
-  beatEl.hidden = !show;
-  if (!show) {
-    beatRendered = false;
-    return;
-  }
-  if (beatRendered) return; // static for the whole beat - no need to rebuild every frame
-  beatRendered = true;
-  const cardsEl = document.getElementById("chomp-beat-cards");
-  cardsEl.innerHTML = "";
-  for (let i = 0; i < 5; i++) {
-    const c = run.cardsCollected[i];
-    if (c) {
-      const el = cardEl(c);
-      el.classList.add("is-lift");
-      cardsEl.appendChild(el);
-    } else {
-      cardsEl.appendChild(Object.assign(document.createElement("div"), { className: "aic-slot" }));
-    }
-  }
-  document.getElementById("chomp-beat-name").textContent = run.lastHand.name_he;
-  document.getElementById("chomp-beat-pay").textContent = `+${run.lastHand.payout}`;
-  // Chip shower (DESIGN.md §5: "chip shower if >= full house"; sim.js uses the same rank>=6 threshold for
-  // the brighter hand-beat audio cue and the "clearBigHand" talk line).
-  const showerEl = document.getElementById("chomp-beat-shower");
-  showerEl.innerHTML = "";
-  if (run.lastHand.rank >= 6) {
-    const colours = [tokens.hot, tokens.cream, tokens["b-ambush"], tokens.hot, tokens["b-shy"]];
-    const overH = document.getElementById("chomp-over").clientHeight || 300;
-    showerEl.innerHTML = SHOWER_XS.map(
-      (x, i) => `<i style="--x:${x}%;--d:${i * 40}ms;--y:${overH * (0.35 + (i % 5) * 0.12)}px;--c:${colours[i % 5]}"></i>`
-    ).join("");
-  }
-}
-
 function updateHud() {
   const scoreEl = document.getElementById("chomp-score");
   if (scoreEl.textContent !== String(run.score)) scoreEl.textContent = String(run.score);
-  document.getElementById("chomp-round").textContent = format(TEXT.round, { n: run.level });
+  // The level chip (board 2026-10-17): the number, with a bump when the level changes mid-run.
+  const roundN = document.getElementById("chomp-round-n");
+  if (roundN.textContent !== String(run.level)) {
+    roundN.textContent = String(run.level);
+    if (prevLevel && run.level !== prevLevel) {
+      const chip = document.getElementById("chomp-round");
+      chip.classList.remove("is-bump");
+      void chip.offsetWidth; // restart the animation
+      chip.classList.add("is-bump");
+    }
+  }
+  prevLevel = run.level;
+  document.getElementById("chomp-joker").hidden = !run.joker;
   updateStacks();
-  updateHandRail();
   updateTalk();
   updateRebuyShouts();
   if (run.phase === "over" && !bestSaved) {
@@ -458,18 +441,10 @@ function updateHud() {
     bestSaved = true;
   }
   updateGameOverScreen();
-  updateBeatScreen();
+  updateClearShow();
   if (run.phase === "over" && runWasFirstRun && !firstRunMarked) {
     save.markFirstRunDone();
     firstRunMarked = true;
-  }
-  if (run.phase === "clear") {
-    if (!clearHandStamped) {
-      clearHandStamped = true;
-      if (run.lastHand.key !== "highCard") save.stampHand(run.lastHand.key, run.chomper, todayDate());
-    }
-  } else {
-    clearHandStamped = false;
   }
   // Mid-level reload: write the level-start snapshot once per level-start, not every frame (THE-690 #11: an
   // unconditional write here is ~60 localStorage writes/s). run.rngAtLevelStart changes exactly once per
@@ -624,15 +599,16 @@ function layoutDealTable() {
   dealCtx = g;
 }
 
-// label = { b: internal behaviour key, text } for a ghost, null for the chomper's own ("me") card.
-function fillDealSlot(el, id, label) {
+// behaviour = the ghost's behaviour key (its band colour), null for the chomper's own ("me") card. The
+// behaviour pills are gone (board 2026-10-17): the colour band is the only link to the stack in the maze.
+function fillDealSlot(el, id, behaviour) {
   el.innerHTML = "";
   const you = el.dataset.slot === "me";
   const w = parseFloat(el.dataset.w || "66");
   const h = w * 1.4;
   const x = parseFloat(el.style.left);
   const y = parseFloat(el.style.top);
-  const band = you ? tokens.marigold : tokens.behaviour[BEHAVIOUR_KEY[label.b]];
+  const band = you ? tokens.marigold : tokens.behaviour[BEHAVIOUR_KEY[behaviour]];
   const rot = you ? 0.05 : (Number(el.dataset.slot) - 1.5) * 0.06;
   if (dealCtx) drawDealFaceCard(dealCtx, id, x, y, w, band, rot, you);
   // Positioned relative to (x, y) - the card's own centre (DESIGN.md: "names above the cards"): the div
@@ -643,14 +619,6 @@ function fillDealSlot(el, id, label) {
   nameEl.style.top = `${-(h / 2) - 22}px`;
   nameEl.textContent = facesById[id]?.name_he || id;
   el.appendChild(nameEl);
-  if (label) {
-    const roleEl = document.createElement("div");
-    roleEl.className = "aic-dealcard__role";
-    roleEl.style.top = `${h / 2 + 6}px`;
-    roleEl.dataset.b = BEHAVIOUR_KEY[label.b];
-    roleEl.textContent = label.text;
-    el.appendChild(roleEl);
-  }
   el.classList.add("shown");
 }
 
@@ -687,6 +655,13 @@ function startDealScreen() {
   const meSlot = dealCardSlot("me", positions[4]);
   meSlot.dataset.w = positions[4].w;
   cardsEl.appendChild(meSlot);
+  // "רודפים אחריך" over the four chaser cards (board 2026-10-17: the behaviour pills are gone).
+  const chasersEl = document.getElementById("chomp-deal-chasers");
+  chasersEl.textContent = TEXT.chasersLabel;
+  const cardH = positions[0].w * 1.4;
+  chasersEl.style.left = `${positions[0].x - positions[0].w / 2}px`;
+  chasersEl.style.width = `${positions[3].x - positions[0].x + positions[0].w}px`;
+  chasersEl.style.top = `${positions[0].y - cardH / 2 - 48}px`;
   const talkEl = document.getElementById("chomp-deal-talk");
   talkEl.hidden = true;
   talkEl.innerHTML = "";
@@ -712,7 +687,7 @@ function revealChomperDealCard() {
 function revealAllDealCards() {
   const slots = document.getElementById("chomp-deal-cards").children;
   run.ghosts.forEach((g, i) => {
-    fillDealSlot(slots[i], run.ghostIds[i], { b: g.behaviour, text: BEHAVIOUR_LABEL[g.behaviour] });
+    fillDealSlot(slots[i], run.ghostIds[i], g.behaviour);
   });
   revealChomperDealCard();
 }
@@ -724,7 +699,7 @@ function updateDealScreen(now) {
   if (elapsed >= 500) {
     run.ghosts.forEach((g, i) => {
       if (elapsed >= 500 + i * 150 && !slots[i].classList.contains("shown")) {
-        fillDealSlot(slots[i], run.ghostIds[i], { b: g.behaviour, text: BEHAVIOUR_LABEL[g.behaviour] });
+        fillDealSlot(slots[i], run.ghostIds[i], g.behaviour);
       }
     });
   }
@@ -815,9 +790,10 @@ function ownLineCount(who) {
 
 function resetRunFlags() {
   bestSaved = false;
-  clearHandStamped = false;
   overHandled = false;
   prevRebuyLeft = [];
+  prevLevel = 0;
+  prevJoker = false;
   snapshotRngAtLevelStart = null; // force the new run's first level-start snapshot write
 }
 
@@ -828,8 +804,7 @@ function recordBest(r) {
 }
 function recordNightResult(r) {
   if (!r.nightly) return;
-  const handKey = r.bestHandThisRun ? r.bestHandThisRun.key : "highCard";
-  save.saveNightResult(todayDate(), r.nightNumber, { score: r.score, chomper: r.chomper, hand: handKey });
+  save.saveNightResult(todayDate(), r.nightNumber, { score: r.score, chomper: r.chomper, level: r.level });
 }
 
 function seatPositions(ids, tx, ty, rx, ry) {
@@ -952,29 +927,6 @@ function quitToTitle() {
   showTitle();
 }
 
-// The hand book (spec §8 return loop: 9 hands, pair -> royal, each stamped the first time with the dealt
-// face and the date). Rebuilt on open from save.js's book - cheap (9 rows), always current.
-function renderBook() {
-  const list = document.getElementById("chomp-book-list");
-  list.innerHTML = "";
-  const book = save.loadBook();
-  for (const h of HAND_INFO) {
-    if (h.key === "highCard") continue;
-    const entry = book[h.key];
-    const p = document.createElement("p");
-    const name = document.createElement("b");
-    name.textContent = h.name_he;
-    p.append(name, " — ");
-    if (entry) {
-      const chomperName = facesById[entry.chomper]?.name_he || entry.chomper;
-      p.append(`${chomperName} · ${entry.date}`);
-    } else {
-      p.append(TEXT.bookEmpty);
-    }
-    list.appendChild(p);
-  }
-}
-
 function startNewRun() {
   const setupRng = mulberry32(randomSeed());
   const { chomper, bag } = nextChomper(save.loadBag(), setupRng);
@@ -1012,14 +964,12 @@ async function shareNightly() {
   const date = todayDate();
   const night = save.loadNight(date);
   const url = location.href.split("?")[0].split("#")[0];
-  const handInfo = night ? HAND_BY_KEY[night.hand] : null;
   const nightBest = night
     ? {
         nightNumber: night.n,
         chomperNameHe: facesById[night.chomper]?.name_he || night.chomper,
         score: night.best,
-        handNameHe: handInfo ? handInfo.name_he : "",
-        handRank: handInfo ? handInfo.rank : 0,
+        level: night.level,
       }
     : null;
   const text = shareText(nightBest, url, THEME);
@@ -1095,7 +1045,7 @@ function applyThemeText() {
   byId("chomp-title-tag").textContent = THEME.tagline;
   byId("chomp-title-deal").textContent = TEXT.deal;
   byId("chomp-title-about").textContent = TEXT.about;
-  setChipLabel(byId("chomp-title-book"), TEXT.handBook);
+  setChipLabel(byId("chomp-title-bests"), TEXT.bests);
   setChipLabel(byId("chomp-title-howto"), TEXT.howTo);
   // "No.{N}" sits in an LTR <bdi> on its own line; bare in the RTL chip it rendered as ".No" (THE-692 D2-1).
   const nightN = byId("chomp-title-night-n");
@@ -1141,9 +1091,9 @@ function applyThemeText() {
   byId("chomp-about-studio").textContent = TEXT.aboutStudio;
   byId("chomp-about-close").textContent = TEXT.close;
 
-  const bookScrim = byId("chomp-book-scrim");
-  bookScrim.querySelector(".aic-sheet__title").textContent = TEXT.handBook;
-  byId("chomp-book-close").textContent = TEXT.close;
+  const bestsScrim = byId("chomp-bests-scrim");
+  bestsScrim.querySelector(".aic-sheet__title").textContent = TEXT.bests;
+  byId("chomp-bests-close").textContent = TEXT.close;
 }
 
 function loadThemeImage(src) {
@@ -1174,7 +1124,7 @@ async function boot() {
   const ctx = canvas.getContext("2d");
   await document.fonts.ready.catch(() => {});
   tokens = R.readTokens();
-  renderer = createRenderer(ctx, tokens);
+  renderer = createRenderer(ctx, tokens, THEME.levelLooks || []);
   save = createSave(storageOrMemoryFallback());
   audio = createAudio();
   audio.setMuted(!save.settings().sound);
@@ -1261,10 +1211,10 @@ async function boot() {
   const pauseScrim = document.getElementById("chomp-pause-scrim");
   const howtoScrim = document.getElementById("chomp-howto-scrim");
   const aboutScrim = document.getElementById("chomp-about-scrim");
-  const bookScrim = document.getElementById("chomp-book-scrim");
+  const bestsScrim = document.getElementById("chomp-bests-scrim");
 
   // Title (THE-705): "חלק לי" deals, the corner button deals the nightly table, the fan reuses the pause
-  // scrims (about/how-to) plus the hand book.
+  // scrims (about/how-to) plus the bests sheet.
   document.getElementById("chomp-title-deal").addEventListener("click", () => {
     requestPhoneFullscreen();
     hideTitle();
@@ -1281,12 +1231,12 @@ async function boot() {
   document.getElementById("chomp-title-howto").addEventListener("click", () => {
     setHidden(howtoScrim, false);
   });
-  document.getElementById("chomp-title-book").addEventListener("click", () => {
-    renderBook();
-    setHidden(bookScrim, false);
+  document.getElementById("chomp-title-bests").addEventListener("click", () => {
+    renderBests();
+    setHidden(bestsScrim, false);
   });
-  document.getElementById("chomp-book-close").addEventListener("click", () => {
-    setHidden(bookScrim, true);
+  document.getElementById("chomp-bests-close").addEventListener("click", () => {
+    setHidden(bestsScrim, true);
   });
 
   function openPause() {
@@ -1368,10 +1318,9 @@ async function boot() {
         firstRun: run.firstRun,
         nightly: run.nightly,
         nightNumber: run.nightNumber,
-        cardSlot: run.cardSlot,
-        cardsCollected: run.cardsCollected,
-        cardsDue: run.cardsDue,
-        lastHand: run.lastHand,
+        joker: run.joker,
+        jokerSlot: run.jokerSlot,
+        jokerSpawnedLevel: run.jokerSpawnedLevel,
         player: { x: run.player.x, y: run.player.y, dir: run.player.dir, want: run.player.want },
         ghosts: run.ghosts.map((g, i) => ({
           id: run.ghostIds[i],
@@ -1408,6 +1357,24 @@ async function boot() {
       const g = run.ghosts[slot];
       const c = { x: run.maze.seat.x * 240 + 120, y: run.maze.seat.y * 240 + 120 }; // move.js's tileCenter, 1 tile = 240 u
       Object.assign(g, { active: true, folded: false, foldLeft: 0, eaten: false, rebuyLeft: steps, x: c.x, y: c.y, dir: null, want: null });
+    },
+    // Test hook: eat every chip but one and park the chomper on it, so the next step clears the level (the
+    // clear show, the next table's look) without playing the table out.
+    clear() {
+      if (titleShowing || run.phase !== "play") return;
+      let last = null;
+      for (let y = 0; y < run.maze.h; y++) {
+        for (let x = 0; x < run.maze.w; x++) {
+          if (run.maze.at(x, y) !== ".") continue;
+          const key = `${x},${y}`;
+          if (run.eaten.has(key)) continue;
+          if (last) run.eaten.add(key);
+          else last = { x, y };
+        }
+      }
+      if (!last) return;
+      run.chipsLeft = 1;
+      Object.assign(run.player, { x: last.x * 240 + 120, y: last.y * 240 + 120, dir: null, want: null });
     },
   };
 

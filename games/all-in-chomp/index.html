@@ -40,9 +40,9 @@
   <div class="aic-gutter aic-gutter--start" id="chomp-gutter-start">
     <div class="aic-label" id="chomp-pot-label">קופה</div>
     <div class="aic-score" id="chomp-score">0</div>
-    <div class="aic-label" id="chomp-round">סיבוב 1</div>
+    <div class="aic-levelchip" id="chomp-round"><b id="chomp-round-n">1</b></div>
     <div class="aic-stacks" id="chomp-stacks"></div>
-    <div class="aic-rail" id="chomp-rail"></div>
+    <div class="aic-joker" id="chomp-joker" hidden>🃏</div>
   </div>
   <div class="aic-gutter aic-gutter--end" id="chomp-gutter-end">
     <div class="aic-gutter__icons">
@@ -55,13 +55,9 @@
   <div class="aic-band" id="chomp-band" hidden></div>
   <div class="aic-stick" id="chomp-stick" hidden><div class="aic-stick__knob"></div></div>
   <div class="aic-over" id="chomp-over">
-    <div class="aic-beat" id="chomp-beat" hidden>
-      <div class="aic-beat__inner">
-        <div class="aic-beat__cards" id="chomp-beat-cards"></div>
-        <div class="aic-beat__name" id="chomp-beat-name"></div>
-        <div class="aic-beat__pay" id="chomp-beat-pay"></div>
-      </div>
-      <div class="aic-shower" id="chomp-beat-shower"></div>
+    <div class="aic-clearshow" id="chomp-clearshow" hidden>
+      <div class="aic-clearshow__shout" id="chomp-clear-shout">השולחן נקי!</div>
+      <div class="aic-clearshow__card"><b id="chomp-clear-round">סיבוב 2</b><small id="chomp-clear-next">שולחן חדש · החברים מהירים יותר</small></div>
     </div>
   </div>
 
@@ -72,7 +68,7 @@
     <button class="aic-chipbtn" id="chomp-title-deal" style="position:absolute">חלק לי</button>
     <div class="aic-fan" id="chomp-title-fan" style="left:22px;bottom:12px">
       <button class="aic-cardbtn" data-pip="♠" id="chomp-title-about">אודות</button>
-      <button class="aic-cardbtn" data-pip="♦" id="chomp-title-book">ספר<br>הידיים</button>
+      <button class="aic-cardbtn" data-pip="♦" id="chomp-title-bests">שיאים</button>
       <button class="aic-cardbtn" data-pip="♣" id="chomp-title-howto">איך<br>משחקים</button>
     </div>
     <div class="aic-title__corner">
@@ -86,6 +82,7 @@
     <div id="chomp-deal-plates"></div>
     <div class="aic-deal__head" id="chomp-deal-header"></div>
     <div class="aic-deal__you" id="chomp-deal-you"></div>
+    <div class="aic-deal__chasers" id="chomp-deal-chasers">רודפים אחריך</div>
     <div id="chomp-deal-cards"></div>
     <div class="aic-talk" id="chomp-deal-talk" style="position:absolute" hidden></div>
     <div class="aic-deal__skip">הקש לדלג</div>
@@ -97,6 +94,7 @@
         <h1 class="aic-gameover__title" id="chomp-over-title"></h1>
         <div class="aic-gameover__score" id="chomp-over-score"></div>
         <div class="aic-gameover__best" id="chomp-over-best"></div>
+        <div class="aic-gameover__level" id="chomp-over-level"></div>
         <div class="aic-gameover__actions">
           <button class="aic-chipbtn" id="chomp-rebuy">עוד משחק</button>
           <button class="aic-cardbtn" data-pip="♦" id="chomp-nightly" style="width:58px;height:78px">שולחן<br>הערב</button>
@@ -111,7 +109,7 @@
     <ol>
       <li>הג'ויסטיק: הניחו אצבע ודחפו לכיוון. תאכלו את כל הצ'יפים.</li>
       <li>החברים רודפים אחריכם. נתפסתם? הלך לכם צ'יפ.</li>
-      <li>אול-אין בפינה: עכשיו אתם רודפים אותם. תאספו קלפים ליד.</li>
+      <li>אול-אין בפינה: עכשיו אתם רודפים אותם. ג'וקר מציל פעם אחת.</li>
     </ol>
     <div class="aic-hint__tap">הקישו כדי להתחיל</div>
   </div>
@@ -141,7 +139,7 @@
       <p>הניחו אצבע על השולחן: ג'ויסטיק מופיע מתחתיה. דחפו לכיוון (או חצים במקלדת) כדי לנוע ולאכול צ'יפים.</p>
       <p>חברים רודפים אחריכם. חטיפה עולה צ'יפ.</p>
       <p>ALL IN בפינה הופך אתכם לרודפים: אכלו את מי שמקפל.</p>
-      <p>אספו קלפים ליד הדילר לקראת תשלום על היד.</p>
+      <p>ג'וקר על השולחן: קחו אותו, והוא מציל אתכם פעם אחת.</p>
       <button class="aic-cardbtn--row" id="chomp-howto-close">סגור</button>
     </div>
   </div>
@@ -155,11 +153,11 @@
     </div>
   </div>
 
-  <div class="aic-scrim" id="chomp-book-scrim" hidden>
+  <div class="aic-scrim" id="chomp-bests-scrim" hidden>
     <div class="aic-sheet" dir="rtl">
-      <h2 class="aic-sheet__title">ספר הידיים</h2>
-      <div id="chomp-book-list"></div>
-      <button class="aic-cardbtn--row" id="chomp-book-close">סגור</button>
+      <h2 class="aic-sheet__title">שיאים</h2>
+      <div id="chomp-bests-list"></div>
+      <button class="aic-cardbtn--row" id="chomp-bests-close">סגור</button>
     </div>
   </div>
 </div>

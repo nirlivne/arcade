@@ -156,13 +156,18 @@ export function suit(g, kind, x, y, s, col) {
   g.fill(); g.restore();
 }
 function cardShape(g, w, h, C, fill = C.cream) { g.fillStyle = fill; g.strokeStyle = C.ink; g.lineWidth = Math.max(1.2, w * 0.07); g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, w * 0.16); g.fill(); g.stroke(); }
-// The card on the felt (the fruit): face up, one big suit pip in its deck colour. The rank shows on the DOM hand
-// rail when you grab it (no canvas text). w = 0.82 T, tilt -5 deg, bob 1 px at 1.5 Hz.
-export function cardOnFelt(g, x, y, T, C, s, t = 0) {
+// The joker on the felt (board 2026-10-17, in place of the card): a cream card with a marigold star pip, the
+// card's size, tilt and bob. w = 0.82 T, tilt -5 deg, bob 1 px at 1.5 Hz. No canvas text (G10).
+export function jokerOnFelt(g, x, y, T, C, t = 0) {
   const w = T * 0.82, h = w * 1.38;
   g.save(); g.translate(x, y + Math.sin(t * Math.PI * 3) * 1); g.rotate(-0.09);
   g.fillStyle = "rgba(0,0,0,.35)"; g.beginPath(); g.roundRect(-w / 2 + 1.5, -h / 2 + 2.5, w, h, w * 0.16); g.fill();
-  cardShape(g, w, h, C); suit(g, s, 0, 0, h * 0.56, C.suit[s]); g.restore();
+  cardShape(g, w, h, C);
+  const r = h * 0.3;
+  g.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+  g.closePath(); g.fillStyle = C.marigold; g.fill(); g.strokeStyle = C.ink; g.lineWidth = Math.max(1, w * 0.05); g.stroke();
+  g.restore();
 }
 // Our card back: cream border, hot-red panel, cream lattice.
 export function cardBack(g, x, y, w, C, rot = 0, sx = 1) {

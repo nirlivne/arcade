@@ -130,24 +130,23 @@
 .aic-app[data-gutter="narrow"] .aic-stacks i { --w: 16px; }
 .aic-stacks i.is-lost { animation: aic-stack-lost 400ms var(--aic-ease-clack) forwards; }
 
-/* the 5-slot hand rail. <div class="aic-rail"><div class="aic-card" data-suit="h"><b>K</b><i>♥</i></div><div class="aic-slot"></div>…</div> */
-.aic-rail { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
-.aic-app[data-gutter="wide"] .aic-rail { flex-direction: row; flex-wrap: wrap; justify-content: center; max-width: 132px; margin-top: auto; }
-.aic-slot, .aic-card { width: 24px; height: 33px; border-radius: 4px; flex: none; }
-.aic-app[data-gutter="wide"] :is(.aic-slot, .aic-card) { width: 34px; height: 47px; border-radius: 5px; }
-.aic-slot { border: 1.5px dashed rgba(255, 244, 220, .35); }
-.aic-card {
-  position: relative; background: var(--aic-cream); border: 1.5px solid var(--aic-ink); color: var(--aic-suit-spade);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; direction: ltr;
-  font: 700 14px/0.9 var(--aic-font-label); box-shadow: 0 2px 0 rgba(0, 0, 0, .35);
+/* the level chip (board 2026-10-17): "סיבוב N" as a marigold chip; bumps when the level changes */
+.aic-levelchip {
+  width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; direction: ltr; color: var(--aic-ink);
+  background: radial-gradient(circle, var(--aic-marigold) 0 52%, var(--aic-cream) 52% 55.5%, var(--aic-marigold) 55.5%);
+  box-shadow: 0 0 0 2px var(--aic-ink), 0 3px 0 2px #8A6410, 0 6px 10px rgba(0, 0, 0, .5);
 }
-.aic-card i { font: 11px/1 system-ui; font-style: normal; }
-.aic-app[data-gutter="wide"] .aic-card { font-size: 20px; }
-.aic-app[data-gutter="wide"] .aic-card i { font-size: 15px; }
-.aic-card[data-suit="h"] { color: var(--aic-suit-heart); }
-.aic-card[data-suit="d"] { color: var(--aic-suit-diamond); }
-.aic-card[data-suit="c"] { color: var(--aic-suit-club); }
-.aic-card.is-new { animation: aic-card-land 300ms var(--aic-ease-clack); }
+.aic-levelchip b { font: 700 24px/1 var(--aic-font-label); }
+.aic-levelchip.is-bump { animation: aic-bump 400ms var(--aic-ease-clack); }
+.aic-app[data-gutter="narrow"] .aic-levelchip { width: 34px; height: 34px; }
+.aic-app[data-gutter="narrow"] .aic-levelchip b { font-size: 18px; }
+
+/* the held joker (board 2026-10-17): a small cream card next to the buy-ins */
+.aic-joker {
+  width: 24px; height: 33px; border-radius: 4px; background: var(--aic-cream); border: var(--aic-line) solid var(--aic-ink);
+  display: grid; place-items: center; font: 16px/1 system-ui; box-shadow: var(--aic-shadow-card); animation: aic-pop-in 160ms var(--aic-ease-clack);
+}
+.aic-joker[hidden] { display: none; }
 
 /* table talk: a mini head + a comic bubble, 1 at a time. On narrow gutters it's .aic-band under the maze. */
 .aic-talk { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: auto 0; max-width: 100%; }
@@ -202,30 +201,17 @@
   text-shadow: 0 2px 0 var(--aic-ink); transform: rotate(-4deg); animation: aic-slam 260ms var(--aic-ease-clack) both;
 }
 
-/* ------------------------------------------------------------ the hand beat (clear, 1.5 s; screenshot at 0.8 s) */
-.aic-beat { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at center, rgba(17, 12, 10, .62), rgba(17, 12, 10, .2) 70%); }
-.aic-beat__inner { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.aic-beat__cards { display: flex; gap: 6px; direction: ltr; perspective: 600px; }
-.aic-beat__cards .aic-card { width: 52px; height: 72px; border-radius: 7px; border-width: 2px; font-size: 30px; box-shadow: 0 6px 12px rgba(0, 0, 0, .5);
-  animation: aic-flip var(--aic-t-flip) var(--aic-ease-deal) both; }
-.aic-beat__cards .aic-card i { font-size: 22px; }
-.aic-beat__cards .aic-card:nth-child(2) { animation-delay: 180ms; }
-.aic-beat__cards .aic-card:nth-child(3) { animation-delay: 360ms; }
-.aic-beat__cards .aic-card:nth-child(4) { animation-delay: 540ms; }
-.aic-beat__cards .aic-card:nth-child(5) { animation-delay: 720ms; }
-.aic-beat__cards .aic-card.is-lift { transform: translateY(-10px); box-shadow: 0 0 0 3px var(--aic-marigold), 0 10px 14px rgba(0, 0, 0, .5); }
-.aic-beat__cards .aic-slot { width: 52px; height: 72px; border-radius: 7px; }
-.aic-beat__name { font: 48px/1 var(--aic-font-display); color: var(--aic-cream); text-shadow: 0 3px 0 var(--aic-ink); transform: rotate(-3deg);
-  animation: aic-slam 260ms var(--aic-ease-clack) 900ms both; }
-.aic-beat__pay { font: 700 34px/1 var(--aic-font-label); color: var(--aic-marigold); text-shadow: 0 2px 0 var(--aic-ink); direction: ltr; }
-.aic-app[data-gutter="narrow"] .aic-beat__cards .aic-card, .aic-app[data-gutter="narrow"] .aic-beat__cards .aic-slot { width: 44px; height: 61px; font-size: 25px; }
-.aic-app[data-gutter="narrow"] .aic-beat__name { font-size: 40px; }
-
-/* chip shower (celebration: hand >= full house, new best). <div class="aic-shower"><i style="--x:..;--d:..;--c:.."></i>…</div> */
-.aic-shower { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.aic-shower i { position: absolute; top: -20px; left: var(--x); width: 16px; height: 16px; border-radius: 50%;
-  background: radial-gradient(circle, var(--c, var(--aic-hot)) 0 50%, var(--aic-cream) 50% 60%, var(--c, var(--aic-hot)) 60%); border: 1.5px solid var(--aic-ink);
-  animation: aic-chipfall 900ms cubic-bezier(.5, 0, .9, .6) var(--d, 0ms) both; }
+/* ------------------------------------------------------------ the level-clear show (board 2026-10-17): the shout slams, the next-round card flips in at 0.8 s */
+.aic-clearshow { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 10px;
+  background: radial-gradient(ellipse at center, rgba(17, 12, 10, .62), rgba(17, 12, 10, .2) 70%); }
+.aic-clearshow[hidden] { display: none; }
+.aic-clearshow__shout { font: 48px/1 var(--aic-font-display); color: var(--aic-cream); text-shadow: 0 3px 0 var(--aic-ink); transform: rotate(-3deg);
+  animation: aic-slam 260ms var(--aic-ease-clack) both; }
+.aic-clearshow__card { background: var(--aic-cream); color: var(--aic-ink); border: 2.5px solid var(--aic-ink); border-radius: var(--aic-r-card);
+  padding: 8px 18px; text-align: center; box-shadow: var(--aic-shadow-card); animation: aic-flip var(--aic-t-flip) var(--aic-ease-deal) 800ms both; }
+.aic-clearshow__card b { display: block; font: 700 34px/1 var(--aic-font-label); color: var(--aic-hot); }
+.aic-clearshow__card small { display: block; margin-top: 4px; font: 600 14px/1.2 var(--aic-font-body); }
+.aic-app[data-gutter="narrow"] .aic-clearshow__shout { font-size: 40px; }
 
 /* ------------------------------------------------------------ title */
 .aic-title__name { position: absolute; left: 50%; transform: translateX(-50%) rotate(-3deg); white-space: nowrap;
@@ -239,13 +225,8 @@
 .aic-deal__you { position: absolute; left: 0; right: 0; text-align: center; font: 30px/1 var(--aic-font-display); color: var(--aic-cream); text-shadow: 0 2px 0 var(--aic-ink); }
 .aic-deal__you b { color: var(--aic-marigold); font-weight: 400; }
 .aic-deal__skip { position: absolute; bottom: 10px; left: 14px; font: 600 13px/1 var(--aic-font-body); color: var(--aic-muted); }
+.aic-deal__chasers { position: absolute; text-align: center; font: 700 16px/1 var(--aic-font-label); color: var(--aic-muted); letter-spacing: .04em; } /* over the four chaser cards (board 2026-10-17) */
 .aic-dealcard { position: absolute; transform: translate(50%, -50%); transform-style: preserve-3d; }
-.aic-dealcard__role { position: absolute; left: 50%; transform: translate(-50%, 0); white-space: nowrap; font: 700 15px/1 var(--aic-font-label);
-  padding: 3px 7px 2px; border-radius: 8px; border: 1.5px solid var(--aic-ink); color: var(--aic-cream); background: var(--b, var(--aic-hot)); }
-.aic-dealcard__role[data-b="direct"] { --b: var(--aic-b-direct); }
-.aic-dealcard__role[data-b="ambush"] { --b: var(--aic-b-ambush); }
-.aic-dealcard__role[data-b="flank"] { --b: var(--aic-b-flank); color: var(--aic-ink); }
-.aic-dealcard__role[data-b="shy"] { --b: var(--aic-b-shy); }
 .aic-dealcard__name { position: absolute; left: 50%; transform: translate(-50%, 0); white-space: nowrap; font: 700 16px/1 var(--aic-font-label); color: var(--aic-cream); }
 
 /* first-run hint card */
@@ -263,6 +244,7 @@
 .aic-gameover__score { font: 700 58px/0.9 var(--aic-font-label); color: var(--aic-marigold); direction: ltr; text-align: right; }
 .aic-gameover__best { font: 700 18px/1.2 var(--aic-font-label); color: var(--aic-muted); }
 .aic-gameover__best.is-new { color: var(--aic-marigold); }
+.aic-gameover__level { font: 700 18px/1.2 var(--aic-font-label); color: var(--aic-muted); margin-top: 4px; } /* "הגעת לסיבוב N" (board 2026-10-17) */
 .aic-gameover__actions { display: flex; gap: 14px; align-items: center; margin-top: 12px; }
 .aic-gameover__catcher { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .aic-bagrow { display: flex; gap: 4px; justify-content: center; margin-top: 8px; }
@@ -284,10 +266,8 @@
 @keyframes aic-pop-in { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes aic-pop-up { from { transform: translate(50%, -20%) scale(.7); opacity: 0; } 30% { opacity: 1; } to { transform: translate(50%, -90%) scale(1); } }
 @keyframes aic-bump { 50% { transform: scale(1.18); } }
-@keyframes aic-card-land { from { transform: translateX(-40px) rotate(-20deg) scale(1.4); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes aic-stack-lost { to { transform: translateY(14px) rotate(40deg); opacity: 0; } }
 @keyframes aic-hop { 40% { transform: translateY(-6px) scale(1.06, .9); } }
-@keyframes aic-chipfall { from { transform: translateY(0) rotate(0); } to { transform: translateY(var(--y, 360px)) rotate(540deg); } }
 @keyframes aic-deal-in { from { transform: translateX(-60vw) rotate(-14deg); } to { transform: none; } }
 @keyframes aic-turn { 0%, 30% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
 
@@ -312,5 +292,4 @@
 
 @media (prefers-reduced-motion: reduce) {
   .aic-app *, .aic-app *::before, .aic-app *::after { animation-duration: 0ms !important; animation-delay: 0ms !important; transition-duration: 0ms !important; }
-  .aic-shower { display: none; }
 }
