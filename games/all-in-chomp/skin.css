@@ -106,10 +106,10 @@
 .aic-stage canvas { display: block; width: 100%; height: 100%; }
 .aic-gutter {
   position: absolute; top: 0; bottom: 0; display: flex; flex-direction: column; align-items: center;
-  gap: 6px; padding: 10px 4px; text-align: center;
+  gap: 6px; padding: calc(10px + var(--aic-inset-top)) 4px calc(10px + var(--aic-inset-bottom)); text-align: center;
 }
-.aic-gutter--start { right: 0; }  /* RTL start: score, round, buy-ins, hand rail */
-.aic-gutter--end { left: 0; }     /* table talk, spectators, pause/sound */
+.aic-gutter--start { right: 0; padding-right: calc(4px + var(--aic-inset-right)); }  /* RTL start: score, round, buy-ins, hand rail */
+.aic-gutter--end { left: 0; padding-left: calc(4px + var(--aic-inset-left)); }     /* table talk, spectators, pause/sound */
 .aic-gutter__icons { display: flex; gap: 12px; } /* 12 px so the 44 px hit areas don't overlap */
 .aic-app[data-gutter="narrow"] .aic-gutter__icons { flex-direction: column; }
 .aic-label { font: 700 15px/1 var(--aic-font-label); color: var(--aic-muted); letter-spacing: .04em; }
@@ -290,6 +290,26 @@
 @keyframes aic-chipfall { from { transform: translateY(0) rotate(0); } to { transform: translateY(var(--y, 360px)) rotate(540deg); } }
 @keyframes aic-deal-in { from { transform: translateX(-60vw) rotate(-14deg); } to { transform: none; } }
 @keyframes aic-turn { 0%, 30% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+
+/* ------------------------------------------------------------ the floating stick (touch steering, 2026-10-17) */
+.aic-stick { /* the base ring, centred on the touch point by the game (left/top) */
+  position: absolute; width: 88px; height: 88px; margin: -44px 0 0 -44px; border-radius: 50%; z-index: 5; pointer-events: none;
+  background: rgba(255, 244, 220, .22); border: 2px solid var(--aic-ink); box-shadow: 0 0 0 1px rgba(255, 244, 220, .25);
+  animation: aic-stick-in 120ms ease-out both;
+}
+.aic-stick[hidden] { display: none; }
+.aic-stick__knob { /* a poker chip, the .aic-chipbtn recipe at 40 px; the game sets transform to the clamped offset */
+  position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; border-radius: 50%; transform: translate(-50%, -50%);
+  background: radial-gradient(circle, var(--aic-hot) 0 52%, var(--aic-cream) 52% 55.5%, var(--aic-hot) 55.5%);
+  box-shadow: 0 0 0 2px var(--aic-ink), 0 3px 0 2px var(--aic-hot-lo), 0 6px 10px rgba(0, 0, 0, .5);
+}
+.aic-stick__knob::before { /* the edge spots */
+  content: ""; position: absolute; inset: 2px; border-radius: 50%;
+  background: repeating-conic-gradient(var(--aic-cream) 0 14deg, transparent 14deg 45deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 73%, #000 74%); mask: radial-gradient(circle, transparent 0 73%, #000 74%);
+}
+@keyframes aic-stick-in { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: none; } }
+
 @media (prefers-reduced-motion: reduce) {
   .aic-app *, .aic-app *::before, .aic-app *::after { animation-duration: 0ms !important; animation-delay: 0ms !important; transition-duration: 0ms !important; }
   .aic-shower { display: none; }

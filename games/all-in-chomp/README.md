@@ -11,7 +11,8 @@ on the arcade home page and asks search engines not to index it.
 
 ## How to play
 
-- Swipe, or use the arrow keys, to turn. Your chomper keeps moving until a wall stops it.
+- Rest a finger anywhere on the screen: a joystick appears under it. Push it toward a direction, or use the arrow
+  keys. Your chomper keeps moving until a wall stops it.
 - Caught by a friend = one buy-in lost. You start with three.
 - An ALL IN chip in a corner makes the chasers fold for a few seconds: eat them for a chain bonus.
 - Pick up the cards that appear below the dealer's seat. At the clear, your best poker hand pays out.
@@ -20,7 +21,8 @@ on the arcade home page and asks search engines not to index it.
 
 ## Controls
 
-- Touch: swipe anywhere on the table.
+- Touch: a floating joystick. Rest a finger anywhere, push it toward a direction, keep pushing to steer through
+  corners. A mouse drag works the same way.
 - Keyboard: arrow keys or WASD. `Esc` or `P` pauses; the game also pauses when you switch tabs or turn the
   phone to portrait.
 
@@ -38,7 +40,6 @@ static file server (for example `python -m http.server`) and open it over `http:
 ## Known issues
 
 - The rail beside the maze does not yet show the waiting regulars.
-- The wordmark sits on the top edge of the table rather than above it.
 - How-to is text, not pictures, and free play has no share card.
 
 ## Credits

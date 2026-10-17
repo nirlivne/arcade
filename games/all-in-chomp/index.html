@@ -26,10 +26,14 @@
     .aic-app[data-gutter="wide"] .aic-score { font-size: 40px; }
     .aic-app[data-gutter="wide"] .aic-label { font-size: 18px; }
   }
+  /* the game reads the safe-area insets off this probe's padding (env() can't be read from JS directly) */
+  #chomp-inset-probe { position: fixed; left: -9999px; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+    padding: var(--aic-inset-top) var(--aic-inset-right) var(--aic-inset-bottom) var(--aic-inset-left); }
 </style>
 </head>
 <body>
 <div class="aic-app" id="chomp-app" dir="rtl">
+  <div id="chomp-inset-probe"></div>
   <div class="aic-stage" id="chomp-stage">
     <canvas id="chomp-canvas"></canvas>
   </div>
@@ -49,8 +53,8 @@
     <div class="aic-spectators" id="chomp-spectators"></div>
   </div>
   <div class="aic-band" id="chomp-band" hidden></div>
+  <div class="aic-stick" id="chomp-stick" hidden><div class="aic-stick__knob"></div></div>
   <div class="aic-over" id="chomp-over">
-    <div class="aic-shout" id="chomp-play-wordmark" style="position:absolute;top:0;left:50%;transform:translateX(-50%) rotate(-4deg);white-space:nowrap">אול-אין!</div>
     <div class="aic-beat" id="chomp-beat" hidden>
       <div class="aic-beat__inner">
         <div class="aic-beat__cards" id="chomp-beat-cards"></div>
@@ -94,7 +98,7 @@
         <div class="aic-gameover__score" id="chomp-over-score"></div>
         <div class="aic-gameover__best" id="chomp-over-best"></div>
         <div class="aic-gameover__actions">
-          <button class="aic-chipbtn" id="chomp-rebuy">ריבאי</button>
+          <button class="aic-chipbtn" id="chomp-rebuy">עוד משחק</button>
           <button class="aic-cardbtn" data-pip="♦" id="chomp-nightly" style="width:58px;height:78px">שולחן<br>הערב</button>
           <button class="aic-cardbtn" data-pip="♥" id="chomp-share" style="width:58px;height:78px" hidden>שתף</button>
         </div>
@@ -105,7 +109,7 @@
 
   <div class="aic-hint" id="chomp-hint" dir="rtl" hidden>
     <ol>
-      <li>החליקו או לחצו על החצים: תאכלו את כל הצ'יפים.</li>
+      <li>הג'ויסטיק: הניחו אצבע ודחפו לכיוון. תאכלו את כל הצ'יפים.</li>
       <li>החברים רודפים אחריכם. נתפסתם? הלך לכם צ'יפ.</li>
       <li>אול-אין בפינה: עכשיו אתם רודפים אותם. תאספו קלפים ליד.</li>
     </ol>
@@ -134,7 +138,7 @@
   <div class="aic-scrim" id="chomp-howto-scrim" hidden>
     <div class="aic-sheet" dir="rtl">
       <h2 class="aic-sheet__title">איך משחקים</h2>
-      <p>החליקו או לחצו על החצים כדי לנוע במבוך ולאכול צ'יפים.</p>
+      <p>הניחו אצבע על השולחן: ג'ויסטיק מופיע מתחתיה. דחפו לכיוון (או חצים במקלדת) כדי לנוע ולאכול צ'יפים.</p>
       <p>חברים רודפים אחריכם. חטיפה עולה צ'יפ.</p>
       <p>ALL IN בפינה הופך אתכם לרודפים: אכלו את מי שמקפל.</p>
       <p>אספו קלפים ליד הדילר לקראת תשלום על היד.</p>

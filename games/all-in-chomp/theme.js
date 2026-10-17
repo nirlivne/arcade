@@ -80,7 +80,7 @@ window.THEME = {
     pauseQuit: "לשולחן הראשי",
 
     howToBody: [
-      "החליקו או לחצו על החצים כדי לנוע במבוך ולאכול צ'יפים.",
+      "הניחו אצבע על השולחן: ג'ויסטיק מופיע מתחתיה. דחפו לכיוון (או חצים במקלדת) כדי לנוע ולאכול צ'יפים.",
       "חברים רודפים אחריכם. חטיפה עולה צ'יפ.",
       "ALL IN בפינה הופך אתכם לרודפים: אכלו את מי שמקפל.",
       "אספו קלפים ליד הדילר לקראת תשלום על היד.",
@@ -89,8 +89,8 @@ window.THEME = {
     aboutStudio: "נוצר על ידי The Game Company.", // release checklist: About names the studio
     bookEmpty: "טרם נפתח",
 
-    hint1: "החליקו או לחצו על החצים: תאכלו את כל הצ'יפים.",
-    hint1Touch: "החליקו: תאכלו את כל הצ'יפים.", // touch has no arrow buttons to tap (THE-713 D3)
+    hint1: "החצים במקלדת (או ג'ויסטיק בעכבר): תאכלו את כל הצ'יפים.",
+    hint1Touch: "הג'ויסטיק: הניחו אצבע ודחפו לכיוון. תאכלו את כל הצ'יפים.", // the floating stick (2026-10-17)
     hint2: "החברים רודפים אחריכם. נתפסתם? הלך לכם צ'יפ.",
     hint3: "אול-אין בפינה: עכשיו אתם רודפים אותם. תאספו קלפים ליד.",
     hintTap: "הקישו כדי להתחיל",
@@ -98,7 +98,8 @@ window.THEME = {
 
     gameOver: "נגמרו הצ'יפים",
     best: "השיא של {name}: {score}",
-    rebuy: "ריבאי",
+    rebuy: "עוד משחק", // was "ריבאי": poker slang the players don't know (board, 2026-10-17)
+    backInGame: "{name} חזר למשחק!", // the dealer's shout over the door when a seated chaser's rebuy wait ends
     share: "שתף",
     playedCount: "{k}/{n} כבר שיחקו",
 

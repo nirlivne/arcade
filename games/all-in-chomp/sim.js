@@ -20,6 +20,7 @@ export const BONUS_BUY_IN_SCORE = 10000;
 export const MAX_BUY_INS = 4; // the +1 bonus buy-in caps here, same cap the game-over check never exceeds
 export const CARD_THRESHOLDS = [25, 50, 75, 100, 125];
 export const CARD_DURATION_STEPS = 9 * 60; // 9s
+export const REBUY_WAIT_STEPS = 240; // 4s: an eaten chaser sits in the seat before it comes back out (board, 2026-10-17)
 export const MAX_SCALE_LEVEL = 8;
 const FOLD_STEPS_PER_LEVEL = 30; // -0.5s a level
 const FOLD_STEPS_FLOOR = 120; // 2s, the fold duration never scales below this
@@ -59,7 +60,7 @@ const MODE_CODE = { scatter: 1, chase: 2 };
 function freshGhost(slot, id, behaviour, seatTile) {
   const actor = placeAtTile(seatTile.x, seatTile.y, null);
   actor.want = null;
-  return { ...actor, slot, id, behaviour, active: false, folded: false, foldLeft: 0, eaten: false, forceReverse: false };
+  return { ...actor, slot, id, behaviour, active: false, folded: false, foldLeft: 0, eaten: false, forceReverse: false, rebuyLeft: 0 };
 }
 
 function freshActors(maze, ghostIds, behaviours) {
@@ -254,7 +255,7 @@ function tryGrabAllIn(run) {
   run.chain = 200;
   const foldSteps = foldStepsForLevel(run.level);
   for (const g of run.ghosts) {
-    if (g.active && !g.eaten) {
+    if (g.active && !g.eaten && !g.rebuyLeft) {
       g.folded = true;
       g.foldLeft = foldSteps;
     }
@@ -277,7 +278,7 @@ function releaseGhosts(run) {
   }
 }
 
-// Fold and eyes-home timers/arrivals, run once at the top of each play step, before anyone moves.
+// Fold, rebuy-wait and eyes-home timers/arrivals, run once at the top of each play step, before anyone moves.
 function updateGhostTimers(run) {
   for (const g of run.ghosts) {
     if (!g.active) continue;
@@ -285,12 +286,30 @@ function updateGhostTimers(run) {
       g.foldLeft -= 1;
       if (g.foldLeft <= 0) g.folded = false;
     }
+    if (g.rebuyLeft > 0) {
+      // The rebuy wait (board, 2026-10-17): seated, still, untouchable. At 0 the ghost is back in the game
+      // through the door, heading out exactly like a first release (releaseGhosts), in the current mode.
+      g.rebuyLeft -= 1;
+      if (g.rebuyLeft === 0) {
+        const c = tileCenter(run.maze.door.x, run.maze.door.y);
+        g.x = c.x;
+        g.y = c.y;
+        g.dir = "up";
+        g.want = "up";
+      }
+      continue;
+    }
     if (g.eaten) {
       // Exact centre, not just "which cell contains this pixel" (tileIndexOf/currentTile are too loose
       // here - they'd call it arrived up to 119u early, well before eyesDirection's downhill walk actually
       // reaches the seat).
       const seatCentre = tileCenter(run.maze.seat.x, run.maze.seat.y);
-      if (g.x === seatCentre.x && g.y === seatCentre.y) g.eaten = false; // pops out, in the current mode
+      if (g.x === seatCentre.x && g.y === seatCentre.y) {
+        g.eaten = false; // home: the chip sits in the seat for the rebuy wait
+        g.rebuyLeft = REBUY_WAIT_STEPS;
+        g.dir = null;
+        g.want = null;
+      }
     }
   }
 }
@@ -302,7 +321,7 @@ function moveGhosts(run) {
   const directChaserTile = directChaser ? currentTile(directChaser) : null;
 
   for (const g of run.ghosts) {
-    if (!g.active) continue;
+    if (!g.active || g.rebuyLeft > 0) continue; // seated for the rebuy wait: still
     // Decide every step for the tile ahead (THE-690 r3), so a turn is queued before the ghost reaches its
     // centre. A reverse chosen for that tile (only at a dead end: eyes entering the seat) waits until the
     // ghost stands on the centre, because stepActor applies a reverse instantly, even mid-tile. The mode
@@ -397,7 +416,7 @@ export function step(run) {
       const newMode = modeAt(run.modeSteps);
       if (newMode !== run.mode) {
         run.mode = newMode;
-        for (const g of run.ghosts) if (g.active && !g.folded && !g.eaten) g.forceReverse = true;
+        for (const g of run.ghosts) if (g.active && !g.folded && !g.eaten && !g.rebuyLeft) g.forceReverse = true;
         talkCandidates.push({ event: "modeChange", who: null });
       }
     }
@@ -411,7 +430,7 @@ export function step(run) {
     moveGhosts(run);
 
     // Catches (by active, non-folded, non-eaten ghosts) beat grabs this step - no pickup is applied.
-    const caughtBy = run.ghosts.find((g) => g.active && !g.folded && !g.eaten && caught(run.player, g, prevPlayerTile, prevGhostTiles[g.slot]));
+    const caughtBy = run.ghosts.find((g) => g.active && !g.folded && !g.eaten && !g.rebuyLeft && caught(run.player, g, prevPlayerTile, prevGhostTiles[g.slot]));
     if (caughtBy) {
       // A1: the fold ends - folded (and already-eaten) ghosts go home unfolded, no chain score, chain resets.
       for (const g of run.ghosts) {
@@ -556,7 +575,7 @@ export function hash(run) {
     run.talk.cooldownLeft,
   ];
   for (const g of run.ghosts) {
-    ints.push(g.active ? 1 : 0, g.folded ? 1 : 0, g.eaten ? 1 : 0, g.foldLeft, g.x, g.y, DIR_CODE[g.dir] || 0, DIR_CODE[g.want] || 0);
+    ints.push(g.active ? 1 : 0, g.folded ? 1 : 0, g.eaten ? 1 : 0, g.foldLeft, g.x, g.y, DIR_CODE[g.dir] || 0, DIR_CODE[g.want] || 0, g.rebuyLeft);
   }
   for (const n of ints) {
     h ^= n >>> 0;

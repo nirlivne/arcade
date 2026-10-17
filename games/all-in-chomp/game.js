@@ -1,9 +1,9 @@
-// rAF loop, fixed 60Hz accumulator (capped at 5 steps a frame), DOM HUD, keys + swipe, window.__sim. S1:
+// rAF loop, fixed 60Hz accumulator (capped at 5 steps a frame), DOM HUD, keys + the stick, window.__sim. S1:
 // no deal screen yet (that's S5) - the deal happens instantly and play starts right away. Thin.
 import { createRun, input, step, hash as simHash, levelSnapshot, resumeLevel, mazeKeyForLevel } from "./sim.js";
 import { createRenderer, BEHAVIOUR_KEY } from "./render.js";
 import * as R from "./recipe.js";
-import { attachKeyboard, attachSwipe } from "./input.js";
+import { attachKeyboard, attachStick } from "./input.js";
 import { createSave } from "./save.js";
 import { nextChomper, dealGhosts, dealNightly, nightlySeed, nightNumber, localDateString, REGULARS } from "./deal.js";
 import { shareText } from "./share.js";
@@ -65,6 +65,7 @@ let prevChipsEaten = 0;
 let prevAllInCount = 0;
 let prevCardsCollected = 0;
 let prevPhase = null;
+let prevRebuyLeft = []; // per ghost slot, last frame's rebuyLeft (the rebuy shout fires on the 1 -> 0 edge)
 
 // .aic-scrim and .aic-turn (skin.css) each set their own `display`, which - tied on specificity with the
 // browser's built-in [hidden] rule and coming later in source order - wins over it; toggling only the
@@ -78,6 +79,19 @@ function setHidden(el, hidden) {
 // 1s of rotating back via the resize/orientationchange listeners already wired to checkPortrait().
 function isTouchDevice() {
   return window.matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
+}
+
+// Android (board, 2026-10-17): outside the installed app the browser's URL bar eats ~56 px of a landscape
+// phone. A user gesture may ask for fullscreen, then lock landscape. iPhone Safari rejects the first call and
+// nothing changes there; every rejection (and a synchronous throw on old engines) is swallowed. The
+// fullscreen change fires resize(), which re-lays out the maze.
+function requestPhoneFullscreen() {
+  if (!isTouchDevice() || !document.fullscreenEnabled || document.fullscreenElement) return;
+  if (window.matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches) return;
+  Promise.resolve()
+    .then(() => document.documentElement.requestFullscreen({ navigationUI: "hide" }))
+    .then(() => (screen.orientation && screen.orientation.lock ? screen.orientation.lock("landscape") : null))
+    .catch(() => {});
 }
 function checkPortrait() {
   const el = document.getElementById("chomp-portrait");
@@ -141,22 +155,32 @@ function updateSpriteCache() {
   }
 }
 
-// Spec §6: T = min(floor(0.85*H/15), floor((W-112)/25)), capped at 40 - fixed by the S1 feel check
-// (THE-689): the old (innerWidth-120)/25-only formula ignored height and overflowed short viewports.
-// data-gutter follows DESIGN.md §4: "wide" once the gutter (ox) is >= 100px, else "narrow" (664x390 class).
-// No-ops while on the title screen (run is null - nothing to lay out yet).
+const EDGE_PAD = 6; // px between the maze and the screen edge (beyond the safe-area insets)
+
+function safeInsets() {
+  const s = getComputedStyle(document.getElementById("chomp-inset-probe"));
+  const px = (v) => Math.max(0, parseFloat(v) || 0);
+  return { top: px(s.paddingTop), right: px(s.paddingRight), bottom: px(s.paddingBottom), left: px(s.paddingLeft) };
+}
+
+// Board, 2026-10-17 (replaces spec §6's 85 % rule): the maze fills the height minus the safe-area insets and
+// EDGE_PAD on each edge; the width budget keeps 56 px a side for the HUD, capped at T 40. data-gutter is
+// "wide" when the smaller usable gutter (past the inset on that side) is >= 100 px, else "narrow" (664x390
+// class). No-ops while on the title screen (run is null - nothing to lay out yet).
 function resize() {
   if (!run) return;
   const canvas = document.getElementById("chomp-canvas");
   const maze = run.maze;
   const W = window.innerWidth, H = window.innerHeight;
-  const byHeight = Math.floor((0.85 * H) / maze.h);
-  const byWidth = Math.floor((W - 112) / maze.w);
+  const inset = safeInsets();
+  const byHeight = Math.floor((H - inset.top - inset.bottom - 2 * EDGE_PAD) / maze.h);
+  const byWidth = Math.floor((W - inset.left - inset.right - 112) / maze.w);
   tile = Math.max(16, Math.min(byHeight, byWidth, 40));
   const mw = maze.w * tile, mh = maze.h * tile;
   stageOx = Math.round((W - mw) / 2);
   stageOy = Math.round((H - mh) / 2);
-  document.getElementById("chomp-app").dataset.gutter = stageOx >= 100 ? "wide" : "narrow";
+  const usableGutter = Math.min(stageOx - inset.left, stageOx - inset.right);
+  document.getElementById("chomp-app").dataset.gutter = usableGutter >= 100 ? "wide" : "narrow";
 
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(W * dpr);
@@ -198,6 +222,29 @@ function updateAudioCues() {
   if (run.phase === "dying" && prevPhase !== "dying") audio.caught();
   if (run.phase === "clear" && prevPhase !== "clear") audio.handBeat(run.lastHand.rank >= 6);
   prevPhase = run.phase;
+}
+
+// The rebuy shout (board, 2026-10-17): the step a seated chaser's wait hits 0 it is back out through the
+// door, and the dealer shouts "{name} חזר למשחק!" over the door tile. Detected by diffing the previous
+// frame's rebuyLeft per ghost, like updateAudioCues, so it fires once per return.
+function updateRebuyShouts() {
+  run.ghosts.forEach((g, i) => {
+    if (prevRebuyLeft[i] > 0 && g.rebuyLeft === 0 && g.active) showBackInGame(run.ghostIds[i]);
+    prevRebuyLeft[i] = g.rebuyLeft;
+  });
+}
+
+function showBackInGame(id) {
+  const pop = document.createElement("div");
+  pop.className = "aic-pop aic-pop--shout";
+  pop.textContent = format(TEXT.backInGame, { name: facesById[id]?.name_he || id });
+  // .aic-pop centres itself with translate(50%, -50%) (its keyframes animate that translate too), so it is
+  // placed from the right edge of .aic-over, which is the maze rect.
+  const x = (run.maze.door.x + 0.5) * tile, y = (run.maze.door.y + 0.5) * tile;
+  pop.style.right = `${run.maze.w * tile - x}px`;
+  pop.style.top = `${y}px`;
+  document.getElementById("chomp-over").appendChild(pop);
+  setTimeout(() => pop.remove(), 900);
 }
 
 // A mini inked head on a small canvas (talk, spectators) - recipe.js's drawSprite onto a dpr-scaled canvas.
@@ -405,6 +452,7 @@ function updateHud() {
   updateStacks();
   updateHandRail();
   updateTalk();
+  updateRebuyShouts();
   if (run.phase === "over" && !bestSaved) {
     recordBest(run);
     bestSaved = true;
@@ -705,6 +753,27 @@ function closeHint() {
   lastFrameTime = null;
 }
 
+// The stick's DOM view (input.js's attachStick draws through this): the base ring at the touch point, the
+// knob at the clamped offset. .aic-stick's margin centres the ring on left/top.
+function stickView() {
+  const el = document.getElementById("chomp-stick");
+  const knob = el.firstElementChild;
+  return {
+    show(x, y) {
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      knob.style.transform = "translate(-50%, -50%)";
+      el.hidden = false;
+    },
+    move(dx, dy) {
+      knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    },
+    hide() {
+      el.hidden = true;
+    },
+  };
+}
+
 function loop(now) {
   requestAnimationFrame(loop);
   if (titleShowing) return; // run is null - nothing below this line has anything to act on
@@ -748,6 +817,7 @@ function resetRunFlags() {
   bestSaved = false;
   clearHandStamped = false;
   overHandled = false;
+  prevRebuyLeft = [];
   snapshotRngAtLevelStart = null; // force the new run's first level-start snapshot write
 }
 
@@ -1022,7 +1092,6 @@ function applyThemeText() {
   byId("chomp-sound-btn").setAttribute("aria-label", TEXT.soundAria);
 
   byId("chomp-title-name").textContent = THEME.title;
-  byId("chomp-play-wordmark").textContent = THEME.title;
   byId("chomp-title-tag").textContent = THEME.tagline;
   byId("chomp-title-deal").textContent = TEXT.deal;
   byId("chomp-title-about").textContent = TEXT.about;
@@ -1165,13 +1234,20 @@ async function boot() {
     }
     input(run, dir);
   });
-  attachSwipe(canvas, (dir) => input(run, dir));
+  // The floating stick (board, 2026-10-17): on the app root, so a thumb resting in a gutter steers too. Taps
+  // on buttons, sheets and screens never start a stick (input.js), so the deal skip, the hint close and every
+  // button keep their own handlers.
+  attachStick(document.getElementById("chomp-app"), (dir) => {
+    if (!run || titleShowing || dealing || hintShowing) return;
+    input(run, dir);
+  }, stickView());
   document.getElementById("chomp-hint").addEventListener("pointerdown", () => closeHint());
   document.getElementById("chomp-deal").addEventListener("pointerdown", () => {
     if (dealing) endDealScreen();
   });
 
   document.getElementById("chomp-rebuy").addEventListener("click", () => {
+    requestPhoneFullscreen();
     startNewRun();
   });
   document.getElementById("chomp-nightly").addEventListener("click", () => {
@@ -1190,10 +1266,12 @@ async function boot() {
   // Title (THE-705): "חלק לי" deals, the corner button deals the nightly table, the fan reuses the pause
   // scrims (about/how-to) plus the hand book.
   document.getElementById("chomp-title-deal").addEventListener("click", () => {
+    requestPhoneFullscreen();
     hideTitle();
     startNewRun();
   });
   document.getElementById("chomp-title-nightly").addEventListener("click", () => {
+    requestPhoneFullscreen();
     hideTitle();
     startNightlyRun();
   });
@@ -1302,6 +1380,7 @@ async function boot() {
           folded: g.folded,
           foldLeft: g.foldLeft,
           eaten: g.eaten,
+          rebuyLeft: g.rebuyLeft,
           x: g.x,
           y: g.y,
           dir: g.dir,
@@ -1321,6 +1400,14 @@ async function boot() {
     },
     input(dir) {
       if (!titleShowing) input(run, dir);
+    },
+    // Test hook: seat ghost `slot` for `steps` of rebuy wait (as if its eyes had just got home), so the
+    // return and its shout can be driven without playing out an ALL IN and an eat.
+    seat(slot, steps = 1) {
+      if (titleShowing) return;
+      const g = run.ghosts[slot];
+      const c = { x: run.maze.seat.x * 240 + 120, y: run.maze.seat.y * 240 + 120 }; // move.js's tileCenter, 1 tile = 240 u
+      Object.assign(g, { active: true, folded: false, foldLeft: 0, eaten: false, rebuyLeft: steps, x: c.x, y: c.y, dir: null, want: null });
     },
   };
 

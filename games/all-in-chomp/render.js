@@ -34,7 +34,7 @@ export function createRenderer(ctx, C) {
   function drawGhostActor(g, sprites, T, ox, oy, t) {
     const { x, y } = actorScreen(g, T, ox, oy);
     const col = C.behaviour[BEHAVIOUR_KEY[g.behaviour]];
-    if (g.eaten) {
+    if (g.eaten || g.rebuyLeft > 0) { // eyes gliding home, or seated for the rebuy wait: the chip
       R.drawEaten(ctx, sprites, x, y, T, C, col, 1);
       return;
     }

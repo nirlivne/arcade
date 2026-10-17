@@ -76,6 +76,12 @@
   --aic-suit-diamond: #2F6BD6;
   --aic-suit-club: #1F8A4C;
 
+  /* ---- safe areas: phones with a notch or a home bar (0 where env() is unsupported) ---- */
+  --aic-inset-top: env(safe-area-inset-top, 0px);
+  --aic-inset-right: env(safe-area-inset-right, 0px);
+  --aic-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --aic-inset-left: env(safe-area-inset-left, 0px);
+
   /* ---- type ---- */
   /* The Doodle and Fredoka subsets have Hebrew letters only (no digits, ! ? . , : …): Karantina is second in
      every stack so digits and punctuation stay in the family set (checked on the style tile). */
