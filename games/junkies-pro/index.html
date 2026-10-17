@@ -22,6 +22,8 @@
 html,body{margin:0;height:100%;overflow:hidden;background:#1d3a2c;overscroll-behavior:none;touch-action:none;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 #gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#rot{position:fixed;inset:0;width:100%;height:100%;display:none;pointer-events:none}
+#ui.rotting #hud,#ui.rotting #btns,#ui.rotting #cut,#ui.rotting #say,#ui.rotting #banner,#ui.rotting #pops{visibility:hidden}
 #ui{position:fixed;left:0;top:0;width:400px;height:760px;transform-origin:0 0;pointer-events:none;
   font-family:Hand,Round,'Segoe Print','Comic Sans MS',cursive;color:#fff}
 #ui button{pointer-events:auto;font-family:inherit;cursor:pointer}
@@ -174,6 +176,7 @@ button.mv:disabled{opacity:.2;cursor:default}
 </head>
 <body>
 <canvas id="gl" aria-label="ג׳אנקיס: משחק תמונות של ערב פוקר"></canvas>
+<canvas id="rot" aria-hidden="true"></canvas>
 <div id="ui">
   <div id="hud" class="hidden">
     <div id="scorebox"><div class="note"><div class="lbl">ניקוד</div><div id="score" dir="ltr">0</div><div id="best">שיא 0</div></div></div>
@@ -6390,7 +6393,6 @@ postprocessing/build/index.js:
     this.renderPhoto();
     this.setPost(post || {});
     this.composer.render(this.dt || 0.016);
-    this.watch();
   };
 
   // one of everything that appears later (chips plain, see-through and clipped, a cut-out, confetti, a jackpot chip),
@@ -6406,7 +6408,8 @@ postprocessing/build/index.js:
     var r = function () { return 0.5; };
     this.confetti.burst(200, 380, 2, [[1, 1, 1]], false, r, [[1, 0, 0], [0, 0, 0]]);
     this.chips3d.burst(200, 380, 1, [['#d2483f', '#f6efdf']], r);
-    this.end({ time: this.t });
+    this.end({ time: this.t, flash: 0.01, ca: 0.01 }); // the flash/shockwave and colour-fringe passes too
+    if (this.finalPass === this.bloomPass) { this.useBloom(false); this.composer.render(0); this.useBloom(true); } // and the no-bloom pass a step down uses
     // kept, hidden: a program with no material left is released, and would compile again at the first merge
     ['w0', 'w1', 'w2', 'w3', 'w4'].forEach(function (k) { this.items[k].keep = true; this.items[k].g.visible = false; }, this);
     this.confetti.clear(); this.chips3d.clear();
@@ -6505,16 +6508,16 @@ postprocessing/build/index.js:
   }
 
   // ---------------------------------------------------------------- quality: watch the frame time, step down when slow
-  P.watch = function () {
+  // ms: from a drawn frame to the next animation frame (game.js measures it), so a capped rate (30 fps on the calm
+  // screens, every other refresh of a 90 or 120 Hz screen) never reads as slow. game.js calls this before it draws:
+  // a step down resizes the canvas, and a resize after the draw showed a blank frame (a blink early in the game).
+  P.watch = function (ms) {
+    if (!(ms < 200)) return; // a hidden tab or a stall, not the frame's cost
     var now = performance.now();
-    if (this.lastT) {
-      var dt = now - this.lastT;
-      if (dt < 200) { this.ft = this.ft ? this.ft * 0.95 + dt * 0.05 : dt; }
-      if (this.opts.adaptive !== false && this.quality > 1 && this.ft > 21 && now - (this.qT || 0) > 3000 && this.frame > 120) {
-        this.qT = now; this.quality--; this.applyQuality(); this.ft = 16;
-      }
+    this.ft = this.ft ? this.ft * 0.95 + ms * 0.05 : ms;
+    if (this.opts.adaptive !== false && this.quality > 1 && this.ft > 21 && now - (this.qT || 0) > 3000 && this.frame > 120) {
+      this.qT = now; this.quality--; this.applyQuality(); this.ft = 16;
     }
-    this.lastT = now;
   };
   P.setQuality = function (q) { this.quality = q; this.applyQuality(); };
 
@@ -7310,8 +7313,76 @@ postprocessing/build/index.js:
       if (!sfxOn) return;
       var f = [330, 370, 392, 440, 494, 523, 587, 659][Math.min(n, 7)];
       tone(f, f * 0.996, 0.7, 'triangle', 0.2); tone(f * 2, f * 2, 0.2, 'sine', 0.06);
+    },
+    // the brain-rot moments (js/rot.js), the promo video's meme hits ported from its synth
+    // the vine boom: a deep, saturated thump that falls from 113 to 43 Hz
+    vine: function (vol) {
+      var a = sfxOn && ctx(); if (!a) return;
+      var t0 = a.currentTime, sh = a.createWaveShaper(), v = vol || 1;
+      sh.curve = satCurve(3); sh.connect(sfxBus);
+      [[113, 43, 0.9, 0.42], [227, 86, 0.45, 0.2]].forEach(function (p) {
+        var o = a.createOscillator(), g = a.createGain();
+        o.frequency.setValueAtTime(p[0], t0); o.frequency.setTargetAtTime(p[1], t0, 0.09);
+        g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(p[2] * v, t0 + 0.004); g.gain.setTargetAtTime(0.0001, t0 + 0.004, p[3]);
+        o.connect(g); g.connect(sh); o.start(t0); o.stop(t0 + 1.8);
+      });
+      noise(0.3, 'lowpass', 400, 90, 0.7, 0.5 * v);
+    },
+    // the air horn: four blasts of a detuned saw chord in A (it sits on the band's D)
+    airhorn: function (vol) {
+      var a = sfxOn && ctx(); if (!a) return;
+      [[0, 0.2], [0.27, 0.12], [0.43, 0.12], [0.6, 0.7]].forEach(function (b) {
+        var t0 = a.currentTime + b[0], f = a.createBiquadFilter(), g = a.createGain(), sh = a.createWaveShaper();
+        f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 0.6; sh.curve = satCurve(2);
+        g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.16 * (vol || 1), t0 + 0.012);
+        g.gain.setValueAtTime(0.16 * (vol || 1), t0 + b[1]); g.gain.exponentialRampToValueAtTime(0.0001, t0 + b[1] + 0.07);
+        f.connect(sh); sh.connect(g); g.connect(sfxBus);
+        [[440, 1], [443.5, 0.8], [659.3, 0.6], [880, 0.35]].forEach(function (h) {
+          var o = a.createOscillator(), og = a.createGain();
+          o.type = 'sawtooth'; o.frequency.setValueAtTime(h[0] * 0.94, t0); o.frequency.setTargetAtTime(h[0], t0, 0.03);
+          og.gain.value = h[1]; o.connect(og); og.connect(f); o.start(t0); o.stop(t0 + b[1] + 0.1);
+        });
+      });
+    },
+    // a record scratch: a scrubbed noise band and a buzzy saw, forward and back
+    scratch: function (vol) {
+      var a = sfxOn && ctx(); if (!a) return;
+      var t0 = a.currentTime, v = vol || 1, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+      s.buffer = noiseBuf; f.type = 'bandpass'; f.Q.value = 2.5;
+      var o = a.createOscillator(), og = a.createGain(); o.type = 'sawtooth';
+      [[0, 300, 140], [0.09, 2800, 700], [0.2, 500, 160], [0.28, 2400, 600], [0.36, 400, 120]].forEach(function (k) {
+        var m = k[0] ? 'linearRampToValueAtTime' : 'setValueAtTime';
+        f.frequency[m](k[1], t0 + k[0]); o.frequency[m](k[2], t0 + k[0]);
+      });
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.5 * v, t0 + 0.02); g.gain.setValueAtTime(0.5 * v, t0 + 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+      og.gain.setValueAtTime(0.0001, t0); og.gain.exponentialRampToValueAtTime(0.07 * v, t0 + 0.02); og.gain.setValueAtTime(0.07 * v, t0 + 0.3); og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+      s.connect(f); f.connect(g); g.connect(sfxBus); o.connect(og); og.connect(f);
+      s.start(t0); s.stop(t0 + 0.45); o.start(t0); o.stop(t0 + 0.45);
+    },
+    whoosh: function (up, vol) { if (!sfxOn) return; noise(0.32, 'bandpass', up ? 350 : 4500, up ? 4500 : 350, 1.3, 0.4 * (vol || 1)); },
+    // an X stamped on an eye
+    thunk: function () { if (!sfxOn) return; tone(190, 60, 0.14, 'sine', 0.6); noise(0.05, 'lowpass', 1400, 300, 1, 0.35); clack(0.6, 0, 7, 'lay'); },
+    // the sad trombone: wah, wah, wah, waaaah (the last one wobbles)
+    trombone: function (delay) {
+      var a = sfxOn && ctx(); if (!a) return;
+      [[62, 0.3], [61, 0.3], [60, 0.3], [59, 1.0]].forEach(function (n, i) {
+        var t0 = a.currentTime + (delay || 0) + i * 0.34, fr = midi(n[0]), end = t0 + n[1];
+        var o = a.createOscillator(), f = a.createBiquadFilter(), g = a.createGain();
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(fr * 1.03, t0); o.frequency.setTargetAtTime(fr, t0, 0.04);
+        if (i === 3) { var l = a.createOscillator(), lg = a.createGain(); l.frequency.value = 5.5; lg.gain.setValueAtTime(0, t0); lg.gain.linearRampToValueAtTime(fr * 0.035, t0 + 0.3); l.connect(lg); lg.connect(o.frequency); l.start(t0); l.stop(end + 0.1); }
+        f.type = 'lowpass'; f.Q.value = 4; f.frequency.setValueAtTime(fr * 1.5, t0); f.frequency.linearRampToValueAtTime(fr * 6, t0 + 0.1); f.frequency.linearRampToValueAtTime(fr * 2, end);
+        g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.04); g.gain.setValueAtTime(0.2, end - 0.06); g.gain.exponentialRampToValueAtTime(0.0001, end + 0.05);
+        o.connect(f); f.connect(g); g.connect(sfxBus); o.start(t0); o.stop(end + 0.1);
+      });
     }
   };
+  var satCurves = {};
+  function satCurve(k) {
+    if (satCurves[k]) return satCurves[k];
+    var c = new Float32Array(1024), n = Math.tanh(k);
+    for (var i = 0; i < 1024; i++) c[i] = Math.tanh(k * (i / 511.5 - 1)) / n;
+    return (satCurves[k] = c);
+  }
 
   // upright-ish bass: sine + soft triangle, round attack
   function bass(freq, t0, vol, dur) {
@@ -7804,7 +7875,8 @@ postprocessing/build/index.js:
     function due() { return !off && deck.due(api.score(), api.play(), api.friends()); }
     function take() { var id = deck.take(); dealtOut = true; deck.busy = true; api.event('guest:' + id); return id; }
     // he moves from NEXT onto the line
-    function dealt(id) { api.banner(NAMES[id], ' הגיע!', 'תראו מי בא'); api.sfx('riffle', 0); }
+    // quiet: the brain-rot moment (js/rot.js) announces him instead of the banner
+    function dealt(id, quiet) { if (!quiet) api.banner(NAMES[id], ' הגיע!', 'תראו מי בא'); api.sfx('riffle', 0); }
     function onDrop() { deck.onDrop(); }
     // his drop starts his power; returns his body (קוקו has none)
     function drop(id, x, y) {
@@ -8443,6 +8515,319 @@ postprocessing/build/index.js:
 </script>
 <script>
 'use strict';
+// Brain rot: three short meme moments in the promo video's style, drawn on a 2D canvas (#rot) between the table and
+// the HUD. The jar holds still while one plays (game.js asks active()); then the game picks up where it was.
+//   jackpot: the two biggest faces slam together over gold rays, the hat drops on, pixel shades slide down, the other
+//            seven orbit around them: "רויאל פלאש!!"
+//   joker:   a guest arrives: a card flips over into his face, his line in big letters, his emoji; he flies to the line
+//   bust:    game over: the face that went over the line crash-zooms in, X eyes stamp on: "<name> בטילט!", sad trombone
+// A face here is { cv: { open, closed }, cx, cy, marks, eyes } (cell fractions, as js/faces.js bakes them).
+// Reduced motion: no shake, slam or zoom-through; the rays, pops and captions still play.
+(function () {
+  var TAU = Math.PI * 2;
+  function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function outBack(x, s) { x = clamp01(x); s = s || 1.9; return 1 + (s + 1) * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2); }
+  function outCubic(x) { x = clamp01(x); return 1 - Math.pow(1 - x, 3); }
+  function outExpo(x) { x = clamp01(x); return x >= 1 ? 1 : 1 - Math.pow(2, -10 * x); }
+  function inQuad(x) { x = clamp01(x); return x * x; }
+  function decay(t, tau) { return t < 0 ? 0 : Math.exp(-t / tau); }
+  function lerp(a, b, k) { return a + (b - a) * k; }
+
+  var DUR = { jackpot: 2.3, joker: 1.65, bust: 1.8 }, OUT = 0.22;
+  var SLAM = 0.24; // jackpot: the two copies meet
+  var FLIP = 0.4;  // joker: the card turns over
+  var GUEST = {
+    daniel: { rays: ['#ff8a1f', '#6e1206'], ink: '#FFB347', stroke: '#3a0a00', emoji: ['💣', '🔥', '🍕', '🔥'] },
+    michael: { rays: ['#ff5c8a', '#3d0f45'], ink: '#FFC2D6', stroke: '#3d0f45', emoji: ['🎸', '🎶', '💃', '🎶'] },
+    koko: { rays: ['#d23a3a', '#f4efe4'], ink: '#FFFFFF', stroke: '#1d2b5a', emoji: ['🦅', '🗽', '🍔', '⭐'] }
+  };
+  var EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+  // "deal with it" shades, one string per pixel row: X black, W a white glint
+  var SHADES = ['XXXXXXXXXXXXXXXXX', 'XWWXXXXXXXWWXXXXX', '.WXXXXX...WXXXXX.', '..XXXX.....XXXX..'];
+
+  function create(canvas, opts) {
+    var c = canvas.getContext('2d'), sfx = opts.sfx || {}, props = opts.props || {};
+    var cur = null, hold = null, W = 1, H = 1, dpr = 1, shown = false;
+    function rm() { return opts.reduced(); }
+    function play(name, a, b) { if (sfx[name]) sfx[name](a, b); }
+
+    function start(kind, o, done) {
+      if (cur && cur.done) cur.done();
+      cur = o; o.kind = kind; o.t = 0; o.dur = DUR[kind]; o.done = done || null; o.cues = {};
+    }
+    // a sound (or anything) once, when the moment's clock passes at
+    function cue(name, at, fn) { if (cur.t >= at && !cur.cues[name]) { cur.cues[name] = true; fn(); } }
+    function tick(dt) {
+      if (!cur || hold !== null) return;
+      cur.t += dt;
+      if (cur.t >= cur.dur) { var d = cur.done; cur = null; if (d) d(); }
+    }
+
+    // ---- drawing helpers (CSS px) ----
+    function size() {
+      var w = window.innerWidth, h = window.innerHeight, r = Math.min(window.devicePixelRatio || 1, 2);
+      if (w !== W || h !== H || r !== dpr) { W = w; H = h; dpr = r; canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
+    }
+    function rays(cx, cy, ang, n, c1, c2) {
+      var R = Math.hypot(W, H);
+      c.fillStyle = c2; c.fillRect(0, 0, W, H);
+      c.fillStyle = c1; c.beginPath();
+      for (var i = 0; i < n; i++) { var a0 = ang + i * TAU / n; c.moveTo(cx, cy); c.arc(cx, cy, R, a0, a0 + TAU / n / 2); c.closePath(); }
+      c.fill();
+      var g = c.createRadialGradient(cx, cy, 0, cx, cy, R * 0.6);
+      g.addColorStop(0, 'rgba(255,240,200,0.25)'); g.addColorStop(0.35, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.55)');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+    }
+    // d: the face's diameter on screen (the collision circle's, as in the jar)
+    function face(f, x, y, d, ang, o) {
+      o = o || {};
+      var S = Faces.S, k = d / (2 * Faces.R), img = o.closed && f.eyes && f.cv.closed ? f.cv.closed : f.cv.open;
+      c.save(); c.translate(x, y); c.rotate(ang || 0); c.scale(o.sx || 1, o.sy || 1);
+      if (o.alpha !== undefined) c.globalAlpha *= o.alpha;
+      if (o.gray) c.filter = 'grayscale(' + o.gray + ')';
+      c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = d * 0.06; c.shadowOffsetY = d * 0.04;
+      c.drawImage(img, -f.cx * S * k, -f.cy * S * k, S * k, S * k);
+      c.restore();
+    }
+    // a sticker mark (cell fraction) on screen for a face drawn at x, y, d, ang
+    function mark(f, m, x, y, d, ang) {
+      var Q = d / (2 * Faces.R) * Faces.S, dx = (m[0] - f.cx) * Q, dy = (m[1] - f.cy) * Q, cs = Math.cos(ang), sn = Math.sin(ang);
+      return [x + cs * dx - sn * dy, y + sn * dx + cs * dy];
+    }
+    function prop(name, x, y, s, ang, alpha) {
+      var p = props[name]; if (!p) return;
+      c.save(); c.globalAlpha *= alpha === undefined ? 1 : alpha; c.translate(x, y); c.rotate(ang || 0);
+      c.drawImage(p.canvas, -p.px * s, -p.py * s, s, s);
+      c.restore();
+    }
+    function shades(f, x, y, d, ang, drop) {
+      var m = f.marks; if (!m) return;
+      var l = mark(f, m.eyeL, x, y, d, ang), r = mark(f, m.eyeR, x, y, d, ang);
+      var px = Math.hypot(r[0] - l[0], r[1] - l[1]) / 9, a = Math.atan2(r[1] - l[1], r[0] - l[0]);
+      c.save(); c.translate((l[0] + r[0]) / 2, (l[1] + r[1]) / 2 - drop); c.rotate(a);
+      for (var j = 0; j < SHADES.length; j++) for (var i = 0; i < 17; i++) {
+        var ch = SHADES[j][i]; if (ch === '.') continue;
+        c.fillStyle = ch === 'W' ? '#ffffff' : '#0b0b0b';
+        c.fillRect((i - 8.5) * px, (j - 1.2) * px, px + 0.6, px + 0.6);
+      }
+      c.restore();
+    }
+    // a caption with a thick outline, shrunk to fit the screen's width
+    function caption(text, x, y, px, fill, stroke, ang, sc, ltr, font) {
+      if (sc <= 0.01) return;
+      c.save();
+      c.font = px + 'px ' + (font || 'Letter, Marker, cursive');
+      var w = c.measureText(text).width, fit = Math.min(1, W * 0.9 / (w + px * 0.3));
+      c.translate(x, y); c.rotate(ang || 0); c.scale(sc * fit, sc * fit);
+      c.textAlign = 'center'; c.textBaseline = 'middle'; c.direction = ltr ? 'ltr' : 'rtl'; c.lineJoin = 'round';
+      c.lineWidth = px * 0.22; c.strokeStyle = stroke;
+      c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowOffsetY = px * 0.07;
+      c.strokeText(text, 0, 0);
+      c.shadowColor = 'transparent'; c.fillStyle = fill; c.fillText(text, 0, 0);
+      c.restore();
+    }
+    function emoji(e, x, y, px, ang) {
+      c.save(); c.translate(x, y); c.rotate(ang || 0);
+      c.font = px + 'px ' + EMOJI_FONT; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(e, 0, 0); c.restore();
+    }
+    // emoji crossing the screen in arcs, side to side, from at s, one every gap s
+    function flyBy(list, lt, at, gap, U) {
+      list.forEach(function (e, k) {
+        var tt = lt - at - k * gap, T = 0.85;
+        if (tt < 0 || tt > T) return;
+        var u = tt / T, x = k % 2 === 0 ? lerp(-0.15 * W, 1.15 * W, u) : lerp(1.15 * W, -0.15 * W, u);
+        emoji(e, x, H * (0.78 - 0.3 * Math.sin(Math.PI * u)) + k * 0.03 * H, 0.16 * U, tt * 7 * (k % 2 ? 1 : -1));
+      });
+    }
+
+    // ---- the moments ----
+    function drawJackpot(o, lt, U, cx, cy) {
+      var f = o.face, n = o.others.length, slam = lt - SLAM, red = rm();
+      rays(cx, cy, lt * (red ? 0.6 : 1.6), 18, '#E9C46A', '#8a5a12');
+      var d = 0.6 * U, rx = Math.min(0.37 * W, 0.9 * U), ry = Math.min(0.6 * U, 0.24 * H); // wide on a landscape screen
+      if (slam < 0) {
+        // two copies fly in from the sides, motion-blurred (just the pop with reduced motion)
+        var k = inQuad(lt / SLAM);
+        [-1, 1].forEach(function (s) {
+          for (var j = red ? 0 : 3; j >= 0; j--) {
+            var kk = Math.max(0, k - j * 0.06), x = lerp(cx + s * W * 0.8, cx + s * d * 0.28, red ? 1 : inQuad(kk));
+            face(f, x, cy, d * 0.85, s * 0.26, { alpha: j ? 0.22 : 1 });
+          }
+        });
+        return;
+      }
+      // the other seven in orbit
+      for (var i = 0; i < n; i++) {
+        var a = TAU * i / n + lt * 1.3, rr = outBack(slam / 0.35, 1.6);
+        face(o.others[i], cx + Math.cos(a) * rx * rr, cy + Math.sin(a) * ry * rr, 0.19 * U, 0.2 * Math.sin(lt * 5 + i),
+          { closed: Math.floor(lt * 4 + i) % 5 === 0 });
+      }
+      // the winner: squashes on the slam, bounces, eyes shut for a moment
+      var pulse = 1 + 0.22 * decay(slam, 0.15), bounce = red ? 0 : 0.1 * U * Math.exp(-slam / 0.4) * Math.sin(slam * 16);
+      var dd = d * pulse, ang = 0.1 * Math.sin(lt * 4), y = cy - bounce;
+      face(f, cx, y, dd, ang, { closed: slam < 0.3, sx: 1 + 0.18 * decay(slam, 0.1), sy: 1 - 0.18 * decay(slam, 0.1) });
+      var m = f.marks;
+      if (m) {
+        var hk = (slam - 0.15) / 0.32;
+        if (hk > 0) {
+          var at = mark(f, [lerp(m.forehead[0], (m.eyeL[0] + m.eyeR[0]) / 2, 0.05), lerp(m.forehead[1], (m.eyeL[1] + m.eyeR[1]) / 2, 0.05)], cx, y, dd, ang);
+          prop('hat', at[0], at[1] - (1 - outBack(hk, 2.4)) * H * 0.5, dd * 1.2, ang - 0.12);
+        }
+        var sk = (slam - 0.55) / 0.3;
+        if (sk > 0) shades(f, cx, y, dd, ang, (1 - outCubic(sk)) * H * 0.5);
+      }
+      caption('רויאל פלאש!!', cx, Math.max(0.1 * H, cy - ry - 0.2 * U), Math.min(0.24 * U, 0.11 * H), '#FFD23F', '#3a2400', -0.07 + 0.04 * Math.sin(lt * 5), outBack((lt - SLAM) / 0.22, 2.2));
+      caption('+' + o.pts, cx, Math.min(0.9 * H, cy + ry + 0.2 * U), 0.2 * U, '#7CFF6B', '#0d3a12', -0.14, outBack((slam - 0.35) / 0.2, 2.4), true, 'Marker, cursive');
+      flyBy(['🔥', '💯', '🗿', '👑'], lt, SLAM + 0.55, 0.16, U);
+    }
+
+    function drawJoker(o, lt, U, cx, cy) {
+      var g = GUEST[o.id] || GUEST.daniel, red = rm(), d = 0.62 * U; // the rays are draw()'s, under the opening circle
+      var tOut = o.dur - OUT;
+      if (lt < FLIP) {
+        // the card spins in face down, then turns over
+        var k = outBack(lt / 0.22, 1.6), turn = clamp01((lt - 0.2) / (FLIP - 0.2)), w = 0.46 * U, h = 0.66 * U;
+        c.save(); c.translate(cx, cy); c.rotate((1 - k) * -0.8 + 0.05); c.scale(k * Math.max(0.04, Math.cos(turn * Math.PI / 2)), k);
+        c.fillStyle = '#8c1d2a'; c.strokeStyle = '#E9C46A'; c.lineWidth = 0.025 * U;
+        c.beginPath(); if (c.roundRect) c.roundRect(-w / 2, -h / 2, w, h, 0.04 * U); else c.rect(-w / 2, -h / 2, w, h); c.fill(); c.stroke();
+        c.save(); c.clip(); c.strokeStyle = 'rgba(233,196,106,.35)'; c.lineWidth = 0.008 * U;
+        for (var s = -h; s < h; s += 0.05 * U) { c.beginPath(); c.moveTo(-w, s); c.lineTo(w, s + w * 1.2); c.moveTo(-w, s + w * 1.2); c.lineTo(w, s); c.stroke(); }
+        c.restore();
+        caption('JOKER', 0, 0, 0.11 * U, '#E9C46A', '#3a0a10', -Math.PI / 2, 1, true, 'Marker, cursive');
+        c.restore();
+        return;
+      }
+      var ft = lt - FLIP, out = clamp01((lt - tOut) / OUT), ps = outBack(ft / 0.25, 2);
+      // his move: דניאל trembles (the fuse), מיקי sways (the song), קוקו bobs (the anthem)
+      var jx = 0, jy = 0, ang = 0;
+      if (!red) {
+        if (o.id === 'daniel') { jx = Math.sin(lt * 70) * 0.012 * U; jy = Math.cos(lt * 53) * 0.01 * U; }
+        else if (o.id === 'michael') ang = 0.22 * Math.sin(ft * 7);
+        else jy = -Math.abs(Math.sin(ft * 9)) * 0.04 * U;
+      }
+      var x = lerp(cx + jx, o.to[0], inQuad(out)), y = lerp(cy + jy, o.to[1], inQuad(out)), dd = lerp(d * ps, o.toD, outCubic(out));
+      if (out <= 0) {
+        c.save(); c.globalAlpha = 0.5 * (1 - decay(ft, 0.1)); c.fillStyle = g.rays[0];
+        c.beginPath(); c.arc(cx, cy, d * 0.62 * ps, 0, TAU); c.fill(); c.restore();
+      }
+      face(o.face, x, y, dd, ang);
+      var ck = outBack((ft - 0.12) / 0.2, 2.2) * (1 - out);
+      caption('ג׳וקר!', cx, Math.max(0.09 * H, cy - 0.62 * U), 0.13 * U, '#E9C46A', '#2b1a10', 0.08, ck);
+      caption(o.line, cx, Math.min(0.88 * H, cy + 0.55 * U), 0.22 * U, g.ink, g.stroke, -0.06 + 0.03 * Math.sin(lt * 6), ck);
+      flyBy(g.emoji, lt, FLIP + 0.1, 0.14, U);
+    }
+
+    function drawBust(o, lt, U, cx, cy) {
+      var f = o.face, red = rm(), tOut = o.dur - OUT, out = clamp01((lt - tOut) / OUT), d = 0.66 * U;
+      // the whip onto the face, then back to its place in the jar
+      var k = red ? outCubic(lt / 0.2) : outExpo(lt / 0.2);
+      var x = lerp(o.from[0], cx, k), y = lerp(o.from[1], cy, k), dd = lerp(o.fromD, d, k) * (1 + (red ? 0 : 0.08 * Math.sin(Math.min(1, lt / 0.3) * Math.PI)));
+      x = lerp(x, o.from[0], inQuad(out)); y = lerp(y, o.from[1], inQuad(out)); dd = lerp(dd, o.fromD, inQuad(out));
+      var ang = -0.12 * k * (1 - out);
+      face(f, x, y, dd, ang, { gray: 0.35 * k });
+      // X eyes, stamped one after the other
+      var m = f.marks;
+      if (m) {
+        var eyeW = f.eyes ? f.eyes[0][2] * 2 * dd / (2 * Faces.R) * Faces.S : Math.hypot(m.eyeR[0] - m.eyeL[0], m.eyeR[1] - m.eyeL[1]) * dd / (2 * Faces.R) * Faces.S * 0.45;
+        var xs = Math.max(2 * eyeW, 0.175 * dd);
+        [[m.eyeL, 0.4], [m.eyeR, 0.56]].forEach(function (e) {
+          var sk = (lt - e[1]) / 0.12; if (sk <= 0) return;
+          var p = mark(f, e[0], x, y, dd, ang);
+          prop('xeyes', p[0], p[1], xs * (1 + 1.3 * (1 - outCubic(sk))), ang, Math.min(1, sk * 2));
+        });
+      }
+      var ck = outBack((lt - 0.62) / 0.2, 2.2) * (1 - out);
+      caption(o.name + ' בטילט!', cx, Math.min(0.88 * H, cy + 0.55 * U), 0.2 * U, '#FF5A4E', '#1a0505', 0.06 + 0.03 * Math.sin(lt * 7), ck);
+      // skulls rain
+      for (var i = 0; i < 7; i++) {
+        var st = lt - 0.5 - i * 0.09; if (st < 0) continue;
+        emoji('💀', ((i * 0.37 + 0.08) % 1) * W, -0.1 * H + st * st * H * 1.6 + st * 0.3 * H, 0.1 * U, (i % 2 ? 1 : -1) * st * 3);
+      }
+    }
+
+    function draw() {
+      if (!cur) { if (shown) { shown = false; canvas.style.display = 'none'; c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, canvas.width, canvas.height); } return; }
+      size();
+      if (!shown) { shown = true; canvas.style.display = 'block'; }
+      var o = cur, lt = hold !== null ? hold : o.t, red = rm();
+      sounds(o);
+      var U = Math.min(W, H * 0.62), cx = W / 2, cy = H * 0.47;
+      var inK = clamp01(lt / 0.16), out = clamp01((lt - (o.dur - OUT)) / OUT);
+      var shake = red ? 0 : U * (o.kind === 'jackpot' ? 0.06 * decay(lt - SLAM, 0.28) : o.kind === 'bust' ? 0.045 * decay(lt - 0.18, 0.25) + 0.02 * decay(lt - 0.4, 0.08) + 0.02 * decay(lt - 0.56, 0.08) : 0.03 * decay(lt - FLIP, 0.15));
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.clearRect(0, 0, W, H);
+      c.save();
+      // in: the rays open as a circle from where it happened; out: the moment zooms through and fades (the joker and
+      // the bust fly their face back into the jar instead of zooming)
+      var bg = o.kind !== 'jackpot' ? 1 - out : 1;
+      c.globalAlpha = o.kind === 'jackpot' ? 1 - out : 1;
+      if (o.kind === 'jackpot' && !red) { var z = 1 + 0.35 * inQuad(out); c.translate(cx, cy); c.scale(z, z); c.translate(-cx, -cy); }
+      c.translate(Math.sin(lt * 91) * shake, Math.cos(lt * 77) * shake);
+      c.save();
+      c.beginPath(); c.arc(o.from[0], o.from[1], Math.hypot(W, H) * outCubic(inK) + 1, 0, TAU); c.clip();
+      c.globalAlpha *= bg * (o.kind === 'bust' ? 0.88 : 1);
+      if (o.kind === 'bust') rays(cx, cy, lt * 0.4, 14, '#4a0f0f', '#140606');
+      c.restore();
+      if (o.kind === 'jackpot') {
+        c.save(); c.beginPath(); c.arc(o.from[0], o.from[1], Math.hypot(W, H) * outCubic(inK) + 1, 0, TAU); c.clip();
+        drawJackpot(o, lt, U, cx, cy); c.restore();
+      } else if (o.kind === 'joker') {
+        c.save(); c.beginPath(); c.arc(o.from[0], o.from[1], Math.hypot(W, H) * outCubic(inK) + 1, 0, TAU); c.clip();
+        c.globalAlpha = 1 - out;
+        var g = GUEST[o.id] || GUEST.daniel; rays(cx, cy, (o.id === 'michael' ? -1 : 1) * lt * (red ? 0.5 : 1.3), 16, g.rays[0], g.rays[1]);
+        c.restore();
+        drawJoker(o, lt, U, cx, cy);
+      } else drawBust(o, lt, U, cx, cy);
+      c.restore();
+      // the slam's white flash
+      var fl = o.kind === 'jackpot' ? decay(lt - SLAM, 0.1) * (lt >= SLAM ? 1 : 0) : o.kind === 'joker' ? 0.5 * decay(lt - FLIP, 0.08) * (lt >= FLIP ? 1 : 0) : 0;
+      if (fl > 0.01) { c.fillStyle = 'rgba(255,255,255,' + fl.toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
+    }
+    function sounds(o) {
+      if (hold !== null) return;
+      if (o.kind === 'jackpot') {
+        cue('in', 0, function () { play('whoosh', true, 0.8); });
+        cue('slam', SLAM, function () { play('vine', 1); play('airhorn', 0.9); });
+        cue('hat', SLAM + 0.4, function () { play('land', 700, 6); });
+        cue('out', o.dur - OUT, function () { play('whoosh', false, 0.6); });
+      } else if (o.kind === 'joker') {
+        cue('in', 0, function () { play('scratch', 0.9); });
+        cue('flip', FLIP, function () { play('vine', 0.6); });
+        cue('out', o.dur - OUT, function () { play('whoosh', false, 0.5); });
+      } else {
+        cue('in', 0, function () { play('vine', 1); play('whoosh', true, 0.7); });
+        cue('x1', 0.4, function () { play('thunk'); });
+        cue('x2', 0.56, function () { play('thunk'); });
+        cue('bone', 0.62, function () { play('trombone'); });
+      }
+    }
+    function gray() {
+      if (!cur) return 0;
+      var lt = hold !== null ? hold : cur.t, out = clamp01((lt - (cur.dur - OUT)) / OUT);
+      return (cur.kind === 'bust' ? 0.75 : 0.4) * clamp01(lt / 0.12) * (1 - out);
+    }
+
+    return {
+      // face, others: faces; from: screen point it starts at; pts: the bonus
+      jackpot: function (o, done) { start('jackpot', o, done); },
+      // id, face, line; from: the line (screen); to, toD: where he hangs and how big (screen)
+      joker: function (o, done) { start('joker', o, done); },
+      // face, name; from, fromD: where it is in the jar and how big (screen)
+      bust: function (o, done) { start('bust', o, done); },
+      active: function () { return !!cur; },
+      cancel: function () { cur = null; hold = null; }, // a new game: drop it, its done() never runs
+      tick: tick, draw: draw, gray: gray,
+      hold: function (t) { hold = t; } // tests: hold the moment at t s
+    };
+  }
+
+  window.Rot = { create: create, DUR: DUR };
+})();
+
+</script>
+<script>
+'use strict';
 // ג׳אנקיס — Say Cheese! for poker night: a Bloop Stack-style merge game made of the Junkies' faces cut out with photolab.
 (function () {
   // ---------------- config ----------------
@@ -8631,7 +9016,7 @@ postprocessing/build/index.js:
       Guests.IDS.forEach(function (id) {
         var im = ims[k++], cut = Faces.cut({ sprite: im, plate: im, layer: M.photos[GUEST_PIDS[id]].layers[0] });
         var cv = { open: Faces.canvas(), closed: Faces.canvas() }, top = Faces.paint(cut, GOLD, Faces.outline(Guests.GUEST_R), cv), ol = Outline.fromCanvas(cv.open);
-        gfaces[id] = { pid: GUEST_PIDS[id], top: top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S, eyes: null, marks: cut.marks, name: Guests.NAMES[id],
+        gfaces[id] = { pid: GUEST_PIDS[id], cv: cv, top: top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S, eyes: null, marks: cut.marks, name: Guests.NAMES[id],
           outline: ol, def: S.chipDef('g-' + id, { open: cv.open, contour: ol.contour, base: GOLD, ins: '#2b2118' }) };
       });
       ['pizza', 'flag', 'guitar'].forEach(function (k) {
@@ -8643,7 +9028,7 @@ postprocessing/build/index.js:
       [[470, 280, 1, 5], [500, 318, 2, 3], [466, 352, 7, 1], [478, 520, 4, 2]].forEach(function (st) { S.chips3d.stack(st[0], st[1], TIERS[st[2]].c, TIERS[st[2]].s, st[3]); });
       guests = Guests.create(guestApi(), { off: GUESTS_OFF, thresh: GUEST_TH, ids: GUEST_ONLY });
       var sp = Poses.sprites();
-      Object.keys(sp).forEach(function (n) { propTex[n] = { tex: S.texture(sp[n].canvas), px: sp[n].px, py: sp[n].py }; });
+      Object.keys(sp).forEach(function (n) { propTex[n] = { tex: S.texture(sp[n].canvas), px: sp[n].px, py: sp[n].py }; rotProps[n] = sp[n]; });
       S.warm(gfaces.daniel.def, propTex.hat.tex); // compile every shader now, not at the first merge
     });
   }
@@ -8680,7 +9065,7 @@ postprocessing/build/index.js:
         sl.def = S.chipDef('slot' + t, { open: sl.cv.open, closed: sl.cv.closed, contour: sl.outline.contour, base: TIERS[t].o, ins: TIERS[t].s });
         sl.pid = pid;
       }
-      faces[t] = { pid: pid, def: sl.def, top: sl.top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S,
+      faces[t] = { pid: pid, cv: sl.cv, def: sl.def, top: sl.top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S,
         eyes: h.eyes, marks: h.cut.marks, name: h.name, spot: h.spot, person: h.person, outline: sl.outline };
     });
   }
@@ -8700,6 +9085,9 @@ postprocessing/build/index.js:
   // the final photo: poses by body uid, the roles' bodies, how far the scene has shrunk (0..1)
   var gameGen = 0, uidN = 0, poses = null, snapped = false, overTop = null, bustedB = null, lastDropped = null, shrink = 0, propTex = {};
   var lineFaces = [];
+  // brain rot (js/rot.js): a few short meme moments; the jar holds still while one plays. ?rot=0 turns them off
+  var ROT_ON = !BOT && !SIM && qs.get('rot') !== '0', rotProps = {}, rotHud = false;
+  var rot = Rot.create($('rot'), { reduced: function () { return reduced; }, sfx: Sound.sfx, props: rotProps });
   // table talk: chain tracking, merges in the last moment, a merge that may have saved the pile, idle time
   var chainOpen = false, idleT = 0, chatT = 0;
   var pointerDown = false, keys = { left: false, right: false }, simulating = false;
@@ -8728,6 +9116,7 @@ postprocessing/build/index.js:
     chainOpen = false; idleT = 0; chatT = chatGap();
     shareReady = null; Share.dismiss();
     if (S.ok) { S.confetti.clear(); S.chips3d.clear(); }
+    rot.cancel();
     if (snapTex) { snapTex.dispose(); snapTex = null; }
     $('pops').innerHTML = '';
     clearTimeout(toastTimer); $('toast').classList.add('hidden'); // a share toast from the last game
@@ -8805,7 +9194,9 @@ postprocessing/build/index.js:
     bustedB = overTop; // the face that stood highest over the line ends the night
     guests.end();
     if (!simulating) {
-      Sound.sfx.over(); if (isBest) Sound.sfx.best();
+      var rotted = ROT_ON && bustedB && rotBust(bustedB);
+      if (!rotted) Sound.sfx.over();
+      if (isBest) { if (rotted) setTimeout(Sound.sfx.best, 1000); else Sound.sfx.best(); } // after the sad trombone
       Sound.calm(); Sound.musicDuck(true);
     }
     emit('game:over', { score: score });
@@ -8881,7 +9272,7 @@ postprocessing/build/index.js:
     return o.hull.map(function (p) { return [(p[0] - c) * k, (p[1] - c) * k]; });
   }
   function drop() {
-    if (state !== 'play' || paused || cooldown > 0 || hang.appear < 0.6) return;
+    if (state !== 'play' || paused || cooldown > 0 || hang.appear < 0.6 || rot.active()) return;
     var p = dropPos(), b;
     if (curG) b = guests.drop(curG, p.x, p.y);
     else { b = newBody(p.x, p.y, cur, 0, 150); seeTier(cur, b); }
@@ -8891,7 +9282,7 @@ postprocessing/build/index.js:
     idleT = 0; drops++;
     guests.onDrop();
     // a guest in NEXT goes to the line and the dealt face waits behind him; otherwise deal on
-    if (nextG) { curG = nextG; nextG = null; guests.dealt(curG); if (!simulating) { if (curG === 'michael') Sound.pamela(); else if (curG === 'koko') Sound.anthem(); else Sound.solfIntro(32); } } // מיקי walks in to פמלה, קוקו to the US anthem, דניאל to the Solfeggietto
+    if (nextG) { curG = nextG; nextG = null; guests.dealt(curG, ROT_ON && !simulating); if (ROT_ON && !simulating) rotJoker(curG); if (!simulating) { if (curG === 'michael') Sound.pamela(); else if (curG === 'koko') Sound.anthem(); else Sound.solfIntro(32); } } // מיקי walks in to פמלה, קוקו to the US anthem, דניאל to the Solfeggietto
     else { curG = null; cur = next; next = rollTier(); }
     if (!nextG && guests.due()) nextG = guests.take();
     cooldown = DROP_CD;
@@ -8955,7 +9346,7 @@ postprocessing/build/index.js:
     }
     if (nt > MAX_T) {
       families++;
-      if (!simulating) fullHouse(x, y, pts, mult);
+      if (!simulating) { if (ROT_ON) rotJackpot(x, y, pts, mult); else fullHouse(x, y, pts, mult); }
       guests.moment('fullhouse');
       events.push('fullhouse@' + t.toFixed(2));
       persons.forEach(function (p) { p.target = 1; });
@@ -9048,6 +9439,31 @@ postprocessing/build/index.js:
     });
     popText(x, y - 40, '+' + pts, mult > 1 ? '×' + mult : '', '#C0413A', 9);
     snapAt = t + 1.0;
+  }
+
+  // ---------------- brain rot (js/rot.js) ----------------
+  function screenPt(x, y, z) { var p = S.project(x, y, z === undefined ? CHIP_Z : z); return [p[0] * view.s + view.ox, p[1] * view.s + view.oy]; }
+  // the two biggest merge: the moment, then the payout (chips, confetti, the snapshot) as the game picks up
+  function rotJackpot(x, y, pts, mult) {
+    hideBubble(); Sound.musicDuck(true);
+    rot.jackpot({ face: faces[MAX_T], others: faces.slice(0, MAX_T), from: screenPt(x, y), pts: pts }, function () {
+      if (state === 'play' && !paused) Sound.musicDuck(false);
+      fullHouse(x, y, pts, mult);
+    });
+  }
+  // a guest reaches the line: he flies up to where he hangs
+  function rotJoker(id) {
+    var p = dropPos();
+    hideBubble();
+    rot.joker({ id: id, face: gfaces[id], line: Guests.LINES[id], from: screenPt(p.x, p.y, HANG_Z), to: screenPt(p.x, p.y, HANG_Z), toD: 2 * Guests.GUEST_R * view.s });
+  }
+  // game over: the face that stood highest over the line (false if it isn't a face)
+  function rotBust(b) {
+    var f = faceOf(b);
+    if (!f || !f.cv) return false;
+    hideBubble();
+    rot.bust({ face: f, name: f.name, from: screenPt(b.x, b.y), fromD: 2 * b.r * view.s });
+    return true;
   }
 
   // ---------------- fx ----------------
@@ -9485,7 +9901,7 @@ postprocessing/build/index.js:
   function draw() {
     if (!S.ok || S.lost) return;
     var now = performance.now(), fdt = lastDraw ? Math.min(0.1, (now - lastDraw) / 1000) : 0.016; lastDraw = now;
-    if (FROZEN_T !== null || paused) fdt = 0;
+    if (FROZEN_T !== null || paused || rot.active()) fdt = 0;
     if (!faces.length || faces.length < TIERS.length || !cardDefs) { S.begin(t, fdt); S.end({ time: t }); return; }
     // game over: the polaroid scene shrinks toward the top so the card fits under it
     var sc = 1 - shrink * (1 - OVER_SCALE), topY = lerp(POL.t, OVER_TOP, shrink);
@@ -9626,7 +10042,9 @@ postprocessing/build/index.js:
 
     var wv = waves.map(function (w) { var e = w.age / 0.7; return [w.x, w.y, w.r + e * 220, (1 - e) * w.amp * (reduced ? 0.5 : 1)]; });
     // the share capture renders the table itself, so the flash never gets into it
-    S.end({ waves: wv, flash: flash, flashCol: flashCol, ca: reduced ? 0 : ca, time: t, gray: paused ? 0.6 : 0 });
+    S.end({ waves: wv, flash: flash, flashCol: flashCol, ca: reduced ? 0 : ca, time: t, gray: paused ? 0.6 : rot.gray() });
+    rot.draw();
+    if (rot.active() !== rotHud) { rotHud = rot.active(); ui.classList.toggle('rotting', rotHud); } // the HUD steps aside for it
     placeBubble();
     if (state === 'over') { var pb = S.project(200, POL.b, POL_Z)[1]; elOverCard.style.top = Math.round(Math.min(pb + 10, OVER_CARD_TOP + 40)) + 'px'; }
 
@@ -9886,19 +10304,21 @@ postprocessing/build/index.js:
     if (!last) last = now;
     var dt = Math.min((now - last) / 1000, 0.1); last = now;
     if (!paused && state !== 'loading') {
-      acc += dt;
-      while (acc >= STEP) { update(STEP); acc -= STEP; }
+      rot.tick(dt);
+      if (!rot.active()) { acc += dt; while (acc >= STEP) { update(STEP); acc -= STEP; } }
     }
   }
   // draw at most 60 times a second (120 Hz screens would double the work and the heat), 30 when nothing much moves:
   // the start screen, the pause card, the end card
-  var lastDrawAt = 0;
+  var lastDrawAt = 0, lastRaf = 0, drew = false;
   function frame(now) {
     requestAnimationFrame(frame);
     if (!BOT) tick(now);
+    if (drew && S.ok) S.watch(now - lastRaf); // the last drawn frame's cost: how long until the next animation frame
+    lastRaf = now; drew = false;
     var calm = paused || state === 'start' || state === 'loading' || (state === 'over' && cardUp);
     if (FROZEN_T === null && now - lastDrawAt < 1000 / (calm ? 30 : 60) - 3) return;
-    lastDrawAt = now;
+    lastDrawAt = now; drew = true;
     draw();
   }
 
@@ -9959,7 +10379,8 @@ postprocessing/build/index.js:
     get unlocked() { return unlocked.slice(); }, get families() { return families; }, get order() { return order.slice(); },
     drop: drop, aim: function (x) { aimX = x; }, TIERS: TIERS,
     setRng: function (f) { rng = f; }, // bot aim and guest peeks only: the NEXT tiers come from the deal, not rng
-    forceTier: function (n) { cur = n; cooldown = 0; hang.appear = 1; }, gameOver: gameOver, banner: banner, talk: talk
+    forceTier: function (n) { cur = n; cooldown = 0; hang.appear = 1; }, gameOver: gameOver,
+    bust: function () { overTop = topBody(); gameOver(); }, get cardUp() { return cardUp; }, // test: game over with the top face busted banner: banner, talk: talk
   };
 
   // ---------------- boot ----------------
@@ -9991,6 +10412,15 @@ postprocessing/build/index.js:
     else if (SCREEN === 'settings') setSettings(true);
     else if (BOT) beginGame();
     if (SCREEN === 'paused' && state === 'play') setPaused(true);
+    // ?rotshow=jackpot|bust|daniel|michael|koko: play a brain-rot moment (with ?rt=<s>: hold it there, for screenshots)
+    var RS = qs.get('rotshow');
+    if (RS) {
+      if (state !== 'play') beginGameSilently();
+      if (RS === 'jackpot') rotJackpot(200, 420, FULL_HOUSE_BONUS, 1);
+      else if (RS === 'bust') rot.bust({ face: faces[4], name: faces[4].name, from: screenPt(200, 450), fromD: 2 * TIERS[4].r * view.s });
+      else rotJoker(Guests.IDS.indexOf(RS) >= 0 ? RS : 'daniel');
+      if (qs.has('rt')) rot.hold(parseFloat(qs.get('rt')));
+    }
     if (FROZEN_T !== null) {
       t = FROZEN_T;
       if (FAM_AT && state === 'play') { families++; fullHouse(200, 400, FULL_HOUSE_BONUS, 1); flash = 0; ca = 0; waves = []; snapAt = 0; pendingSnap = true; }
