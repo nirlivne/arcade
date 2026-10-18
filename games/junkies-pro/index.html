@@ -8038,6 +8038,7 @@ postprocessing/build/index.js:
           if (h && !h.dead && h.t === h.t0) { // a pair: the lower one joins the higher one (more room up there), a tier up
             var up = h.y < who.y ? h : who, lo = up === h ? who : h;
             lo.dead = true; api.sparkles(lo.x, lo.y, 10, [1, 0.9, 0.55]);
+            api.event('pair:' + up.t);
             api.grow(up); api.cleanup(); g.held = null;
           } else g.held = who; // waits for a partner (the last odd one just sings)
           api.sfx('sing', g.n++);
@@ -8187,7 +8188,7 @@ postprocessing/build/index.js:
   var KINDS = ['summon', 'zap', 'bomb', 'wave'];
   // when a box is due: the guests' opening rule, then each time the score passes the next threshold (between the
   // guests' ones), at least GAP_N drops after the last guest or box, never while a guest or another box is around
-  var FIRST_T = 150, FIRST_FRIENDS = 7, THRESH = [4500, 14000], GAP_N = 12;
+  var FIRST_T = 150, FIRST_FRIENDS = 7, THRESH = [3000, 9000], GAP_N = 12; // 3000: about as often as the first guest (Nir: as often as the jokers)
 
   function BoxDeck(rng, thresh) { this.rng = rng; this.thresh = thresh || THRESH; this.reset(); }
   BoxDeck.prototype.reset = function () { this.drops = GAP_N; this.dealt = 0; this.forced = null; };
@@ -9354,7 +9355,8 @@ postprocessing/build/index.js:
       var bk = Box.bake(Faces.S, Faces.CX, Faces.CY, Faces.R), bol = Outline.fromCanvas(bk.full);
       boxFace = { pid: null, cv: { open: bk.full, closed: bk.full }, body: bk.body, lid: bk.lid, top: bk.top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S,
         eyes: null, marks: null, teeth: [], name: 'מתנה', outline: bol, def: S.chipDef('box', { open: bk.full, contour: bol.contour, base: '#E9C46A', ins: '#2b2118' }) };
-      boxes = Box.create(boxApi(), { off: GUESTS_OFF || qs.has('boxoff') }); // ?boxoff: no joker boxes (balance runs)
+      // ?boxoff: no joker boxes; ?bth=a,b: their score thresholds (balance runs)
+      boxes = Box.create(boxApi(), { off: GUESTS_OFF || qs.has('boxoff'), thresh: qs.has('bth') ? qs.get('bth').split(',').map(Number) : null });
       var sp = Poses.sprites();
       Object.keys(sp).forEach(function (n) { propTex[n] = { tex: S.texture(sp[n].canvas), px: sp[n].px, py: sp[n].py }; rotProps[n] = sp[n]; });
       S.warm(gfaces.daniel.def, propTex.hat.tex); // compile every shader now, not at the first merge
@@ -9692,6 +9694,26 @@ postprocessing/build/index.js:
     }
   }
 
+  // ?zcheck (debug): report a body the physics doesn't hold (no rigid body, or dead but still listed), and a pair of
+  // faces that stays deeply overlapped for 0.5 s (one of them isn't colliding): events 'zombie:<what>'
+  var ZCHECK = qs.has('zcheck'), zpairs = {}, zseen = {};
+  function zcheck(dt) {
+    var bs = world.bodies, now = {}, i, j;
+    for (i = 0; i < bs.length; i++) {
+      var b = bs[i], k0 = b.uid + ':' + (b.g || b.t);
+      var bad = !b._rb ? 'norb' : b.dead ? 'dead' : !(isFinite(b.x) && isFinite(b.y) && isFinite(b.ang)) ? 'nan' : null; // NaN: no contacts at all
+      if (bad && !zseen[k0]) { zseen[k0] = 1; events.push('zombie:' + bad + ':' + k0 + '@' + t.toFixed(2)); }
+      for (j = i + 1; j < bs.length; j++) {
+        var c = bs[j];
+        if (Guests.isTreat(b.g) || Guests.isTreat(c.g)) continue;
+        if (Math.hypot(b.x - c.x, b.y - c.y) < 0.5 * (b.r + c.r)) {
+          var key = b.uid + '/' + c.uid; now[key] = (zpairs[key] || 0) + dt;
+          if (now[key] > 0.5 && !zseen[key]) { zseen[key] = 1; events.push('zombie:overlap:' + b.uid + ':' + (b.g || b.t) + '/' + c.uid + ':' + (c.g || c.t) + '@' + t.toFixed(2)); }
+        }
+      }
+    }
+    zpairs = now;
+  }
   function processMerges() {
     var ms = world.merges, did = false;
     for (var i = 0; i < ms.length; i++) {
@@ -9770,7 +9792,7 @@ postprocessing/build/index.js:
         syncHud();
         return nb;
       },
-      grow: function (a) { var nb = promote(a, { x: a.x, y: a.y, vx: a.vx, vy: a.vy, m: 1e-6, t: -1, g: 'note', r: 0 }); syncHud(); return nb; },
+      grow: function (a) { var nb = promote(a, { x: a.x, y: a.y, vx: a.vx, vy: a.vy, ang: a.ang, m: 1e-6, t: -1, g: 'note', r: 0 }); syncHud(); return nb; }, // ang: promote() averages the two (without it: NaN, a face with no contacts)
       cleanup: cleanup,
       // faces דניאל blew away: their tier points (x the double down), one sum at the blast
       scoreGone: function (bs, x, y) {
@@ -10063,6 +10085,7 @@ postprocessing/build/index.js:
       processMerges();
       guests.tick(dt);
       boxes.tick(dt);
+      if (ZCHECK) zcheck(dt);
       if (jokerWait) tickJoker(dt);
       var over = false, bs = world.bodies, i, topB = null, top = JAR.floor;
       for (i = 0; i < bs.length; i++) {
@@ -10869,7 +10892,8 @@ postprocessing/build/index.js:
       return c.toDataURL();
     },
     get cardUp() { return cardUp; }, banner: banner, talk: talk,
-    screenPt: screenPt, get events() { return events.slice(); } // test: where a body is on screen (CSS px); the event log
+    screenPt: screenPt, get events() { return events.slice(); },
+    dealGuest: function (id) { guests.force(id); nextG = guests.take(); } // test: this guest into NEXT now // test: where a body is on screen (CSS px); the event log
   };
 
   // ---------------- boot ----------------
