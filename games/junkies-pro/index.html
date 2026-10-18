@@ -7695,6 +7695,7 @@ postprocessing/build/index.js:
   };
   Deck.prototype.tick = function () {};
   Deck.prototype.onDrop = function () { this.drops++; };
+  Deck.prototype.onBox = function () { this.drops = 0; }; // a joker box was dealt: the gap starts again
   // score; play: seconds into the game; friends: how many friends are on the board so far
   Deck.prototype.due = function (score, play, friends) {
     if (this.forced) return true;
@@ -7704,6 +7705,8 @@ postprocessing/build/index.js:
   // guests still to come this game
   Deck.prototype.left = function () { return this.bag.length + (CAP - this.rounds) * this.ids.length; };
   Deck.prototype.force = function (id) { this.forced = id; };
+  // the score the next guest waits for (a forced one: now; none left: never), to order him against a joker box
+  Deck.prototype.at = function () { return this.forced ? -Infinity : this.dealt < this.thresh.length && this.left() > 0 ? this.thresh[this.dealt] : Infinity; };
   // the next guest from a shuffled bag (each once before any repeats, CAP rounds)
   Deck.prototype.next = function () {
     if (!this.bag.length) {
@@ -7889,6 +7892,7 @@ postprocessing/build/index.js:
     // quiet: the brain-rot moment (js/rot.js) announces him instead of the banner
     function dealt(id, quiet) { if (!quiet) api.banner(NAMES[id], ' הגיע!', 'תראו מי בא'); api.sfx('riffle', 0); }
     function onDrop() { deck.onDrop(); }
+    function onBox() { deck.onBox(); }
     // his drop starts his power; returns his body (קוקו has none)
     function drop(id, x, y) {
       dealtOut = false;
@@ -8164,8 +8168,8 @@ postprocessing/build/index.js:
       }
     }
 
-    return { reset: reset, end: end, due: due, take: take, summon: summon, canSummon: canSummon, busy: busyNow, force: function (id) { deck.force(id); }, dealt: dealt,
-      onDrop: onDrop, drop: drop, tick: tick, moment: moment, show: show, draw: draw };
+    return { reset: reset, end: end, due: due, at: function () { return deck.at(); }, take: take, summon: summon, canSummon: canSummon, busy: busyNow, force: function (id) { deck.force(id); }, dealt: dealt,
+      onDrop: onDrop, onBox: onBox, drop: drop, tick: tick, moment: moment, show: show, draw: draw };
   }
 
   root.Guests = { bake: { pizza: bakePizza, flag: bakeFlag, guitar: bakeGuitar }, IDS: IDS, NAMES: NAMES, LINES: LINES, GUEST_R: GUEST_R, TREAT_R: TREAT_R, isTreat: isTreat, BLAST_R: BLAST_R, BLAST_REACH: BLAST_REACH, Deck: Deck, blastPlan: blastPlan, singPlan: singPlan, zapPlan: zapPlan, popPlan: popPlan, pickPeeker: pickPeeker, peekSpot: peekSpot, create: create };
@@ -8198,6 +8202,11 @@ postprocessing/build/index.js:
     return score >= this.thresh[this.dealt];
   };
   BoxDeck.prototype.force = function (kind) { this.forced = kind; };
+  // the score the next box waits for (a forced one: now; none left: never)
+  BoxDeck.prototype.at = function () { return this.forced ? -Infinity : this.dealt < this.thresh.length ? this.thresh[this.dealt] : Infinity; };
+  // which special the line tries first after a drop: the one whose threshold the score passed first (a guest on a tie).
+  // After a late opening both can be overdue, and the guests (more thresholds, the same 12-drop gap) took every turn.
+  function dealOrder(guestAt, boxAt) { return boxAt < guestAt ? ['box', 'guest'] : ['guest', 'box']; }
   // what's inside, picked when it's dealt (the deal's stream: the same deal, the same boxes)
   BoxDeck.prototype.take = function () {
     var k = this.forced;
@@ -8408,11 +8417,11 @@ postprocessing/build/index.js:
       boxes.push(b);
     }
     function force(kind) { deck.force(kind); }
-    return { reset: reset, due: due, take: take, force: force, busy: busy, onDrop: function () { deck.onDrop(); }, onGuest: function () { deck.onSpecial(); },
+    return { reset: reset, due: due, at: function () { return off ? Infinity : deck.at(); }, take: take, force: force, busy: busy, onDrop: function () { deck.onDrop(); }, onGuest: function () { deck.onSpecial(); },
       drop: drop, hit: hit, open: open, botOpen: botOpen, tick: tick, draw: draw, show: show };
   }
 
-  root.Box = { KINDS: KINDS, BoxDeck: BoxDeck, pickKind: pickKind, zapNearest: zapNearest, wavePlan: wavePlan, WAVE_UP: WAVE_UP,
+  root.Box = { KINDS: KINDS, BoxDeck: BoxDeck, pickKind: pickKind, dealOrder: dealOrder, zapNearest: zapNearest, wavePlan: wavePlan, WAVE_UP: WAVE_UP,
     R: R, OPEN_T: OPEN_T, create: create, bake: bake };
 })(window);
 
@@ -9651,8 +9660,11 @@ postprocessing/build/index.js:
     if (nextG) { curG = nextG; nextG = null; if (ROT_ON && !simulating) jokerWait = { id: curG, b: b, t: 0 }; else jokerIn(curG); }
     else if (nextB) { curG = null; curB = nextB; nextB = null; }
     else { curG = null; cur = next; next = rollTier(); }
-    if (!nextG && !nextB && guests.due()) { nextG = guests.take(); boxes.onGuest(); }
-    if (!nextG && !nextB && boxes.due(guests.busy())) nextB = boxes.take();
+    Box.dealOrder(guests.at(), boxes.at()).forEach(function (k) { // at most one special into NEXT
+      if (nextG || nextB) return;
+      if (k === 'guest' && guests.due()) { nextG = guests.take(); boxes.onGuest(); }
+      else if (k === 'box' && boxes.due(guests.busy())) { nextB = boxes.take(); guests.onBox(); }
+    });
     cooldown = DROP_CD;
     aimX = clampAim(aimX);
     hang.appear = 0; hang.pinKick = 1;
