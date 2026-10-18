@@ -7704,21 +7704,24 @@ postprocessing/build/index.js:
   // guests still to come this game
   Deck.prototype.left = function () { return this.bag.length + (CAP - this.rounds) * this.ids.length; };
   Deck.prototype.force = function (id) { this.forced = id; };
-  // the next guest from a shuffled bag (each once before any repeats, CAP rounds); the counters start again
+  // the next guest from a shuffled bag (each once before any repeats, CAP rounds)
+  Deck.prototype.next = function () {
+    if (!this.bag.length) {
+      this.bag = this.ids.slice(); this.rounds++;
+      for (var i = this.bag.length - 1; i > 0; i--) { var j = Math.floor(this.rng() * (i + 1)), x = this.bag[i]; this.bag[i] = this.bag[j]; this.bag[j] = x; }
+    }
+    return this.bag.pop();
+  };
+  // the next guest; the counters start again
   Deck.prototype.take = function () {
     var id = this.forced;
     this.forced = null;
-    if (!id) {
-      if (!this.bag.length) {
-        this.bag = this.ids.slice(); this.rounds++;
-        for (var i = this.bag.length - 1; i > 0; i--) { var j = Math.floor(this.rng() * (i + 1)), x = this.bag[i]; this.bag[i] = this.bag[j]; this.bag[j] = x; }
-      }
-      id = this.bag.pop();
-      this.dealt++;
-    }
+    if (!id) { id = this.next(); this.dealt++; }
     this.drops = 0;
     return id;
   };
+  // the joker box calls one in: from the bag, but no threshold is used up
+  Deck.prototype.summon = function () { var id = this.next(); this.drops = 0; return id; };
 
   // דניאל's blast at (x, y): a face is gone when it's inside its tier's share of R (reach[tier], the last entry for the
   // tiers past the end; no reach: all of R); the rest and the faces around are thrown out and up by the shockwave,
@@ -7879,6 +7882,9 @@ postprocessing/build/index.js:
     function end() { dd = 0; peeks = []; pend = []; rain = []; gtr = null; pops = null; zap = null; }
     function due() { return !off && deck.due(api.score(), api.play(), api.friends()); }
     function take() { var id = deck.take(); dealtOut = true; deck.busy = true; api.event('guest:' + id); return id; }
+    // the joker box: can a guest be called in now, and call him (he goes to NEXT); null when he can't come
+    function canSummon() { return !off && !busyNow() && deck.left() > 0; }
+    function summon() { if (!canSummon()) return null; var id = deck.summon(); dealtOut = true; deck.busy = true; api.event('guest:' + id); return id; }
     // he moves from NEXT onto the line
     // quiet: the brain-rot moment (js/rot.js) announces him instead of the banner
     function dealt(id, quiet) { if (!quiet) api.banner(NAMES[id], ' הגיע!', 'תראו מי בא'); api.sfx('riffle', 0); }
@@ -8158,11 +8164,256 @@ postprocessing/build/index.js:
       }
     }
 
-    return { reset: reset, end: end, due: due, take: take, force: function (id) { deck.force(id); }, dealt: dealt,
+    return { reset: reset, end: end, due: due, take: take, summon: summon, canSummon: canSummon, busy: busyNow, force: function (id) { deck.force(id); }, dealt: dealt,
       onDrop: onDrop, drop: drop, tick: tick, moment: moment, show: show, draw: draw };
   }
 
-  root.Guests = { bake: { pizza: bakePizza, flag: bakeFlag, guitar: bakeGuitar }, IDS: IDS, NAMES: NAMES, LINES: LINES, GUEST_R: GUEST_R, TREAT_R: TREAT_R, isTreat: isTreat, Deck: Deck, blastPlan: blastPlan, singPlan: singPlan, zapPlan: zapPlan, popPlan: popPlan, pickPeeker: pickPeeker, peekSpot: peekSpot, create: create };
+  root.Guests = { bake: { pizza: bakePizza, flag: bakeFlag, guitar: bakeGuitar }, IDS: IDS, NAMES: NAMES, LINES: LINES, GUEST_R: GUEST_R, TREAT_R: TREAT_R, isTreat: isTreat, BLAST_R: BLAST_R, BLAST_REACH: BLAST_REACH, Deck: Deck, blastPlan: blastPlan, singPlan: singPlan, zapPlan: zapPlan, popPlan: popPlan, pickPeeker: pickPeeker, peekSpot: peekSpot, create: create };
+})(window);
+
+</script>
+<script>
+'use strict';
+// The joker box: a present the line deals now and then (at most two a game, between the guests). It drops like a
+// face, sits in the pile, and opens when it's tapped (or by itself after OPEN_T s) into one of four things:
+//   summon: a joker (guest) comes next;  zap: electricity, the nearest faces shrink a tier;
+//   bomb:   דניאל's blast without the pizza;  wave: a shockwave in slow motion throws every face around.
+// BoxDeck, pickKind, zapNearest and wavePlan are pure (tested by scripts/test_box.mjs); create(api) is the runtime.
+(function (root) {
+  var KINDS = ['summon', 'zap', 'bomb', 'wave'];
+  // when a box is due: the guests' opening rule, then each time the score passes the next threshold (between the
+  // guests' ones), at least GAP_N drops after the last guest or box, never while a guest or another box is around
+  var FIRST_T = 150, FIRST_FRIENDS = 7, THRESH = [4500, 14000], GAP_N = 12;
+
+  function BoxDeck(rng, thresh) { this.rng = rng; this.thresh = thresh || THRESH; this.reset(); }
+  BoxDeck.prototype.reset = function () { this.drops = GAP_N; this.dealt = 0; this.forced = null; };
+  BoxDeck.prototype.onDrop = function () { this.drops++; };
+  BoxDeck.prototype.onSpecial = function () { this.drops = 0; }; // a guest was dealt: the gap starts again
+  // score; play: s into the game; friends on the board; busy: a guest or another box is around
+  BoxDeck.prototype.due = function (score, play, friends, busy) {
+    if (busy) return false;
+    if (this.forced) return true;
+    if (this.dealt >= this.thresh.length || this.drops < GAP_N) return false;
+    if (play < FIRST_T && friends < FIRST_FRIENDS) return false;
+    return score >= this.thresh[this.dealt];
+  };
+  BoxDeck.prototype.force = function (kind) { this.forced = kind; };
+  // what's inside, picked when it's dealt (the deal's stream: the same deal, the same boxes)
+  BoxDeck.prototype.take = function () {
+    var k = this.forced;
+    if (!k) { k = KINDS[Math.floor(this.rng() * KINDS.length)]; this.dealt++; }
+    this.forced = null; this.drops = 0;
+    return k;
+  };
+  // a joker that can't come (a guest is around, or none are left) turns into one of the other three
+  function pickKind(kind, canSummon, rng) {
+    return kind !== 'summon' || canSummon ? kind : KINDS[1 + Math.floor(rng() * (KINDS.length - 1))];
+  }
+  function skip(b) { return b.dead || b.g === 'pizza' || b.g === 'flag' || b.g === 'box'; }
+  // electricity: the n faces nearest (x, y), by the gap between the edges; guests, treats and boxes are left alone
+  function zapNearest(bodies, x, y, n) {
+    return bodies.filter(function (b) { return !skip(b) && !b.g && b.t >= 0; })
+      .map(function (b) { return [Math.hypot(b.x - x, b.y - y) - b.r, b]; })
+      .sort(function (p, q) { return p[0] - q[0]; }).slice(0, n).map(function (p) { return p[1]; });
+  }
+  // the shockwave from (x, y): every face and guest is thrown away from it, harder the nearer (WAVE_MIN even at the far
+  // end of the jar), a little up, and spun. Returns [[body, dvx, dvy, dav]]; nothing is removed.
+  var WAVE_V = 950, WAVE_MIN = 240, WAVE_UP = 260, WAVE_REACH = 520, WAVE_SPIN = 7;
+  function wavePlan(bodies, x, y) {
+    var out = [];
+    for (var i = 0; i < bodies.length; i++) {
+      var b = bodies[i];
+      if (skip(b)) continue;
+      var dx = b.x - x, dy = b.y - y, d = Math.hypot(dx, dy), nx = d > 1e-6 ? dx / d : 0, ny = d > 1e-6 ? dy / d : -1;
+      var v = WAVE_MIN + (WAVE_V - WAVE_MIN) * Math.max(0, 1 - d / WAVE_REACH);
+      out.push([b, nx * v, ny * v - WAVE_UP, (nx >= 0 ? 1 : -1) * WAVE_SPIN * v / WAVE_V]);
+    }
+    return out;
+  }
+
+  // the present as a sticker, in a face's cell (S px, centre CX, CY, collision radius R): red box, gold ribbon and bow.
+  // full = box + lid; body and lid apart (the brain-rot moment blows the lid off); top: the sticker's top (cell fraction)
+  function bake(S, CX, CY, R) {
+    function cv() { var c = document.createElement('canvas'); c.width = c.height = S; return c; }
+    function rr(x, X0, Y0, X1, Y1, rad) { x.beginPath(); if (x.roundRect) x.roundRect(X0, Y0, X1 - X0, Y1 - Y0, rad); else x.rect(X0, Y0, X1 - X0, Y1 - Y0); }
+    var P = function (u) { return u * R; };
+    function drawBody(x, border) {
+      x.save(); x.translate(CX, CY);
+      if (border) { rr(x, P(-0.78) - border, P(-0.33) - border, P(0.78) + border, P(0.82) + border, P(0.1) + border); x.fillStyle = '#fffdf6'; x.fill(); x.restore(); return; }
+      rr(x, P(-0.78), P(-0.33), P(0.78), P(0.82), P(0.08));
+      var g = x.createLinearGradient(P(-0.78), 0, P(0.78), 0); g.addColorStop(0, '#B8232F'); g.addColorStop(0.5, '#E0393F'); g.addColorStop(1, '#9E1C28');
+      x.fillStyle = g; x.fill();
+      x.fillStyle = '#F2C14E'; x.fillRect(P(-0.13), P(-0.33), P(0.26), P(1.15));        // the ribbon, down the front
+      x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(P(-0.1), P(-0.33), P(0.05), P(1.15));
+      x.strokeStyle = '#6e0f17'; x.lineWidth = P(0.035); rr(x, P(-0.78), P(-0.33), P(0.78), P(0.82), P(0.08)); x.stroke();
+      x.restore();
+    }
+    function drawLid(x, border) {
+      x.save(); x.translate(CX, CY);
+      function loops(w) {
+        x.beginPath(); x.ellipse(P(-0.27), P(-0.76), P(0.3) + w, P(0.19) + w, -0.45, 0, 6.283); x.fill();
+        x.beginPath(); x.ellipse(P(0.27), P(-0.76), P(0.3) + w, P(0.19) + w, 0.45, 0, 6.283); x.fill();
+      }
+      if (border) { x.fillStyle = '#fffdf6'; loops(border); rr(x, P(-0.88) - border, P(-0.6) - border, P(0.88) + border, P(-0.3) + border, P(0.08) + border); x.fill(); x.restore(); return; }
+      x.fillStyle = '#F2C14E'; loops(0);
+      x.fillStyle = '#C9962E'; x.beginPath(); x.ellipse(P(-0.27), P(-0.76), P(0.13), P(0.07), -0.45, 0, 6.283); x.fill();
+      x.beginPath(); x.ellipse(P(0.27), P(-0.76), P(0.13), P(0.07), 0.45, 0, 6.283); x.fill();
+      rr(x, P(-0.88), P(-0.6), P(0.88), P(-0.3), P(0.08));
+      var g = x.createLinearGradient(0, P(-0.6), 0, P(-0.3)); g.addColorStop(0, '#F04A4F'); g.addColorStop(1, '#B8232F');
+      x.fillStyle = g; x.fill(); x.strokeStyle = '#6e0f17'; x.lineWidth = P(0.035); x.stroke();
+      x.fillStyle = '#F2C14E'; x.fillRect(P(-0.14), P(-0.6), P(0.28), P(0.3));
+      x.beginPath(); x.arc(0, P(-0.64), P(0.12), 0, 6.283); x.fillStyle = '#E0AE3A'; x.fill();   // the knot
+      x.restore();
+    }
+    var full = cv(), body = cv(), lid = cv(), b = P(0.08);
+    var f = full.getContext('2d'); drawBody(f, b); drawLid(f, b); drawBody(f, 0); drawLid(f, 0);
+    var bx = body.getContext('2d'); drawBody(bx, b); drawBody(bx, 0);
+    var lx = lid.getContext('2d'); drawLid(lx, b); drawLid(lx, 0);
+    return { full: full, body: body, lid: lid, top: (CY - P(1.0)) / S };
+  }
+
+  // ---------------- runtime ----------------
+  var R = 27, OPEN_T = 60, SHAKE_T = 45, HINT_GAP = 2.6, WIG_T = 0.5, ZAP_N = [4, 5], ZAP_STEP = 0.09, ZAP_HOLD = 0.55;
+  // api: guestApi() (js/guests.js) plus boxFace(), canSummon(), summon(), moment(kind, box, done), wave(x, y)
+  function create(api, opt) {
+    var deck = new BoxDeck(api.rng, opt && opt.thresh), off = !!(opt && opt.off);
+    var boxes = [], zaps = [], hinted = false, dealtOut = false;
+    function reset(rng) { if (rng) deck.rng = rng; deck.reset(); boxes = []; zaps = []; hinted = false; dealtOut = false; }
+    function busy() { return dealtOut || boxes.length > 0 || zaps.length > 0; }
+    function due(guestBusy) { return !off && deck.due(api.score(), api.play(), api.friends(), !!guestBusy || busy()); }
+    function take() { var k = deck.take(); dealtOut = true; api.event('box'); return k; }
+    // it leaves the line: a body in the jar, opening by itself after OPEN_T s
+    function drop(kind, x, y) {
+      dealtOut = false;
+      var b = api.newBody(x, y, 'box', 150);
+      b.kind = kind; b.opened = false; b.hint = 1 + api.vr() * HINT_GAP; b.wig = -1;
+      boxes.push(b);
+      return b;
+    }
+    // the closed box under a point (logical px), with some slack for a finger
+    function hit(x, y) {
+      for (var i = 0; i < boxes.length; i++) { var b = boxes[i]; if (!b.dead && !b.opened && b.age > 0.15 && Math.hypot(b.x - x, b.y - y) < b.r + 12) return b; }
+      return null;
+    }
+    // a tap, the bot, or time: the moment, then what's inside
+    function open(b, auto) {
+      if (!b || b.opened || b.dead) return;
+      b.opened = true;
+      var kind = pickKind(b.kind, api.canSummon(), api.rng);
+      api.event('box-open:' + kind); if (auto) api.event('box-auto');
+      api.sfx('pop', 3, 1);
+      api.moment(kind, b, function () { fire(b, kind); });
+    }
+    // the bot opens a box once it has landed for a second (bot runs and sims)
+    function botOpen() {
+      for (var i = 0; i < boxes.length; i++) { var b = boxes[i]; if (!b.opened && !b.dead && b.age > 1) { open(b); return true; } }
+      return false;
+    }
+    function fire(b, kind) {
+      var x = b.x, y = b.y, w = api.world();
+      b.dead = true;
+      var i = boxes.indexOf(b); if (i >= 0) boxes.splice(i, 1);
+      api.sparkles(x, y, 16, [1, 0.85, 0.3]); api.sparkles(x, y, 10, [0.88, 0.22, 0.25]);
+      if (kind === 'summon') api.summon();
+      else if (kind === 'bomb') {
+        var G = root.Guests, plan = G.blastPlan(w.bodies, x, y, G.BLAST_R, G.BLAST_REACH);
+        plan.remove.forEach(function (o) { o.dead = true; });
+        plan.push.forEach(function (q) { var o = q[0]; o.vx += q[1]; o.vy += q[2]; o.sleep = false; o.sleepT = 0; });
+        api.scoreGone(plan.remove, x, y); api.boom(x, y, G.BLAST_R);
+        api.event('blast:' + plan.remove.length);
+      } else if (kind === 'zap') {
+        var list = zapNearest(w.bodies, x, y, ZAP_N[0] + Math.floor(api.rng() * (ZAP_N[1] - ZAP_N[0] + 1)));
+        if (list.length) { zaps.push({ x: x, y: y, list: list, t: 0, end: ZAP_STEP * list.length + ZAP_HOLD }); api.sfx('fuse', ZAP_STEP * list.length + ZAP_HOLD); }
+      } else {
+        wavePlan(w.bodies, x, y).forEach(function (q) { var o = q[0]; o.vx += q[1]; o.vy += q[2]; o.av = (o.av || 0) + q[3]; o.sleep = false; o.sleepT = 0; });
+        api.wave(x, y); api.event('wave');
+      }
+      api.cleanup();
+    }
+    // the zapped faces: each one bolt after another, yellow, then all a tier down (the smallest go, for their points)
+    function zapEnd(z) {
+      var live = z.list.filter(function (o) { return !o.dead; }), gone = [];
+      live.forEach(function (o) {
+        o.shock = 0;
+        api.sparkles(o.x, o.y, 10, [1, 0.95, 0.4]);
+        if (o.t === 0) { o.dead = true; gone.push(o); } else api.shrink(o, {});
+      });
+      if (gone.length) api.scoreGone(gone, z.x, z.y);
+      api.sfx('boom');
+      api.event('zap:' + live.length);
+      api.cleanup();
+    }
+    function tick(dt) {
+      var i;
+      for (i = boxes.length - 1; i >= 0; i--) {
+        var b = boxes[i];
+        if (b.dead) { boxes.splice(i, 1); continue; }
+        if (b.opened) continue;
+        if (b.wig >= 0) { b.wig += dt; if (b.wig > WIG_T) b.wig = -1; }
+        b.hint -= dt;
+        if (b.hint <= 0 && b.age > 0.6) { b.hint = HINT_GAP; b.wig = 0; api.sparkles(b.x + (api.vr() - 0.5) * b.r, b.y - b.r * 0.8, 4, [1, 0.88, 0.4]); }
+        if (!hinted && b.age > 0.8) hinted = api.talk('box-tap', b, 'תלחצו עליי!', true, 2.2);
+        if (b.age >= OPEN_T) open(b, true);
+      }
+      for (i = zaps.length - 1; i >= 0; i--) {
+        var z = zaps[i];
+        z.t += dt;
+        z.list.forEach(function (o, k) { if (!o.dead && z.t >= k * ZAP_STEP) o.shock = 1; });
+        if (z.t >= z.end) { zaps.splice(i, 1); zapEnd(z); }
+      }
+    }
+    // a jagged bolt from (x0, y0) to (x1, y1): a soft glow and a white-hot core, re-drawn every frame
+    function bolt(x0, y0, x1, y1, k) {
+      var S = api.S, n = 7, px = x0, py = y0, dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L;
+      for (var i = 1; i <= n; i++) {
+        var u = i / n, off = i === n ? 0 : (api.vr() - 0.5) * Math.min(26, L * 0.25), qx = x0 + dx * u + nx * off, qy = y0 + dy * u + ny * off;
+        S.line(px, py, qx, qy, 12, 0.45, 0.75, 1, -0.4 * k, 0, 'fx');
+        S.line(px, py, qx, qy, 3.4, 0.85, 0.95, 1, k, 2, 'fx');
+        px = qx; py = qy;
+      }
+    }
+    function draw() {
+      var T = api.t(), red = api.reduced(), face = api.boxFace();
+      boxes.forEach(function (b) {
+        if (b.dead) return;
+        // the hint: a little wiggle; the last SHAKE_T..OPEN_T s, a growing shake and a tint drifting gold to pink
+        var k = Math.max(0, Math.min(1, (b.age - SHAKE_T) / (OPEN_T - SHAKE_T))), m = red ? 0.35 : 1;
+        var wig = b.wig >= 0 ? Math.sin(b.wig / WIG_T * Math.PI * 4) * (1 - b.wig / WIG_T) : 0;
+        var jx = Math.sin(T * 47) * k * 2.6 * m, ang = b.ang + (wig * 0.2 + Math.sin(T * 31) * k * 0.1) * m, sq = Math.abs(wig) * 0.05;
+        var hue = 0.5 + 0.5 * Math.sin(T * 2.4), tint = k > 0 ? [1, 0.7 + 0.2 * hue, 0.45 + 0.3 * (1 - hue), 0.14 * k] : null;
+        if (k > 0) { // a halo on the photo behind it, gold to pink and back, beating faster as it gets closer
+          var beat = 0.6 + 0.4 * Math.sin(T * (5 + 9 * k)), hr = b.r * (1.6 + 0.5 * k);
+          api.S.quad(b.x, b.y, hr, hr, 0, 1, 0.75 - 0.35 * hue, 0.3 + 0.35 * hue, -0.75 * k * beat, 0, 'paper');
+        }
+        api.faceChip('bx' + b.uid, face, b.x + jx, b.y, b.r, { z: api.bodyZ(b), ang: ang, sx: 1 + sq, sy: 1 - sq, tint: tint });
+      });
+      zaps.forEach(function (z) {
+        z.list.forEach(function (o, i) {
+          if (o.dead || z.t < i * ZAP_STEP) return;
+          bolt(z.x, z.y, o.x, o.y, red ? 0.8 : 0.6 + 0.4 * api.vr());
+          if (!red && api.vr() < 0.3) api.sparkles(o.x, o.y, 1, [1, 0.95, 0.5]);
+        });
+      });
+    }
+    // ?show=boxzap|boxold (with ?sim= and ?t=): bolts held mid-zap from (x, y); a box 55 s old (shaking, tinted) at (x, y)
+    function show(what, x, y) {
+      if (what === 'boxzap') {
+        var list = zapNearest(api.world().bodies, x, y, 5);
+        zaps.push({ x: x, y: y, list: list, t: ZAP_STEP * list.length, end: 1e9 });
+        list.forEach(function (o) { o.shock = 1; });
+        return;
+      }
+      var b = api.newBody(x, y, 'box', 0);
+      b.kind = 'bomb'; b.opened = false; b.hint = 1e9; b.wig = -1; b.age = SHAKE_T + 0.7 * (OPEN_T - SHAKE_T);
+      boxes.push(b);
+    }
+    function force(kind) { deck.force(kind); }
+    return { reset: reset, due: due, take: take, force: force, busy: busy, onDrop: function () { deck.onDrop(); }, onGuest: function () { deck.onSpecial(); },
+      drop: drop, hit: hit, open: open, botOpen: botOpen, tick: tick, draw: draw, show: show };
+  }
+
+  root.Box = { KINDS: KINDS, BoxDeck: BoxDeck, pickKind: pickKind, zapNearest: zapNearest, wavePlan: wavePlan, WAVE_UP: WAVE_UP,
+    R: R, OPEN_T: OPEN_T, create: create, bake: bake };
 })(window);
 
 </script>
@@ -8526,6 +8777,7 @@ postprocessing/build/index.js:
 //            seven orbit around them: "רויאל פלאש!!"
 //   joker:   a guest arrives: a card flips over into his face, his line in big letters, his emoji; he flies to the line
 //   bust:    game over: the face that went over the line crash-zooms in, X eyes stamp on: "<name> בטילט!", sad trombone
+//   box:     a joker box is opened: it rumbles in the middle, the lid blows off, what's inside pops out with its caption
 // A face here is { cv: { open, closed }, cx, cy, marks, eyes } (cell fractions, as js/faces.js bakes them).
 // Reduced motion: no shake, slam or zoom-through; the rays, pops and captions still play.
 (function () {
@@ -8538,13 +8790,21 @@ postprocessing/build/index.js:
   function decay(t, tau) { return t < 0 ? 0 : Math.exp(-t / tau); }
   function lerp(a, b, k) { return a + (b - a) * k; }
 
-  var DUR = { jackpot: 2.3, joker: 1.65, bust: 1.8 }, OUT = 0.22;
+  var DUR = { jackpot: 2.3, joker: 1.65, bust: 1.8, box: 1.45 }, OUT = 0.22;
   var SLAM = 0.24; // jackpot: the two copies meet
   var FLIP = 0.4;  // joker: the card turns over
+  var LID = 0.55;  // box: the lid blows off
   var GUEST = {
     daniel: { rays: ['#ff8a1f', '#6e1206'], ink: '#FFB347', stroke: '#3a0a00', emoji: ['💣', '🔥', '🍕', '🔥'] },
     michael: { rays: ['#ff5c8a', '#3d0f45'], ink: '#FFC2D6', stroke: '#3d0f45', emoji: ['🎸', '🎶', '💃', '🎶'] },
     koko: { rays: ['#d23a3a', '#f4efe4'], ink: '#FFFFFF', stroke: '#1d2b5a', emoji: ['🦅', '🗽', '🍔', '⭐'] }
+  };
+  // the joker box, per what's inside
+  var BOXK = {
+    summon: { rays: ['#E9C46A', '#5a1a2a'], ink: '#FFE08A', stroke: '#2b1a10', icon: '🃏', text: 'ג׳וקר בדרך!', emoji: ['🃏', '🎉', '🃏', '🎁'] },
+    zap: { rays: ['#FFE14D', '#1a2a6e'], ink: '#FFF27A', stroke: '#141a46', icon: '⚡', text: 'חשמל!!', emoji: ['⚡', '🤯', '⚡', '💡'] },
+    bomb: { rays: ['#ff8a1f', '#6e1206'], ink: '#FFB347', stroke: '#3a0a00', icon: '💣', text: 'בום!', emoji: ['💣', '🔥', '💥', '🔥'] },
+    wave: { rays: ['#5ad1ff', '#0b2a5a'], ink: '#BFF3FF', stroke: '#062040', icon: '🌊', text: 'גל הדף!', emoji: ['🌊', '🌀', '🏄', '🌊'] }
   };
   var EMOJI_FONT = '"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
   // "deal with it" shades, one string per pixel row: X black, W a white glint
@@ -8634,6 +8894,7 @@ postprocessing/build/index.js:
     function emoji(e, x, y, px, ang) {
       c.save(); c.translate(x, y); c.rotate(ang || 0);
       c.font = px + 'px ' + EMOJI_FONT; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillStyle = '#000'; // colour emoji take the fill's alpha: the flash's last fillStyle (nearly clear) hid them
       c.fillText(e, 0, 0); c.restore();
     }
     // emoji crossing the screen in arcs, side to side, from at s, one every gap s
@@ -8751,6 +9012,35 @@ postprocessing/build/index.js:
       }
     }
 
+    // the box flies from where it sits to the middle and rumbles harder and harder; the lid blows off (spinning up and
+    // away), what's inside pops out and grows, the caption slams in, emoji fly by
+    function drawBox(o, lt, U, cx, cy) {
+      var k = BOXK[o.k] || BOXK.bomb, red = rm(), f = o.face, d = 0.55 * U, S = Faces.S;
+      var fly = red ? outCubic(lt / 0.2) : outBack(lt / 0.24, 1.4), x = lerp(o.from[0], cx, fly), y = lerp(o.from[1], cy + 0.1 * U, fly), dd = lerp(o.fromD, d, fly);
+      var qq = dd / (2 * Faces.R) * S, rumble = clamp01((lt - 0.2) / (LID - 0.2)), pre = lt < LID;
+      var sh = pre && !red ? Math.sin(lt * 80) * rumble * 0.025 * U : 0, ang = pre ? Math.sin(lt * 45) * rumble * (red ? 0.05 : 0.14) : 0;
+      function img(cv, dx, dy, a, al) {
+        c.save(); c.translate(x + sh + dx, y + dy); c.rotate(a); if (al !== undefined) c.globalAlpha *= al;
+        c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = dd * 0.06; c.shadowOffsetY = dd * 0.04;
+        c.drawImage(cv, -f.cx * qq, -f.cy * qq, qq, qq); c.restore();
+      }
+      if (pre) { img(f.cv.open, 0, 0, ang); return; }
+      var at = lt - LID;
+      img(o.body, 0, 0, 0);
+      // it's open: a dark mouth along the top and a beam of light out of it
+      var u = dd / 2, top = y - 0.33 * u, hw = 0.74 * u, beam = clamp01(at / 0.15) * (1 - clamp01((at - 0.6) / 0.3));
+      c.save(); c.fillStyle = '#3a0a10'; c.beginPath(); c.ellipse(x, top + 0.04 * u, hw, 0.09 * u, 0, 0, TAU); c.fill();
+      c.globalCompositeOperation = 'lighter'; c.globalAlpha *= 0.55 * beam;
+      var lg = c.createLinearGradient(0, top, 0, top - 0.95 * U); lg.addColorStop(0, 'rgba(255,240,170,1)'); lg.addColorStop(1, 'rgba(255,240,170,0)');
+      c.fillStyle = lg; c.beginPath(); c.moveTo(x - hw, top); c.lineTo(x + hw, top); c.lineTo(x + 2.1 * hw, top - 0.95 * U); c.lineTo(x - 2.1 * hw, top - 0.95 * U); c.closePath(); c.fill();
+      c.restore();
+      img(o.lid, at * 0.6 * U, -(at * 2.2 - at * at * 1.4) * U, at * 7, clamp01(1 - at / 0.6));
+      var pk = outBack(at / 0.22, 2.2), iy = y - 0.18 * U - pk * 0.22 * U;
+      emoji(k.icon, x, iy, Math.max(1, 0.34 * U * pk), red ? 0 : 0.12 * Math.sin(lt * 9));
+      caption(k.text, cx, Math.max(0.1 * H, cy - 0.66 * U), 0.2 * U, k.ink, k.stroke, -0.07 + 0.04 * Math.sin(lt * 6), outBack((at - 0.08) / 0.2, 2.2));
+      flyBy(k.emoji, lt, LID + 0.1, 0.13, U);
+    }
+
     function draw() {
       if (!cur) { if (shown) { shown = false; canvas.style.display = 'none'; c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, canvas.width, canvas.height); } return; }
       size();
@@ -8759,7 +9049,7 @@ postprocessing/build/index.js:
       sounds(o);
       var U = Math.min(W, H * 0.62), cx = W / 2, cy = H * 0.47;
       var inK = clamp01(lt / 0.16), out = clamp01((lt - (o.dur - OUT)) / OUT);
-      var shake = red ? 0 : U * (o.kind === 'jackpot' ? 0.06 * decay(lt - SLAM, 0.28) : o.kind === 'bust' ? 0.045 * decay(lt - 0.18, 0.25) + 0.02 * decay(lt - 0.4, 0.08) + 0.02 * decay(lt - 0.56, 0.08) : 0.03 * decay(lt - FLIP, 0.15));
+      var shake = red ? 0 : U * (o.kind === 'jackpot' ? 0.06 * decay(lt - SLAM, 0.28) : o.kind === 'bust' ? 0.045 * decay(lt - 0.18, 0.25) + 0.02 * decay(lt - 0.4, 0.08) + 0.02 * decay(lt - 0.56, 0.08) : o.kind === 'box' ? 0.045 * decay(lt - LID, 0.15) * (lt >= LID ? 1 : 0) : 0.03 * decay(lt - FLIP, 0.15));
       c.setTransform(dpr, 0, 0, dpr, 0, 0);
       c.clearRect(0, 0, W, H);
       c.save();
@@ -8783,10 +9073,17 @@ postprocessing/build/index.js:
         var g = GUEST[o.id] || GUEST.daniel; rays(cx, cy, (o.id === 'michael' ? -1 : 1) * lt * (red ? 0.5 : 1.3), 16, g.rays[0], g.rays[1]);
         c.restore();
         drawJoker(o, lt, U, cx, cy);
+      } else if (o.kind === 'box') {
+        c.save(); c.beginPath(); c.arc(o.from[0], o.from[1], Math.hypot(W, H) * outCubic(inK) + 1, 0, TAU); c.clip();
+        c.globalAlpha = 1 - out;
+        var bk = BOXK[o.k] || BOXK.bomb; rays(cx, cy, lt * (red ? 0.5 : 1.5), 16, bk.rays[0], bk.rays[1]);
+        c.restore();
+        c.globalAlpha = 1 - out;
+        drawBox(o, lt, U, cx, cy);
       } else drawBust(o, lt, U, cx, cy);
       c.restore();
       // the slam's white flash
-      var fl = o.kind === 'jackpot' ? decay(lt - SLAM, 0.1) * (lt >= SLAM ? 1 : 0) : o.kind === 'joker' ? 0.5 * decay(lt - FLIP, 0.08) * (lt >= FLIP ? 1 : 0) : 0;
+      var fl = o.kind === 'jackpot' ? decay(lt - SLAM, 0.1) * (lt >= SLAM ? 1 : 0) : o.kind === 'joker' ? 0.5 * decay(lt - FLIP, 0.08) * (lt >= FLIP ? 1 : 0) : o.kind === 'box' ? 0.6 * decay(lt - LID, 0.09) * (lt >= LID ? 1 : 0) : 0;
       if (fl > 0.01) { c.fillStyle = 'rgba(255,255,255,' + fl.toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
     }
     function sounds(o) {
@@ -8799,6 +9096,15 @@ postprocessing/build/index.js:
       } else if (o.kind === 'joker') {
         cue('in', 0, function () { play('scratch', 0.9); });
         cue('flip', FLIP, function () { play('vine', 0.6); });
+        cue('out', o.dur - OUT, function () { play('whoosh', false, 0.5); });
+      } else if (o.kind === 'box') {
+        cue('in', 0, function () { play('whoosh', true, 0.7); });
+        cue('r1', 0.28, function () { play('thunk'); });
+        cue('r2', 0.42, function () { play('thunk'); });
+        cue('lid', LID, function () {
+          play('vine', 0.9);
+          if (o.k === 'bomb') play('airhorn', 0.8); else if (o.k === 'summon') play('scratch', 0.8); else if (o.k === 'wave') play('whoosh', false, 0.9); else play('fuse', 0.5);
+        });
         cue('out', o.dur - OUT, function () { play('whoosh', false, 0.5); });
       } else {
         cue('in', 0, function () { play('vine', 1); play('whoosh', true, 0.7); });
@@ -8820,6 +9126,8 @@ postprocessing/build/index.js:
       joker: function (o, done) { start('joker', o, done); },
       // face, name; from, fromD: where it is in the jar and how big (screen)
       bust: function (o, done) { start('bust', o, done); },
+      // kind (summon|zap|bomb|wave), face (the box), body, lid (canvases); from, fromD: where it is and how big (screen)
+      box: function (o, done) { o.k = o.kind; start('box', o, done); },
       active: function () { return !!cur; },
       cancel: function () { cur = null; hold = null; }, // a new game: drop it, its done() never runs
       tick: tick, draw: draw, gray: gray,
@@ -8918,6 +9226,7 @@ postprocessing/build/index.js:
   var FAM_AT = qs.has('famat') ? parseFloat(qs.get('famat')) : 0; // test: trigger a family photo at this time
   var BOT_WAIT = qs.has('botwait') ? parseFloat(qs.get('botwait')) : 0; // test: the bot waits this long before its first drop
   var GUEST_Q = Guests.NAMES[qs.get('guest')] ? qs.get('guest') : null; // test: deal this guest first
+  var BOX_Q = Box.KINDS.indexOf(qs.get('box')) >= 0 ? qs.get('box') : null; // test: deal a joker box with this inside first
   var GUESTS_OFF = qs.has('guestsoff'); // test: no guests (balance runs)
   var CIRCLES = qs.get('shape') === 'circle'; // test: the old round bodies instead of head-shaped ones (balance runs)
   // test: physics tuning (balance runs): ?fr=friction &uk=upright stiffness &uc=upright damping &lock=1 (bodies only slide) &ad=angular damping
@@ -9032,6 +9341,11 @@ postprocessing/build/index.js:
         back: S.cardDef('back', 0, false, true), mini: S.cardDef('mini', -1) };
       [[470, 280, 1, 5], [500, 318, 2, 3], [466, 352, 7, 1], [478, 520, 4, 2]].forEach(function (st) { S.chips3d.stack(st[0], st[1], TIERS[st[2]].c, TIERS[st[2]].s, st[3]); });
       guests = Guests.create(guestApi(), { off: GUESTS_OFF, thresh: GUEST_TH, ids: GUEST_ONLY });
+      // the joker box: a present drawn in a face's cell, so it hangs, drops and shows in NEXT like a face (js/box.js)
+      var bk = Box.bake(Faces.S, Faces.CX, Faces.CY, Faces.R), bol = Outline.fromCanvas(bk.full);
+      boxFace = { pid: null, cv: { open: bk.full, closed: bk.full }, body: bk.body, lid: bk.lid, top: bk.top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S,
+        eyes: null, marks: null, teeth: [], name: 'מתנה', outline: bol, def: S.chipDef('box', { open: bk.full, contour: bol.contour, base: '#E9C46A', ins: '#2b2118' }) };
+      boxes = Box.create(boxApi(), { off: GUESTS_OFF || qs.has('boxoff') }); // ?boxoff: no joker boxes (balance runs)
       var sp = Poses.sprites();
       Object.keys(sp).forEach(function (n) { propTex[n] = { tex: S.texture(sp[n].canvas), px: sp[n].px, py: sp[n].py }; rotProps[n] = sp[n]; });
       S.warm(gfaces.daniel.def, propTex.hat.tex); // compile every shader now, not at the first merge
@@ -9080,6 +9394,8 @@ postprocessing/build/index.js:
   var world = null, score = 0, state = 'loading'; // loading | start | intro | play | over
   var paused = false, playTime = 0, t = 0;
   var curG = null, nextG = null; // a guest on the line / in NEXT (the dealt tier waits behind him)
+  // a joker box (what's inside) on the line / in NEXT; the shockwave's slow motion
+  var curB = null, nextB = null, boxFace = null, boxes = null, slow = null, SLOW_T = 1.6;
   var cutDanger = false, aimX = W / 2, cur = 0, next = 0, cooldown = 0, overTimer = 0, shake = 0, overAt = 0, cardUp = false;
   var chainN = 0, lastMergeAt = -10, maxTier = 0, warnT = 0, crackT = 0;
   var deal = 0, dealer = null, drops = 0; // this game's deal number, its NEXT dealer and how many drops (dealt faces and guests)
@@ -9131,6 +9447,8 @@ postprocessing/build/index.js:
     hang.phi = 0; hang.w = 0; hang.appear = 0; hang.lastAim = aimX;
     persons.forEach(function (p) { p.target = 0; });
     if (guests) { guests.reset(mulberry(deal ^ 0x3c6ef372)); if (GUEST_Q) { guests.force(GUEST_Q); nextG = guests.take(); } }
+    curB = nextB = null; slow = null;
+    if (boxes) { boxes.reset(mulberry(deal ^ 0x9e3779b9)); if (BOX_Q && !nextG) { boxes.force(BOX_Q); nextB = boxes.take(); } }
     syncHud();
   }
 
@@ -9247,8 +9565,8 @@ postprocessing/build/index.js:
   function emit(n, detail) { window.dispatchEvent(new CustomEvent(n, { detail: detail })); }
 
   // ---------------- gameplay ----------------
-  function hangR() { return curG ? Guests.GUEST_R : TIERS[cur].r; }
-  function hangFace() { return curG ? gfaces[curG] : faces[cur]; }
+  function hangR() { return curB ? Box.R : curG ? Guests.GUEST_R : TIERS[cur].r; }
+  function hangFace() { return curB ? boxFace : curG ? gfaces[curG] : faces[cur]; }
   function faceOf(b) { return b.g ? gfaces[b.g] : faces[b.t]; } // undefined for treats (guests.js draws them)
   function clampAim(x) { var r = hangR(); return clamp(x, JAR.l + r, JAR.r - r); }
   function ropeY(x) { var u = (x - 200) / 230; return ROPE_Y + ROPE_SAG * (1 - u * u); }
@@ -9261,7 +9579,7 @@ postprocessing/build/index.js:
   }
   // g: a guest id or a treat ('pizza', 'flag'); t -1: never merges (see physics.js)
   function newBody(x, y, tier, vx, vy, g, grow) {
-    var r = g ? (Guests.isTreat(g) ? Guests.TREAT_R : Guests.GUEST_R) : TIERS[tier].r;
+    var r = g === 'box' ? Box.R : g ? (Guests.isTreat(g) ? Guests.TREAT_R : Guests.GUEST_R) : TIERS[tier].r;
     var b = world.add({ x: x, y: y, r: r, t: g ? -1 : tier, g: g || null, vx: vx, vy: vy, sc: 1, sv: 0, ang: 0, av: 0,
       shape: CIRCLES ? null : bodyShape(tier, g, r), upright: Guests.isTreat(g) ? 0 : 1, grow: grow || 0 });
     b.bt = 1 + vr() * 3; b.bp = -1; b.sq = 0; b.born = t; b.uid = ++uidN;
@@ -9313,24 +9631,28 @@ postprocessing/build/index.js:
   function bodyShape(tier, g, r) {
     var o, c, k;
     if (g && Guests.isTreat(g)) { o = treatOutline[g]; c = 64; k = 3 * r / 128 * 0.9; }
-    else { o = (g ? gfaces[g] : faces[tier]).outline; c = Faces.CX; k = r / Faces.R; }
+    else { o = (g === 'box' ? boxFace : g ? gfaces[g] : faces[tier]).outline; c = Faces.CX; k = r / Faces.R; }
     if (!o) return null;
     return o.hull.map(function (p) { return [(p[0] - c) * k, (p[1] - c) * k]; });
   }
   function drop() {
     if (state !== 'play' || paused || cooldown > 0 || hang.appear < 0.6 || rot.active()) return;
     var p = dropPos(), b;
-    if (curG) b = guests.drop(curG, p.x, p.y);
+    if (curB) b = boxes.drop(curB, p.x, p.y);
+    else if (curG) b = guests.drop(curG, p.x, p.y);
     else { b = newBody(p.x, p.y, cur, 0, 150); seeTier(cur, b); }
     if (b) { b.ang = hang.phi * 0.8; b.av = hang.w * 0.5; b.fall = HANG_Z; lastDropped = b; }
     if (!simulating) Sound.sfx.drop();
     if (bub.who === HANG) { if (b) bub.who = b; else hideBubble(); } // the face that was talking on the line keeps talking as it falls
     idleT = 0; drops++;
-    guests.onDrop();
-    // a guest in NEXT goes to the line and the dealt face waits behind him; otherwise deal on
+    guests.onDrop(); boxes.onDrop();
+    // a guest (or a joker box) in NEXT goes to the line and the dealt face waits behind him; otherwise deal on
+    curB = null;
     if (nextG) { curG = nextG; nextG = null; if (ROT_ON && !simulating) jokerWait = { id: curG, b: b, t: 0 }; else jokerIn(curG); }
+    else if (nextB) { curG = null; curB = nextB; nextB = null; }
     else { curG = null; cur = next; next = rollTier(); }
-    if (!nextG && guests.due()) nextG = guests.take();
+    if (!nextG && !nextB && guests.due()) { nextG = guests.take(); boxes.onGuest(); }
+    if (!nextG && !nextB && boxes.due(guests.busy())) nextB = boxes.take();
     cooldown = DROP_CD;
     aimX = clampAim(aimX);
     hang.appear = 0; hang.pinKick = 1;
@@ -9470,6 +9792,27 @@ postprocessing/build/index.js:
     };
   }
 
+  // the api js/box.js works through: the guests' one and a few more
+  function boxApi() {
+    var a = guestApi();
+    a.boxFace = function () { return boxFace; };
+    a.canSummon = function () { return !nextG && !curG && guests.canSummon(); };
+    a.summon = function () { var id = guests.summon(); if (id) nextG = id; };
+    a.moment = function (kind, b, done) { if (ROT_ON && !simulating) rotBox(kind, b, done); else done(); };
+    // the shockwave: slow motion, a ring across the whole jar, a big ripple, chromatic aberration
+    a.wave = function (x, y) {
+      if (simulating) return;
+      slow = { t: 0 };
+      fx.push({ k: 'ring', x: x, y: y, r: 20, R: 560, life: 0.9, max: 0.9, c: [0.75, 0.95, 1] });
+      fx.push({ k: 'glow', x: x, y: y, r: 170, life: 0.45, max: 0.45, c: [0.55, 0.85, 1] });
+      waves.push({ x: x, y: y, r: 60, age: 0, amp: 2.4 });
+      flash = Math.max(flash, 0.5); flashCol = [0.75, 0.92, 1];
+      if (!reduced) { shake = Math.max(shake, 9); ca = Math.max(ca, 3); }
+      Sound.sfx.whoosh(true, 1); Sound.sfx.boom(); buzz([40, 40, 90]);
+    };
+    return a;
+  }
+
   function fullHouse(x, y, pts, mult) {
     Sound.sfx.family(); Sound.musicHit(); buzz([40, 60, 80]);
     flash = 1.0; flashCol = [1, 1, 1];
@@ -9512,6 +9855,11 @@ postprocessing/build/index.js:
     var w = jokerWait; w.t += dt;
     var b = w.b, landed = !b || b.dead || (b.age > 0.3 && Math.hypot(b.vx, b.vy) < 40);
     if ((landed && t - lastMergeAt > 0.35) || w.t > JOKER_WAIT) { jokerWait = null; jokerIn(w.id); }
+  }
+  // a joker box opens: its moment, then what's inside (done)
+  function rotBox(kind, b, done) {
+    hideBubble();
+    rot.box({ kind: kind, face: boxFace, body: boxFace.body, lid: boxFace.lid, from: screenPt(b.x, b.y), fromD: 2 * b.r * view.s }, done);
   }
   // he flies up to where he hangs
   function rotJoker(id) {
@@ -9702,6 +10050,7 @@ postprocessing/build/index.js:
       world.step(dt);
       processMerges();
       guests.tick(dt);
+      boxes.tick(dt);
       if (jokerWait) tickJoker(dt);
       var over = false, bs = world.bodies, i, topB = null, top = JAR.floor;
       for (i = 0; i < bs.length; i++) {
@@ -10022,14 +10371,14 @@ postprocessing/build/index.js:
       var sep = state === 'over' ? clamp(overAnim / 1.2, 0, OVER_SEPIA) : 0;
       for (i = 0; i < bs.length; i++) {
         var b = bs[i], sy2 = b.sc + (state === 'over' ? 0 : Math.sin(t * 6 + b.born * 7) * 0.012), sx2 = 2 - sy2;
-        if (Guests.isTreat(b.g)) continue;
+        if (Guests.isTreat(b.g) || b.g === 'box') continue; // js/guests.js and js/box.js draw them
         var nervous = state === 'play' && overTimer > 0 && b.y - b.r < LINE_Y + 30;
         var fuse = b.fuse > 0 ? 1 - b.fuse / 0.7 : 0; // דניאל about to blow: he glows hot and shakes
-        var jx = (nervous || fuse || b.zap > 0) && !reduced ? Math.sin(t * 60 + i) * (0.8 + fuse * 2.5) : 0;
+        var jx = (nervous || fuse || b.zap > 0 || b.shock > 0) && !reduced ? Math.sin(t * 60 + i) * (0.8 + fuse * 2.5 + (b.shock > 0 ? 1.4 : 0)) : 0;
         var f = faceOf(b), pz = state === 'over' ? b.pose : null, bx = b.x + jx, by = b.y + b.r * (1 - sy2), z = bodyZ(b);
         if (pz && (pz.prop === 'cards' || pz.prop2 === 'cards')) drawProp(b, f, 'cards', bx, by, sx2, sy2, sep, z + 0.5); // behind the sticker
         faceChip('b' + b.uid, f, bx, by, b.r, { z: z, ang: b.ang, sx: sx2, sy: sy2, blink: pz ? poseBlink(pz.eyes) : blinkAmt(b), sepia: sep,
-          tint: fuse ? [1, 0.45, 0.1, 0.15 + 0.3 * fuse] : b.zap > 0 ? [1, 0.85, 0.1, 0.25 + 0.3 * (1 - b.zap / 0.7)] : nervous ? [1, 0.2, 0.2, 0.12 + 0.1 * Math.sin(t * 10)] : null, shine: b.pop > 0 ? 1 - b.pop / 0.22 : 0 });
+          tint: fuse ? [1, 0.45, 0.1, 0.15 + 0.3 * fuse] : b.shock > 0 ? [0.75, 0.9, 1, 0.12 + 0.2 * vr()] : b.zap > 0 ? [1, 0.85, 0.1, 0.25 + 0.3 * (1 - b.zap / 0.7)] : nervous ? [1, 0.2, 0.2, 0.12 + 0.1 * Math.sin(t * 10)] : null, shine: b.pop > 0 ? 1 - b.pop / 0.22 : 0 });
         if (!pz) drawTwinkle(b, f, bx, by, sx2, sy2, chipTop(b.r, z) + 0.6);
         if (pz) {
           var zt = chipTop(b.r, z) + 0.4;
@@ -10039,6 +10388,7 @@ postprocessing/build/index.js:
       }
     }
     if (guests && state !== 'start') guests.draw();
+    if (boxes && state !== 'start') boxes.draw();
     // merge ghosts
     for (var g = 0; g < fx.length; g++) {
       var fg = fx[g];
@@ -10090,7 +10440,7 @@ postprocessing/build/index.js:
     // NEXT: a playing card on the felt with the next face on it (top left: the HUD is mirrored for Hebrew)
     if (state === 'play') {
       S.chip('nextcard', cardDefs.corner[1], 42, 38, { size: [48, 62], th: 0.9, z: FELT_Z, ang: -0.06 });
-      faceChip('next', nextG ? gfaces[nextG] : faces[next], 42, 39, 17, { ang: -0.06, blink: blinkAmt(nextBl), z: FELT_Z + 1 });
+      faceChip('next', nextG ? gfaces[nextG] : nextB ? boxFace : faces[next], 42, 39, 17, { ang: -0.06, blink: blinkAmt(nextBl), z: FELT_Z + 1 });
     }
 
     // stickers flying back into the photo, in an arc toward the camera
@@ -10162,6 +10512,10 @@ postprocessing/build/index.js:
   canvas.addEventListener('pointerdown', function (e) {
     if (state !== 'play' || paused) return;
     Sound.unlock();
+    if (!rot.active()) { // a tap on a present opens it (and doesn't aim or drop)
+      var lp = S.unproject(e.clientX, e.clientY, CHIP_Z), hb = boxes.hit(lp[0], lp[1]);
+      if (hb) { boxes.open(hb); e.preventDefault(); return; }
+    }
     pointerDown = true; aimX = clampAim(worldX(e));
     try { canvas.setPointerCapture(e.pointerId); } catch (x) {}
     e.preventDefault();
@@ -10402,7 +10756,15 @@ postprocessing/build/index.js:
     var dt = Math.min((now - last) / 1000, 0.1); last = now;
     if (!paused && state !== 'loading') {
       rot.tick(dt);
-      if (!rot.active()) { acc += dt; while (acc >= STEP) { update(STEP); acc -= STEP; } }
+      if (!rot.active()) {
+        var ts = 1;
+        if (slow) { // the shockwave: down to 0.3x in 0.16 s, held, back up over the last 0.4 s (real time)
+          slow.t += dt;
+          var su = slow.t / SLOW_T;
+          if (su >= 1) slow = null; else ts = 0.3 + 0.7 * (su < 0.1 ? 1 - su / 0.1 : su > 0.75 ? (su - 0.75) / 0.25 : 0);
+        }
+        acc += dt * ts; while (acc >= STEP) { update(STEP); acc -= STEP; }
+      }
     }
   }
   // draw at most 60 times a second (120 Hz screens would double the work and the heat), 30 when nothing much moves:
@@ -10451,6 +10813,7 @@ postprocessing/build/index.js:
     drop();
   }
   function bot() {
+    if (boxes.botOpen()) return;
     if (BOT2) return bot2();
     if (cooldown > 0 || hang.appear < 0.6 || playTime < BOT_WAIT) return;
     var r = hangR(), bestB = null;
@@ -10493,7 +10856,8 @@ postprocessing/build/index.js:
       });
       return c.toDataURL();
     },
-    get cardUp() { return cardUp; }, banner: banner, talk: talk
+    get cardUp() { return cardUp; }, banner: banner, talk: talk,
+    screenPt: screenPt, get events() { return events.slice(); } // test: where a body is on screen (CSS px); the event log
   };
 
   // ---------------- boot ----------------
@@ -10532,6 +10896,7 @@ postprocessing/build/index.js:
       if (state !== 'play') beginGameSilently();
       if (RS === 'jackpot') rotJackpot(200, 420, FULL_HOUSE_BONUS, 1);
       else if (RS === 'bust') rot.bust({ face: faces[4], name: faces[4].name, from: screenPt(200, 450), fromD: 2 * TIERS[4].r * view.s });
+      else if (RS.indexOf('box-') === 0) rot.box({ kind: RS.slice(4), face: boxFace, body: boxFace.body, lid: boxFace.lid, from: screenPt(200, 450), fromD: 2 * Box.R * view.s });
       else rotJoker(Guests.IDS.indexOf(RS) >= 0 ? RS : 'daniel');
       if (qs.has('rt')) rot.hold(parseFloat(qs.get('rt')));
     }
@@ -10552,6 +10917,11 @@ postprocessing/build/index.js:
       if (['peek', 'mpeek', 'dpeek', 'guitar', 'boom'].indexOf(qs.get('show')) >= 0 && state === 'play') {
         guests.show(qs.get('show'));
         $('say').style.animation = 'none'; $('say').style.opacity = '1';
+      }
+      // ?show=boxzap|boxold: hold a joker box's bolts mid-zap, or a box about to open by itself (shaking, tinted)
+      if ((qs.get('show') === 'boxzap' || qs.get('show') === 'boxold') && state === 'play') {
+        var ly = landing(200, Box.R);
+        boxes.show(qs.get('show'), 200, qs.get('show') === 'boxzap' ? ly.y + Box.R : ly.y);
       }
       // ?say=nu|any|<head id>: hold a table-talk bubble (the first NUDGE / ANYONE line, or that player's first line)
       var SAY = qs.get('say'), tb = topBody();
