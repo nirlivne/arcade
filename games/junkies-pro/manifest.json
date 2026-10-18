@@ -1,6 +1,7 @@
 {
-  "name": "ג׳אנקיס",
-  "short_name": "ג׳אנקיס",
+  "id": "/arcade/games/junkies-pro/?app=pro2",
+  "name": "ג׳אנקיס Pro",
+  "short_name": "ג׳אנקיס Pro",
   "description": "ערב פוקר עם הג׳אנקיס: מפילים פרצופים, שניים זהים מתאחדים, ומכניסים את כולם בחזרה לשולחן.",
   "lang": "he",
   "dir": "rtl",

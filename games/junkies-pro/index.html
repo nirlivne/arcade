@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1d3a2c">
-<title>ג׳אנקיס</title>
+<title>ג׳אנקיס Pro</title>
 <meta name="robots" content="noindex, nofollow">
 <meta name="description" content="משחק תמונות לערב פוקר של הג׳אנקיס, מאת The Game Company: מפילים פרצופים, מאחדים זוגות ומכניסים את כולם בחזרה לשולחן.">
 <link rel="manifest" href="manifest.json">
@@ -6630,7 +6630,9 @@ postprocessing/build/index.js:
     for (var i = 0; i < max; i++) { idx[i * 6] = i * 4; idx[i * 6 + 1] = i * 4 + 1; idx[i * 6 + 2] = i * 4 + 2; idx[i * 6 + 3] = i * 4; idx[i * 6 + 4] = i * 4 + 2; idx[i * 6 + 5] = i * 4 + 3; }
     g.setIndex(new T.BufferAttribute(idx, 1));
     g.setDrawRange(0, 0);
-    var mat = new T.ShaderMaterial({ vertexShader: VS_FX, fragmentShader: FS_FX, uniforms: { uHdr: { value: 1.8 } }, transparent: true, depthWrite: false, depthTest: true,
+    // double-sided: quad() takes logical coords (y down), which wind the other way in the world (y up); front-face
+    // culling dropped every one of them (rings, glows, sparks, the danger line, dust, embers)
+    var mat = new T.ShaderMaterial({ vertexShader: VS_FX, fragmentShader: FS_FX, uniforms: { uHdr: { value: 1.8 } }, transparent: true, depthWrite: false, depthTest: true, side: T.DoubleSide,
       blending: T.CustomBlending, blendSrc: T.OneFactor, blendDst: T.OneMinusSrcAlphaFactor, blendSrcAlpha: T.OneFactor, blendDstAlpha: T.OneMinusSrcAlphaFactor });
     this.mesh = new T.Mesh(g, mat); this.mesh.frustumCulled = false; this.mesh.renderOrder = order;
   }
@@ -9015,7 +9017,7 @@ postprocessing/build/index.js:
       Guests.IDS.forEach(function (id) {
         var im = ims[k++], cut = Faces.cut({ sprite: im, plate: im, layer: M.photos[GUEST_PIDS[id]].layers[0] });
         var cv = { open: Faces.canvas(), closed: Faces.canvas() }, top = Faces.paint(cut, GOLD, Faces.outline(Guests.GUEST_R), cv), ol = Outline.fromCanvas(cv.open);
-        gfaces[id] = { pid: GUEST_PIDS[id], cv: cv, top: top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S, eyes: null, marks: cut.marks, name: Guests.NAMES[id],
+        gfaces[id] = { pid: GUEST_PIDS[id], cv: cv, teeth: findTeeth(cv.open, cut.marks), top: top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S, eyes: null, marks: cut.marks, name: Guests.NAMES[id],
           outline: ol, def: S.chipDef('g-' + id, { open: cv.open, contour: ol.contour, base: GOLD, ins: '#2b2118' }) };
       });
       ['pizza', 'flag', 'guitar'].forEach(function (k) {
@@ -9065,7 +9067,8 @@ postprocessing/build/index.js:
         sl.pid = pid;
       }
       faces[t] = { pid: pid, cv: sl.cv, def: sl.def, top: sl.top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S,
-        eyes: h.eyes, marks: h.cut.marks, name: h.name, spot: h.spot, person: h.person, outline: sl.outline };
+        eyes: h.eyes, marks: h.cut.marks, name: h.name, spot: h.spot, person: h.person, outline: sl.outline,
+        teeth: teethCache[pid] = teethCache[pid] || findTeeth(sl.cv.open, h.cut.marks) };
     });
   }
 
@@ -9262,7 +9265,47 @@ postprocessing/build/index.js:
   }
   // the collision shape: the sticker's own convex hull (cell px around the centre, scaled to the radius); treats from
   // their art (128 px drawn 3r wide), a little inside it
-  var outlineCache = {}, treatOutline = {}, treatDefs = {}, fxN = 0;
+  var outlineCache = {}, treatOutline = {}, treatDefs = {}, fxN = 0, teethCache = {};
+  // where a smile shows teeth: bright, nearly colourless pixels between the mouth corners and above the lower lip.
+  // Returns up to 3 spots (cell fractions, the brightest first, apart from each other), or [] for a closed mouth.
+  function findTeeth(cv, m) {
+    if (!m || !m.mouth) return [];
+    var S0 = cv.width, l = m.mouth.l, r = m.mouth.r, bt = m.mouth.b;
+    var x0 = Math.floor(Math.min(l[0], r[0]) * S0), x1 = Math.ceil(Math.max(l[0], r[0]) * S0);
+    var cy = (l[1] + r[1]) / 2, y0 = Math.floor((cy - 0.5 * (bt[1] - cy)) * S0), y1 = Math.ceil(bt[1] * S0);
+    if (x1 - x0 < 4 || y1 - y0 < 3) return [];
+    var d = cv.getContext('2d').getImageData(x0, y0, x1 - x0, y1 - y0).data, w = x1 - x0, hits = [], lums = [];
+    for (var i = 0; i < d.length; i += 4) lums.push(0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]);
+    var med = lums.slice().sort(function (p, q) { return p - q; })[lums.length >> 1];
+    // teeth here are cream, not white: brighter than the mouth area around them, and less red than skin or lips
+    for (i = 0; i < d.length; i += 4) {
+      var R = d[i] || 1, lum = lums[i / 4];
+      if (d[i + 3] > 230 && lum > Math.max(135, med + 20) && d[i + 1] / R > 0.72 && d[i + 2] / R > 0.55) hits.push([lum, x0 + (i / 4) % w, y0 + Math.floor(i / 4 / w)]);
+    }
+    if (hits.length < Math.max(12, 0.015 * w * (y1 - y0))) return [];
+    hits.sort(function (p, q) { return q[0] - p[0]; });
+    var out = [], gap = 0.18 * w;
+    for (var k = 0; k < hits.length && out.length < 3; k++) {
+      var hp = hits[k];
+      if (out.every(function (o) { return Math.hypot(o[0] * S0 - hp[1], o[1] * S0 - hp[2]) > gap; })) out.push([hp[1] / S0, hp[2] / S0]);
+    }
+    return out;
+  }
+  // now and then a smile's teeth twinkle (like the blink): b.tw counts down to the next one, b.tp runs it (0..TWINKLE s)
+  var TWINKLE = 0.5, TWINKLE_ALL = qs.has('twinkle'); // ?twinkle: every smile at its brightest (screenshots)
+  function tickTwinkle(b, dt) {
+    if (b.tp >= 0) { b.tp += dt; if (b.tp > TWINKLE) b.tp = -1; return; }
+    if (b.tw === undefined) { b.tw = 2 + vr() * 8; b.tp = -1; }
+    b.tw -= dt; if (b.tw <= 0) { b.tw = 5 + vr() * 9; b.tp = 0; b.ts = Math.floor(vr() * 3); }
+  }
+  function drawTwinkle(b, f, bx, by, sx, sy, z) {
+    var tp = TWINKLE_ALL ? TWINKLE / 2 : b.tp;
+    if (!(tp >= 0) || !f || !f.teeth || !f.teeth.length) return;
+    var k = tp / TWINKLE, env = Math.sin(Math.PI * k), sp = f.teeth[(b.ts || 0) % f.teeth.length];
+    var p = markPos(b, f, sp, bx, by, sx, sy), s = Math.max(4, b.r * 0.34) * env;
+    S.quad(p[0], p[1], s, s, b.ang + k * 1.4, 1, 0.98, 0.9, -env, 3, 'fx', z);
+    S.quad(p[0], p[1], s * 0.35, s * 0.35, 0, 1, 1, 1, -0.45 * env, 0, 'fx', z); // the hot centre
+  }
   function bodyShape(tier, g, r) {
     var o, c, k;
     if (g && Guests.isTreat(g)) { o = treatOutline[g]; c = 64; k = 3 * r / 128 * 0.9; }
@@ -9720,6 +9763,7 @@ postprocessing/build/index.js:
       else { q.sv += (1 - q.sc) * 420 * dt; q.sv *= Math.pow(0.004, dt); q.sc += q.sv * dt; }
       // rotation is the physics' own (js/physics.js: real shapes, a weeble's upright torque)
       if (state !== 'over' || !snapped) tickBlink(q, dt, state === 'play' && overTimer > 0 && q.y - q.r < LINE_Y + 30); // frozen once posed
+      if (!snapped) tickTwinkle(q, dt);
     }
     for (j = 0; j < lineFaces.length; j++) {
       var lf = lineFaces[j];
@@ -9976,6 +10020,7 @@ postprocessing/build/index.js:
         if (pz && (pz.prop === 'cards' || pz.prop2 === 'cards')) drawProp(b, f, 'cards', bx, by, sx2, sy2, sep, z + 0.5); // behind the sticker
         faceChip('b' + b.uid, f, bx, by, b.r, { z: z, ang: b.ang, sx: sx2, sy: sy2, blink: pz ? poseBlink(pz.eyes) : blinkAmt(b), sepia: sep,
           tint: fuse ? [1, 0.45, 0.1, 0.15 + 0.3 * fuse] : b.zap > 0 ? [1, 0.85, 0.1, 0.25 + 0.3 * (1 - b.zap / 0.7)] : nervous ? [1, 0.2, 0.2, 0.12 + 0.1 * Math.sin(t * 10)] : null, shine: b.pop > 0 ? 1 - b.pop / 0.22 : 0 });
+        if (!pz) drawTwinkle(b, f, bx, by, sx2, sy2, chipTop(b.r, z) + 0.6);
         if (pz) {
           var zt = chipTop(b.r, z) + 0.4;
           if (pz.prop && pz.prop !== 'cards') drawProp(b, f, pz.prop, bx, by, sx2, sy2, sep, zt);
@@ -10396,7 +10441,23 @@ postprocessing/build/index.js:
     drop: drop, aim: function (x) { aimX = x; }, TIERS: TIERS,
     setRng: function (f) { rng = f; }, // bot aim and guest peeks only: the NEXT tiers come from the deal, not rng
     forceTier: function (n) { cur = n; cooldown = 0; hang.appear = 1; }, gameOver: gameOver,
-    bust: function () { overTop = topBody(); gameOver(); }, get cardUp() { return cardUp; }, // test: game over with the top face busted banner: banner, talk: talk
+    bust: function () { overTop = topBody(); gameOver(); }, // test: game over with the top face busted
+    get teeth() { return faces.concat(Guests.IDS.map(function (id) { return gfaces[id]; })).map(function (f) { return f.name + ':' + f.teeth.length; }); },
+    mouths: function () { // test: each face's mouth, its corners (green), lower lip (pink) and teeth spots (yellow), as one PNG
+      var fs = faces.concat(Guests.IDS.map(function (id) { return gfaces[id]; })), c = document.createElement('canvas'); c.width = 256 * 6; c.height = 256 * 2;
+      var x = c.getContext('2d');
+      fs.forEach(function (f, i) {
+        var m = f.marks.mouth, ox = (i % 6) * 256, oy = Math.floor(i / 6) * 256; if (!m) return;
+        var cx = (m.l[0] + m.r[0]) / 2 * 512, cy = (m.l[1] + m.r[1]) / 2 * 512;
+        x.drawImage(f.cv.open, cx - 64, cy - 64, 128, 128, ox, oy, 256, 256);
+        var P = function (q) { return [ox + (q[0] * 512 - cx + 64) * 2, oy + (q[1] * 512 - cy + 64) * 2]; };
+        x.fillStyle = '#0f0'; [m.l, m.r].forEach(function (q) { var pp = P(q); x.fillRect(pp[0] - 3, pp[1] - 3, 6, 6); });
+        x.fillStyle = '#f0f'; var pb = P(m.b); x.fillRect(pb[0] - 3, pb[1] - 3, 6, 6);
+        x.fillStyle = '#ff0'; f.teeth.forEach(function (q) { var pp = P(q); x.fillRect(pp[0] - 3, pp[1] - 3, 6, 6); });
+      });
+      return c.toDataURL();
+    },
+    get cardUp() { return cardUp; }, banner: banner, talk: talk
   };
 
   // ---------------- boot ----------------
