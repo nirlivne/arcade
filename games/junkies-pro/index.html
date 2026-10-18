@@ -10,6 +10,8 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <style>
 /* Latin and digits: Permanent Marker (Marker) and Patrick Hand (Hand); Hebrew: Rubik Doodle Shadow (title),
    Karantina (Letter: headings, buttons, table talk) and Fredoka (Round: everything else) */
@@ -48,7 +50,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#1d3a2c;overscroll-beh
 .ibtn.off{opacity:.45;text-decoration:line-through}
 #btn-set{display:none;font-size:17px}
 #ui[data-state=start] #btn-set{display:flex}
-#cut{position:absolute;left:362px;top:184px;font-size:16px;color:#ff8193;text-shadow:0 1px 2px rgba(0,0,0,.5);transform:scaleX(-1)}
+#cut{position:absolute;left:359px;top:179px;font-size:22px;line-height:1;color:#ff4d5e;text-shadow:0 0 2px #2a0008,0 1px 3px rgba(0,0,0,.7);transform:scaleX(-1)}
+#cut.danger{animation:cutpulse .63s ease-in-out infinite}
+@keyframes cutpulse{50%{color:#fff;transform:scaleX(-1) scale(1.25)}}
 
 /* floating text */
 .pop{position:absolute;font-family:Marker,Hand,cursive;font-size:22px;color:#fff;white-space:nowrap;
@@ -9076,7 +9080,7 @@ postprocessing/build/index.js:
   var world = null, score = 0, state = 'loading'; // loading | start | intro | play | over
   var paused = false, playTime = 0, t = 0;
   var curG = null, nextG = null; // a guest on the line / in NEXT (the dealt tier waits behind him)
-  var aimX = W / 2, cur = 0, next = 0, cooldown = 0, overTimer = 0, shake = 0, overAt = 0, cardUp = false;
+  var cutDanger = false, aimX = W / 2, cur = 0, next = 0, cooldown = 0, overTimer = 0, shake = 0, overAt = 0, cardUp = false;
   var chainN = 0, lastMergeAt = -10, maxTier = 0, warnT = 0, crackT = 0;
   var deal = 0, dealer = null, drops = 0; // this game's deal number, its NEXT dealer and how many drops (dealt faces and guests)
   var unlocked = [], families = 0, fx = [], waves = [], flash = 0, flashCol = [1, 1, 1], ca = 0;
@@ -9157,7 +9161,7 @@ postprocessing/build/index.js:
   function ronBig() { return faces[MAX_T].pid === HEAD_RONZO; }
   function beginGame() {
     if (state !== 'start') return;
-    Sound.unlock(); Sound.sfx.shutter(0); Sound.sfx.riffle(0.15); askMotion();
+    immerse(); Sound.unlock(); Sound.sfx.shutter(0); Sound.sfx.riffle(0.15); askMotion();
     Sound.setTune(ronBig() ? 'bach' : 'danube'); // רונזו dealt the biggest chip: the band plays Bach; anyone else, the Blue Danube
     if (musOn) { Sound.musicStart(); Sound.musicDuck(false); }
     reset(); Sound.calm();
@@ -9184,7 +9188,7 @@ postprocessing/build/index.js:
   }
   function gameOver() {
     state = 'over'; overAt = performance.now(); overAnim = 0;
-    track('game-over');
+    track('game-over'); letSleep();
     showScreen(null);
     burnOver = overTimer / OVER_TIME;
     var isBest = score > best && score > 0;
@@ -9983,9 +9987,15 @@ postprocessing/build/index.js:
     // danger line: a dashed marker on the photo
     if (state !== 'start') {
       var danger = state === 'play' && overTimer > 0, pulse = danger ? 0.5 + 0.5 * Math.sin(t * 10) : 0;
-      var la = danger ? 0.8 + 0.2 * pulse : 0.7;
-      for (var dx = JAR.l + 4; dx < JAR.r - 4; dx += 17) S.line(dx, LINE_Y, Math.min(dx + 10, JAR.r - 4), LINE_Y, 3, 1, 0.36, 0.45, la, 2, 'paper');
-      if (danger) S.quad(200, LINE_Y, 190, 16, 0, 1, 0.3, 0.3, -0.25 * pulse, 0, 'paper');
+      // bold enough to read over the photo on a phone: a dark outline under bright dashes; red and thicker in danger
+      var lw = danger ? 5 + 1.5 * pulse : 4.5, lg = danger ? 0.12 : 0.24;
+      for (var dx = JAR.l + 6; dx < JAR.r - 26; dx += 18) { // stops short of the ✂
+        var dx1 = Math.min(dx + 11, JAR.r - 26);
+        S.line(dx, LINE_Y + 0.6, dx1, LINE_Y + 0.6, lw + 3, 0.12, 0, 0.03, 0.55, 2, 'paper');
+        S.line(dx, LINE_Y, dx1, LINE_Y, lw, 1, lg, lg + 0.1, 0.95, 2, 'paper');
+      }
+      if (danger) S.quad(200, LINE_Y, 192, 20, 0, 1, 0.2, 0.2, -0.4 * pulse, 0, 'paper');
+      if (danger !== cutDanger) $('cut').classList.toggle('danger', cutDanger = danger);
     }
 
     // rope + line stickers (start screen and intro)
@@ -10320,6 +10330,7 @@ postprocessing/build/index.js:
   elOverCard.style.top = OVER_CARD_TOP + 'px';
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) setPaused(true);
+    else if (state === 'intro' || state === 'play') keepAwake(); // the lock is dropped whenever the page hides
     Sound.suspend(document.hidden);
     last = 0;
   });
@@ -10341,6 +10352,31 @@ postprocessing/build/index.js:
     if (ang === 90) { var q = dx; dx = -dy; dy = q; } else if (ang === -90 || ang === 270) { var q2 = dx; dx = dy; dy = -q2; }
     tilt.x = dx; tilt.y = dy;
   }
+  // full screen on phones: each new game's Play tap asks for it (the back gesture leaves it), then the portrait lock,
+  // which needs it; the installed app opens full screen by its manifest. iPhone Safari has neither: nothing happens.
+  // The screen stays awake while a game runs.
+  var wakeLock = null;
+  function immerse() {
+    if (BOT || SIM || !window.matchMedia || !matchMedia('(pointer: coarse)').matches) return;
+    var d = document, el = d.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req && !(d.fullscreenElement || d.webkitFullscreenElement)) {
+      try {
+        var p = req.call(el, { navigationUI: 'hide' });
+        if (p && p.then) p.then(lockPortrait, function () {});
+      } catch (e) {}
+    } else lockPortrait();
+    keepAwake();
+  }
+  function lockPortrait() { try { screen.orientation.lock('portrait').catch(function () {}); } catch (e) {} }
+  function keepAwake() {
+    if (wakeLock || !navigator.wakeLock || document.hidden) return;
+    wakeLock = 'asking';
+    navigator.wakeLock.request('screen').then(function (l) {
+      wakeLock = l; l.addEventListener('release', function () { if (wakeLock === l) wakeLock = null; });
+      if (state === 'over' || state === 'start') letSleep();
+    }, function () { wakeLock = null; });
+  }
+  function letSleep() { if (wakeLock && wakeLock.release) wakeLock.release().catch(function () {}); wakeLock = null; }
   var motionAsked = false;
   function askMotion() {
     if (motionAsked || BOT || SIM) return;
@@ -10477,6 +10513,7 @@ postprocessing/build/index.js:
     if (SIM > 0) {
       simulate(SIM);
       if (SCREEN === 'over' && state === 'play') { overTimer = OVER_TIME; gameOver(); }
+      if (qs.get('show') === 'danger') overTimer = 1; // the pulsing danger line, for screenshots
       if (state === 'over' && FROZEN_T !== null) {
         if (!snapped) snapPoses();
         burnOver = keepBurn();
