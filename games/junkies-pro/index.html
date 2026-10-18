@@ -8241,45 +8241,151 @@ postprocessing/build/index.js:
     return out;
   }
 
-  // the present as a sticker, in a face's cell (S px, centre CX, CY, collision radius R): red box, gold ribbon and bow.
+  // the box's look. PROTOTYPE (Nir, 2026-10-18: "show me 4 design variants"): gift is the first one; q, chip, chest and
+  // eyes are the variants, switched by ?boxlook=. Each draws body and lid around (0, 0) in units of R (P); the sticker
+  // border is added around whatever they draw. Keep the winner, delete the rest.
+  function rr(x, X0, Y0, X1, Y1, rad) { x.beginPath(); if (x.roundRect) x.roundRect(X0, Y0, X1 - X0, Y1 - Y0, rad); else x.rect(X0, Y0, X1 - X0, Y1 - Y0); }
+  function vgrad(x, y0, y1, a, b) { var g = x.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, a); g.addColorStop(1, b); return g; }
+  function dot(x, X, Y, r, col, hi) { x.beginPath(); x.arc(X, Y, r, 0, 6.283); x.fillStyle = col; x.fill(); if (hi) { x.beginPath(); x.arc(X - r * 0.3, Y - r * 0.3, r * 0.35, 0, 6.283); x.fillStyle = hi; x.fill(); } }
+  function bow(x, P, cx, cy, k, col, dark, tilt) { // two loops, two tails, a knot
+    x.save(); x.translate(P(cx), P(cy)); x.rotate(tilt || 0); x.scale(k, k);
+    x.fillStyle = col;
+    x.beginPath(); x.moveTo(P(-0.05), P(0.02)); x.lineTo(P(-0.24), P(0.34)); x.lineTo(P(-0.12), P(0.3)); x.lineTo(P(-0.06), P(0.4)); x.closePath(); x.fill();
+    x.beginPath(); x.moveTo(P(0.05), P(0.02)); x.lineTo(P(0.24), P(0.34)); x.lineTo(P(0.12), P(0.3)); x.lineTo(P(0.06), P(0.4)); x.closePath(); x.fill();
+    [-1, 1].forEach(function (s) {
+      x.beginPath(); x.ellipse(P(0.26 * s), P(-0.08), P(0.3), P(0.18), s * 0.42, 0, 6.283); x.fillStyle = col; x.fill();
+      x.beginPath(); x.ellipse(P(0.26 * s), P(-0.08), P(0.13), P(0.065), s * 0.42, 0, 6.283); x.fillStyle = dark; x.fill();
+    });
+    dot(x, 0, 0, P(0.12), dark); dot(x, 0, 0, P(0.09), col, 'rgba(255,255,255,.45)');
+    x.restore();
+  }
+  var LOOKS = {
+    gift: { name: 'מתנה (the first one)',
+      body: function (x, P) {
+        rr(x, P(-0.78), P(-0.33), P(0.78), P(0.82), P(0.08));
+        var g = x.createLinearGradient(P(-0.78), 0, P(0.78), 0); g.addColorStop(0, '#B8232F'); g.addColorStop(0.5, '#E0393F'); g.addColorStop(1, '#9E1C28');
+        x.fillStyle = g; x.fill();
+        x.fillStyle = '#F2C14E'; x.fillRect(P(-0.13), P(-0.33), P(0.26), P(1.15));
+        x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(P(-0.1), P(-0.33), P(0.05), P(1.15));
+        x.strokeStyle = '#6e0f17'; x.lineWidth = P(0.035); rr(x, P(-0.78), P(-0.33), P(0.78), P(0.82), P(0.08)); x.stroke();
+      },
+      lid: function (x, P) {
+        bow(x, P, 0, -0.68, 1, '#F2C14E', '#C9962E');
+        rr(x, P(-0.88), P(-0.6), P(0.88), P(-0.3), P(0.08));
+        x.fillStyle = vgrad(x, P(-0.6), P(-0.3), '#F04A4F', '#B8232F'); x.fill(); x.strokeStyle = '#6e0f17'; x.lineWidth = P(0.035); x.stroke();
+        x.fillStyle = '#F2C14E'; x.fillRect(P(-0.14), P(-0.6), P(0.28), P(0.3));
+      } },
+    // A: a retro "?" block, gold with rivets
+    q: { name: 'A · בלוק ?',
+      body: function (x, P) {
+        rr(x, P(-0.8), P(-0.4), P(0.8), P(0.84), P(0.1));
+        x.fillStyle = vgrad(x, P(-0.4), P(0.84), '#FFD54A', '#E39412'); x.fill();
+        x.strokeStyle = '#5a3600'; x.lineWidth = P(0.06); x.stroke();
+        x.strokeStyle = 'rgba(255,255,255,.5)'; x.lineWidth = P(0.035); rr(x, P(-0.68), P(-0.3), P(0.68), P(0.72), P(0.05)); x.stroke();
+        dot(x, P(-0.6), P(0.64), P(0.07), '#5a3600', '#c98a2a'); dot(x, P(0.6), P(0.64), P(0.07), '#5a3600', '#c98a2a');
+        x.font = '900 ' + Math.round(P(1.0)) + 'px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+        x.lineJoin = 'round'; x.lineWidth = P(0.1); x.strokeStyle = '#5a3600';
+        x.strokeText('?', P(0.04), P(0.28)); x.fillStyle = '#ffffff'; x.fillText('?', 0, P(0.24));
+      },
+      lid: function (x, P) {
+        rr(x, P(-0.86), P(-0.84), P(0.86), P(-0.4), P(0.1));
+        x.fillStyle = vgrad(x, P(-0.84), P(-0.4), '#FFE27A', '#F0B22A'); x.fill();
+        x.strokeStyle = '#5a3600'; x.lineWidth = P(0.06); x.stroke();
+        x.fillStyle = 'rgba(255,255,255,.45)'; rr(x, P(-0.72), P(-0.76), P(0.72), P(-0.68), P(0.04)); x.fill();
+        dot(x, P(-0.66), P(-0.56), P(0.07), '#5a3600', '#c98a2a'); dot(x, P(0.66), P(-0.56), P(0.07), '#5a3600', '#c98a2a');
+      } },
+    // B: a casino chip tied up with a gold ribbon and a big bow
+    chip: { name: 'B · ז׳יטון מתנה',
+      body: function (x, P) {
+        var cy = P(0.1);
+        dot(x, 0, cy, P(0.8), '#C8323A');
+        for (var i = 0; i < 8; i++) {
+          x.save(); x.translate(0, cy); x.rotate(i / 8 * 6.283 + 0.2);
+          rr(x, P(-0.1), P(-0.79), P(0.1), P(-0.6), P(0.03)); x.fillStyle = '#fdf6e6'; x.fill(); x.restore();
+        }
+        dot(x, 0, cy, P(0.55), '#f5ecd7');
+        x.save(); x.setLineDash([P(0.09), P(0.07)]); x.strokeStyle = '#C8323A'; x.lineWidth = P(0.04);
+        x.beginPath(); x.arc(0, cy, P(0.47), 0, 6.283); x.stroke(); x.restore();
+        x.save(); x.beginPath(); x.arc(0, cy, P(0.8), 0, 6.283); x.clip();
+        x.fillStyle = '#F2C14E'; x.fillRect(P(-0.12), P(-1), P(0.24), P(2)); x.fillRect(P(-1), cy - P(0.12), P(2), P(0.24));
+        x.fillStyle = 'rgba(255,255,255,.4)'; x.fillRect(P(-0.09), P(-1), P(0.05), P(2)); x.fillRect(P(-1), cy - P(0.09), P(2), P(0.05));
+        x.restore();
+        x.strokeStyle = '#7a1219'; x.lineWidth = P(0.04); x.beginPath(); x.arc(0, cy, P(0.8), 0, 6.283); x.stroke();
+      },
+      lid: function (x, P) { bow(x, P, 0, -0.66, 1.25, '#F2C14E', '#B8862A'); } },
+    // C: a wooden loot chest, gold bands, purple light leaking from the seam
+    chest: { name: 'C · תיבת אוצר',
+      body: function (x, P) {
+        x.save(); x.shadowColor = '#c46bff'; x.shadowBlur = P(0.25);
+        x.fillStyle = '#e7b8ff'; x.fillRect(P(-0.8), P(-0.24), P(1.6), P(0.06)); x.restore();         // the glow at the seam
+        rr(x, P(-0.86), P(-0.2), P(0.86), P(0.8), P(0.06));
+        x.fillStyle = vgrad(x, P(-0.2), P(0.8), '#9A6332', '#5E3A17'); x.fill();
+        x.strokeStyle = 'rgba(40,20,5,.55)'; x.lineWidth = P(0.025);
+        [0.13, 0.46].forEach(function (y) { x.beginPath(); x.moveTo(P(-0.86), P(y)); x.lineTo(P(0.86), P(y)); x.stroke(); });
+        x.fillStyle = '#E9B949'; [-0.72, 0.6].forEach(function (bx) { x.fillRect(P(bx), P(-0.2), P(0.12), P(1.0)); });
+        x.fillRect(P(-0.86), P(0.68), P(1.72), P(0.12));
+        rr(x, P(-0.17), P(-0.2), P(0.17), P(0.18), P(0.04)); x.fillStyle = '#F2C14E'; x.fill(); x.strokeStyle = '#7a5310'; x.lineWidth = P(0.03); x.stroke();
+        dot(x, 0, P(-0.04), P(0.06), '#1d1206'); x.beginPath(); x.moveTo(P(-0.04), P(-0.02)); x.lineTo(P(0.04), P(-0.02)); x.lineTo(P(0.02), P(0.1)); x.lineTo(P(-0.02), P(0.1)); x.closePath(); x.fill();
+        x.strokeStyle = '#3b2410'; x.lineWidth = P(0.045); rr(x, P(-0.86), P(-0.2), P(0.86), P(0.8), P(0.06)); x.stroke();
+      },
+      lid: function (x, P) {
+        function dome() { x.beginPath(); x.moveTo(P(-0.9), P(-0.22)); x.lineTo(P(-0.9), P(-0.5)); x.ellipse(0, P(-0.5), P(0.9), P(0.36), 0, Math.PI, 0); x.lineTo(P(0.9), P(-0.22)); x.closePath(); }
+        dome(); x.fillStyle = vgrad(x, P(-0.86), P(-0.22), '#B07A42', '#6E4520'); x.fill();
+        x.save(); dome(); x.clip();
+        x.fillStyle = '#E9B949'; [-0.74, 0.62].forEach(function (bx) { x.fillRect(P(bx), P(-0.9), P(0.12), P(0.7)); });
+        x.fillRect(P(-0.9), P(-0.34), P(1.8), P(0.12));
+        x.strokeStyle = 'rgba(40,20,5,.5)'; x.lineWidth = P(0.025); x.beginPath(); x.ellipse(0, P(-0.5), P(0.9), P(0.2), 0, Math.PI, 0); x.stroke();
+        x.restore();
+        [-0.68, 0.68].forEach(function (bx) { dot(x, P(bx), P(-0.28), P(0.04), '#7a5310'); });
+        dome(); x.strokeStyle = '#3b2410'; x.lineWidth = P(0.045); x.stroke();
+      } },
+    // D: a present that looks back: googly eyes, a grin, polka dots, a crooked bow
+    eyes: { name: 'D · מתנה עם עיניים',
+      body: function (x, P) {
+        rr(x, P(-0.8), P(-0.32), P(0.8), P(0.84), P(0.12));
+        x.fillStyle = vgrad(x, P(-0.32), P(0.84), '#33D1BF', '#159C8C'); x.fill();
+        x.save(); x.clip(); x.fillStyle = 'rgba(255,122,184,.85)';
+        for (var yy = -0.2; yy < 0.9; yy += 0.24) for (var xx = -0.75 + (Math.round(yy * 10) % 2 ? 0.12 : 0); xx < 0.8; xx += 0.24) dot(x, P(xx), P(yy), P(0.045), 'rgba(255,122,184,.85)');
+        x.restore();
+        x.fillStyle = '#FF3D8B'; x.fillRect(P(-0.1), P(-0.32), P(0.2), P(1.16));
+        [[-0.42, 0.14, 0.08, -0.06], [0.42, 0.14, -0.02, 0.07]].forEach(function (e) {
+          dot(x, P(e[0]), P(e[1]), P(0.23), '#1b1b1b'); dot(x, P(e[0]), P(e[1]), P(0.2), '#ffffff');
+          dot(x, P(e[0] + e[2]), P(e[1] + e[3]), P(0.1), '#111111', 'rgba(255,255,255,.9)');
+        });
+        x.beginPath(); x.moveTo(P(-0.38), P(0.5)); x.quadraticCurveTo(0, P(0.82), P(0.38), P(0.5)); x.quadraticCurveTo(0, P(0.62), P(-0.38), P(0.5));
+        x.fillStyle = '#3a0a1a'; x.fill();
+        x.fillStyle = '#fff'; x.fillRect(P(0.04), P(0.56), P(0.12), P(0.09));
+        x.strokeStyle = '#0d5e55'; x.lineWidth = P(0.04); rr(x, P(-0.8), P(-0.32), P(0.8), P(0.84), P(0.12)); x.stroke();
+      },
+      lid: function (x, P) {
+        x.save(); x.rotate(-0.07);
+        bow(x, P, 0.12, -0.72, 1.05, '#FF3D8B', '#B5155A', 0.35);
+        rr(x, P(-0.88), P(-0.6), P(0.88), P(-0.3), P(0.1));
+        x.fillStyle = vgrad(x, P(-0.6), P(-0.3), '#45E0CE', '#1FA897'); x.fill(); x.strokeStyle = '#0d5e55'; x.lineWidth = P(0.04); x.stroke();
+        x.fillStyle = '#FF3D8B'; x.fillRect(P(-0.11), P(-0.6), P(0.22), P(0.3));
+        x.restore();
+      } }
+  };
+  var LOOK_KEYS = ['gift', 'q', 'chip', 'chest', 'eyes'];
+  // the present as a sticker, in a face's cell (S px, centre CX, CY, collision radius R), in one of the LOOKS.
   // full = box + lid; body and lid apart (the brain-rot moment blows the lid off); top: the sticker's top (cell fraction)
-  function bake(S, CX, CY, R) {
+  function bake(S, CX, CY, R, look) {
+    var L = LOOKS[look] || LOOKS.gift, P = function (u) { return u * R; };
     function cv() { var c = document.createElement('canvas'); c.width = c.height = S; return c; }
-    function rr(x, X0, Y0, X1, Y1, rad) { x.beginPath(); if (x.roundRect) x.roundRect(X0, Y0, X1 - X0, Y1 - Y0, rad); else x.rect(X0, Y0, X1 - X0, Y1 - Y0); }
-    var P = function (u) { return u * R; };
-    function drawBody(x, border) {
-      x.save(); x.translate(CX, CY);
-      if (border) { rr(x, P(-0.78) - border, P(-0.33) - border, P(0.78) + border, P(0.82) + border, P(0.1) + border); x.fillStyle = '#fffdf6'; x.fill(); x.restore(); return; }
-      rr(x, P(-0.78), P(-0.33), P(0.78), P(0.82), P(0.08));
-      var g = x.createLinearGradient(P(-0.78), 0, P(0.78), 0); g.addColorStop(0, '#B8232F'); g.addColorStop(0.5, '#E0393F'); g.addColorStop(1, '#9E1C28');
-      x.fillStyle = g; x.fill();
-      x.fillStyle = '#F2C14E'; x.fillRect(P(-0.13), P(-0.33), P(0.26), P(1.15));        // the ribbon, down the front
-      x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(P(-0.1), P(-0.33), P(0.05), P(1.15));
-      x.strokeStyle = '#6e0f17'; x.lineWidth = P(0.035); rr(x, P(-0.78), P(-0.33), P(0.78), P(0.82), P(0.08)); x.stroke();
-      x.restore();
+    function art(parts) {
+      var c = cv(), x = c.getContext('2d');
+      parts.forEach(function (p) { x.save(); x.translate(CX, CY); L[p](x, P); x.restore(); });
+      return c;
     }
-    function drawLid(x, border) {
-      x.save(); x.translate(CX, CY);
-      function loops(w) {
-        x.beginPath(); x.ellipse(P(-0.27), P(-0.76), P(0.3) + w, P(0.19) + w, -0.45, 0, 6.283); x.fill();
-        x.beginPath(); x.ellipse(P(0.27), P(-0.76), P(0.3) + w, P(0.19) + w, 0.45, 0, 6.283); x.fill();
-      }
-      if (border) { x.fillStyle = '#fffdf6'; loops(border); rr(x, P(-0.88) - border, P(-0.6) - border, P(0.88) + border, P(-0.3) + border, P(0.08) + border); x.fill(); x.restore(); return; }
-      x.fillStyle = '#F2C14E'; loops(0);
-      x.fillStyle = '#C9962E'; x.beginPath(); x.ellipse(P(-0.27), P(-0.76), P(0.13), P(0.07), -0.45, 0, 6.283); x.fill();
-      x.beginPath(); x.ellipse(P(0.27), P(-0.76), P(0.13), P(0.07), 0.45, 0, 6.283); x.fill();
-      rr(x, P(-0.88), P(-0.6), P(0.88), P(-0.3), P(0.08));
-      var g = x.createLinearGradient(0, P(-0.6), 0, P(-0.3)); g.addColorStop(0, '#F04A4F'); g.addColorStop(1, '#B8232F');
-      x.fillStyle = g; x.fill(); x.strokeStyle = '#6e0f17'; x.lineWidth = P(0.035); x.stroke();
-      x.fillStyle = '#F2C14E'; x.fillRect(P(-0.14), P(-0.6), P(0.28), P(0.3));
-      x.beginPath(); x.arc(0, P(-0.64), P(0.12), 0, 6.283); x.fillStyle = '#E0AE3A'; x.fill();   // the knot
-      x.restore();
+    // the die-cut white border: the art's silhouette, pushed out every way, under the art
+    function sticker(a) {
+      var sil = cv(), s = sil.getContext('2d'), out = cv(), o = out.getContext('2d'), b = P(0.08);
+      s.drawImage(a, 0, 0); s.globalCompositeOperation = 'source-in'; s.fillStyle = '#fffdf6'; s.fillRect(0, 0, S, S);
+      for (var i = 0; i < 24; i++) o.drawImage(sil, Math.cos(i / 24 * 6.283) * b, Math.sin(i / 24 * 6.283) * b);
+      o.drawImage(a, 0, 0);
+      return out;
     }
-    var full = cv(), body = cv(), lid = cv(), b = P(0.08);
-    var f = full.getContext('2d'); drawBody(f, b); drawLid(f, b); drawBody(f, 0); drawLid(f, 0);
-    var bx = body.getContext('2d'); drawBody(bx, b); drawBody(bx, 0);
-    var lx = lid.getContext('2d'); drawLid(lx, b); drawLid(lx, 0);
-    return { full: full, body: body, lid: lid, top: (CY - P(1.0)) / S };
+    return { full: sticker(art(['body', 'lid'])), body: sticker(art(['body'])), lid: sticker(art(['lid'])), top: (CY - P(1.02)) / S };
   }
 
   // ---------------- runtime ----------------
@@ -8405,7 +8511,8 @@ postprocessing/build/index.js:
         });
       });
     }
-    // ?show=boxzap|boxold (with ?sim= and ?t=): bolts held mid-zap from (x, y); a box 55 s old (shaking, tinted) at (x, y)
+    // ?show=boxzap|boxold|boxsit (with ?sim= and ?t=): bolts held mid-zap from (x, y); a box 55 s old (shaking, tinted),
+    // or a calm one, at (x, y)
     function show(what, x, y) {
       if (what === 'boxzap') {
         var list = zapNearest(api.world().bodies, x, y, 5);
@@ -8414,7 +8521,7 @@ postprocessing/build/index.js:
         return;
       }
       var b = api.newBody(x, y, 'box', 0);
-      b.kind = 'bomb'; b.opened = false; b.hint = 1e9; b.wig = -1; b.age = SHAKE_T + 0.7 * (OPEN_T - SHAKE_T);
+      b.kind = 'bomb'; b.opened = false; b.hint = 1e9; b.wig = -1; b.age = what === 'boxsit' ? 2 : SHAKE_T + 0.7 * (OPEN_T - SHAKE_T);
       boxes.push(b);
     }
     function force(kind) { deck.force(kind); }
@@ -8423,7 +8530,7 @@ postprocessing/build/index.js:
   }
 
   root.Box = { KINDS: KINDS, BoxDeck: BoxDeck, pickKind: pickKind, dealOrder: dealOrder, zapNearest: zapNearest, wavePlan: wavePlan, WAVE_UP: WAVE_UP,
-    R: R, OPEN_T: OPEN_T, create: create, bake: bake };
+    R: R, OPEN_T: OPEN_T, create: create, bake: bake, LOOKS: LOOKS, LOOK_KEYS: LOOK_KEYS };
 })(window);
 
 </script>
@@ -9352,9 +9459,7 @@ postprocessing/build/index.js:
       [[470, 280, 1, 5], [500, 318, 2, 3], [466, 352, 7, 1], [478, 520, 4, 2]].forEach(function (st) { S.chips3d.stack(st[0], st[1], TIERS[st[2]].c, TIERS[st[2]].s, st[3]); });
       guests = Guests.create(guestApi(), { off: GUESTS_OFF, thresh: GUEST_TH, ids: GUEST_ONLY });
       // the joker box: a present drawn in a face's cell, so it hangs, drops and shows in NEXT like a face (js/box.js)
-      var bk = Box.bake(Faces.S, Faces.CX, Faces.CY, Faces.R), bol = Outline.fromCanvas(bk.full);
-      boxFace = { pid: null, cv: { open: bk.full, closed: bk.full }, body: bk.body, lid: bk.lid, top: bk.top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S,
-        eyes: null, marks: null, teeth: [], name: 'מתנה', outline: bol, def: S.chipDef('box', { open: bk.full, contour: bol.contour, base: '#E9C46A', ins: '#2b2118' }) };
+      bakeBox();
       // ?boxoff: no joker boxes; ?bth=a,b: their score thresholds (balance runs)
       boxes = Box.create(boxApi(), { off: GUESTS_OFF || qs.has('boxoff'), thresh: qs.has('bth') ? qs.get('bth').split(',').map(Number) : null });
       var sp = Poses.sprites();
@@ -9826,6 +9931,34 @@ postprocessing/build/index.js:
     };
   }
 
+  // the joker box's sticker, in the current look. PROTOTYPE: ?boxlook=gift|q|chip|chest|eyes picks one and shows a
+  // switcher at the bottom (Nir is choosing; the rest go once he has)
+  var boxLook = Box.LOOK_KEYS.indexOf(qs.get('boxlook')) >= 0 ? qs.get('boxlook') : 'gift';
+  function bakeBox() {
+    var bk = Box.bake(Faces.S, Faces.CX, Faces.CY, Faces.R, boxLook), bol = Outline.fromCanvas(bk.full);
+    boxFace = { pid: null, cv: { open: bk.full, closed: bk.full }, body: bk.body, lid: bk.lid, top: bk.top, cx: Faces.CX / Faces.S, cy: Faces.CY / Faces.S,
+      eyes: null, marks: null, teeth: [], name: 'מתנה', outline: bol, def: S.chipDef('box', { open: bk.full, contour: bol.contour, base: '#E9C46A', ins: '#2b2118' }) };
+  }
+  if (qs.has('boxlook')) (function () { // the PROTOTYPE switcher: ◀ look ▶
+    var bar = document.createElement('div'), K = Box.LOOK_KEYS;
+    bar.style.cssText = 'position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:10px;' +
+      'padding:6px 10px;border-radius:999px;background:#111;color:#fff;font:600 15px system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.5);direction:ltr';
+    function btn(t, d) {
+      var b = document.createElement('button'); b.textContent = t;
+      b.style.cssText = 'all:unset;cursor:pointer;padding:4px 10px;font-size:18px';
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        boxLook = K[(K.indexOf(boxLook) + d + K.length) % K.length]; label.textContent = Box.LOOKS[boxLook].name;
+        if (S.ok && boxFace) bakeBox();
+        qs.set('boxlook', boxLook);
+        try { history.replaceState(null, '', location.pathname + '?' + qs.toString()); } catch (x) {}
+      });
+      return b;
+    }
+    var label = document.createElement('span'); label.textContent = Box.LOOKS[boxLook].name; label.style.cssText = 'min-width:150px;text-align:center';
+    bar.appendChild(btn('◀', -1)); bar.appendChild(label); bar.appendChild(btn('▶', 1));
+    document.body.appendChild(bar);
+  })();
   // the api js/box.js works through: the guests' one and a few more
   function boxApi() {
     var a = guestApi();
@@ -10955,7 +11088,7 @@ postprocessing/build/index.js:
         $('say').style.animation = 'none'; $('say').style.opacity = '1';
       }
       // ?show=boxzap|boxold: hold a joker box's bolts mid-zap, or a box about to open by itself (shaking, tinted)
-      if ((qs.get('show') === 'boxzap' || qs.get('show') === 'boxold') && state === 'play') {
+      if (['boxzap', 'boxold', 'boxsit'].indexOf(qs.get('show')) >= 0 && state === 'play') {
         var ly = landing(200, Box.R);
         boxes.show(qs.get('show'), 200, qs.get('show') === 'boxzap' ? ly.y + Box.R : ly.y);
       }
