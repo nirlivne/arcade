@@ -6671,7 +6671,7 @@ postprocessing/build/index.js:
   };
 
   // ---------------------------------------------------------------- 3D confetti: paper bits and card suits that flutter
-  // down onto the table and lie there a moment
+  // down and drift, still moving while they fade (one that came to rest read as frozen in the air, seen from above)
   var CONF_MAX = 700;
   function Confetti(stage) {
     this.stage = stage; this.list = [];
@@ -6722,7 +6722,7 @@ postprocessing/build/index.js:
       this.list.push({ x: x, y: y, z: 14 + vr() * 8, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp * 0.8 - (big ? 120 : 50), vz: (big ? 420 : 260) + vr() * (big ? 420 : 220),
         s: suit < 0 ? 4 + vr() * 3 : 7 + vr() * 3, ar: suit < 0 ? 0.55 + vr() * 0.5 : 1, tile: suit < 0 ? 0 : suit + 1,
         rx: vr() * 6, ry: vr() * 6, rz: vr() * 6, wx: (vr() - 0.5) * 18, wy: (vr() - 0.5) * 18, wz: (vr() - 0.5) * 8,
-        col: c, life: 0, rest: 1.6 + vr() * 1.6, landed: false, ph: vr() * 6 });
+        col: c, life: 0, end: (big ? 2.1 : 1.4) + vr() * 1.0, ph: vr() * 6, sw: 22 + vr() * 18 });
     }
   };
   Confetti.prototype.update = function (dt) {
@@ -6731,19 +6731,19 @@ postprocessing/build/index.js:
       var p = L[i];
       p.life += dt;
       var floor = p.x > 20 && p.x < 380 && p.y > 112 && p.y < 652 ? Z.photo + 0.3 : p.x > 8 && p.x < 392 && p.y > 100 && p.y < 748 ? Z.polTop + 0.3 : Z.felt + 0.3;
-      if (!p.landed) {
-        p.vz -= 900 * dt; p.vz *= Math.pow(0.35, dt); p.vx *= Math.pow(0.3, dt); p.vy *= Math.pow(0.3, dt); p.vy += 60 * dt;
-        p.x += (p.vx + Math.sin(p.life * 7 + p.ph) * 26) * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-        p.rx += p.wx * dt; p.ry += p.wy * dt; p.rz += p.wz * dt;
-        if (p.z <= floor && p.vz < 0) { p.landed = true; p.z = floor; p.lt = 0; p.rx = 0; p.ry = (vrRound(p.ry)); }
-      } else { p.lt += dt; }
-      if (p.landed && p.lt > p.rest + 0.5) { L.splice(i, 1); continue; }
+      // up fast, then paper falls slowly (more drag on the way down), swaying side to side and drifting down the screen;
+      // on the table it skids on with the sway until it has faded
+      p.vz -= 900 * dt; p.vz *= Math.pow(p.vz < 0 ? 0.02 : 0.35, dt); p.vx *= Math.pow(0.3, dt); p.vy *= Math.pow(0.3, dt); p.vy += 60 * dt;
+      p.x += (p.vx + Math.sin(p.life * 7 + p.ph) * p.sw) * dt; p.y += (p.vy + Math.cos(p.life * 5 + p.ph) * p.sw * 0.4) * dt; p.z += p.vz * dt;
+      if (p.z < floor) { p.z = floor; p.vz = 0; }
+      p.rx += p.wx * dt; p.ry += p.wy * dt; p.rz += p.wz * dt;
+      if (p.life > p.end) { L.splice(i, 1); continue; }
     }
     for (i = 0; i < L.length && n < CONF_MAX; i++) {
       p = L[i];
-      var sh = p.landed && p.lt > p.rest ? Math.max(0, 1 - (p.lt - p.rest) / 0.5) : 1;
+      var sh = Math.min(1, (p.end - p.life) / 0.5); // shrinks away over its last half second, still moving
       st.L(p.x, p.y, p.z, this.o.position);
-      this.o.rotation.set(p.landed ? 0 : p.rx, p.landed ? 0 : p.ry, p.rz);
+      this.o.rotation.set(p.rx, p.ry, p.rz);
       this.o.scale.set(p.s * sh, p.s * p.ar * sh, 1);
       this.o.updateMatrix();
       m.setMatrixAt(n, this.o.matrix);
@@ -6755,7 +6755,6 @@ postprocessing/build/index.js:
     m.count = n;
     m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; this.tile.needsUpdate = true;
   };
-  function vrRound(a) { return Math.round(a / Math.PI) * Math.PI; }
   Confetti.prototype.clear = function () { this.list.length = 0; };
 
   // ---------------------------------------------------------------- real poker chips: the full house jackpot
@@ -9086,7 +9085,7 @@ postprocessing/build/index.js:
   var gameGen = 0, uidN = 0, poses = null, snapped = false, overTop = null, bustedB = null, lastDropped = null, shrink = 0, propTex = {};
   var lineFaces = [];
   // brain rot (js/rot.js): a few short meme moments; the jar holds still while one plays. ?rot=0 turns them off
-  var ROT_ON = !BOT && !SIM && qs.get('rot') !== '0', rotProps = {}, rotHud = false;
+  var ROT_ON = !BOT && !SIM && qs.get('rot') !== '0', rotProps = {}, rotHud = false, jokerWait = null;
   var rot = Rot.create($('rot'), { reduced: function () { return reduced; }, sfx: Sound.sfx, props: rotProps });
   // table talk: chain tracking, merges in the last moment, a merge that may have saved the pile, idle time
   var chainOpen = false, idleT = 0, chatT = 0;
@@ -9116,7 +9115,7 @@ postprocessing/build/index.js:
     chainOpen = false; idleT = 0; chatT = chatGap();
     shareReady = null; Share.dismiss();
     if (S.ok) { S.confetti.clear(); S.chips3d.clear(); }
-    rot.cancel();
+    rot.cancel(); jokerWait = null;
     if (snapTex) { snapTex.dispose(); snapTex = null; }
     $('pops').innerHTML = '';
     clearTimeout(toastTimer); $('toast').classList.add('hidden'); // a share toast from the last game
@@ -9282,7 +9281,7 @@ postprocessing/build/index.js:
     idleT = 0; drops++;
     guests.onDrop();
     // a guest in NEXT goes to the line and the dealt face waits behind him; otherwise deal on
-    if (nextG) { curG = nextG; nextG = null; guests.dealt(curG, ROT_ON && !simulating); if (ROT_ON && !simulating) rotJoker(curG); if (!simulating) { if (curG === 'michael') Sound.pamela(); else if (curG === 'koko') Sound.anthem(); else Sound.solfIntro(32); } } // מיקי walks in to פמלה, קוקו to the US anthem, דניאל to the Solfeggietto
+    if (nextG) { curG = nextG; nextG = null; if (ROT_ON && !simulating) jokerWait = { id: curG, b: b, t: 0 }; else jokerIn(curG); }
     else { curG = null; cur = next; next = rollTier(); }
     if (!nextG && guests.due()) nextG = guests.take();
     cooldown = DROP_CD;
@@ -9451,7 +9450,23 @@ postprocessing/build/index.js:
       fullHouse(x, y, pts, mult);
     });
   }
-  // a guest reaches the line: he flies up to where he hangs
+  // a guest reaches the line: the banner (or his brain-rot moment) and his walk-in music: מיקי walks in to פמלה, קוקו to
+  // the US anthem, דניאל to the Solfeggietto
+  function jokerIn(id) {
+    var rotIt = ROT_ON && !simulating;
+    guests.dealt(id, rotIt);
+    if (rotIt) rotJoker(id);
+    if (!simulating) { if (id === 'michael') Sound.pamela(); else if (id === 'koko') Sound.anthem(); else Sound.solfIntro(32); }
+  }
+  // his moment waits for the face dropped before him to land and its merges to finish (at most JOKER_WAIT s); the line
+  // stays empty meanwhile
+  var JOKER_WAIT = 2.5;
+  function tickJoker(dt) {
+    var w = jokerWait; w.t += dt;
+    var b = w.b, landed = !b || b.dead || (b.age > 0.3 && Math.hypot(b.vx, b.vy) < 40);
+    if ((landed && t - lastMergeAt > 0.35) || w.t > JOKER_WAIT) { jokerWait = null; jokerIn(w.id); }
+  }
+  // he flies up to where he hangs
   function rotJoker(id) {
     var p = dropPos();
     hideBubble();
@@ -9640,6 +9655,7 @@ postprocessing/build/index.js:
       world.step(dt);
       processMerges();
       guests.tick(dt);
+      if (jokerWait) tickJoker(dt);
       var over = false, bs = world.bodies, i, topB = null, top = JAR.floor;
       for (i = 0; i < bs.length; i++) {
         var b = bs[i];
@@ -9690,7 +9706,7 @@ postprocessing/build/index.js:
       var target = clamp(-av * 0.0022, -0.7, 0.7) + Math.sin(t * 1.1) * 0.05 + Math.sin(t * 2.3) * 0.025;
       hang.w += ((target - hang.phi) * 70 - hang.w * 5) * dt;
       hang.phi += hang.w * dt;
-      if (cooldown <= 0.12) hang.appear = Math.min(1, hang.appear + dt * 5);
+      if (cooldown <= 0.12 && !jokerWait) hang.appear = Math.min(1, hang.appear + dt * 5);
       hang.pinKick = Math.max(0, hang.pinKick - dt * 4);
       if (Math.abs(hang.w) > 5) hang.sq = Math.max(hang.sq, 0.18); // swung hard: squeeze the eyes shut
       tickBlink(hang, dt, false); tickBlink(nextBl, dt, false);
@@ -10467,5 +10483,6 @@ postprocessing/build/index.js:
 
 </script>
 <script src="register-sw.js"></script>
+<script data-goatcounter="https://junkies-pro.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
