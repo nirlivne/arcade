@@ -17,8 +17,12 @@ on the arcade home page and asks search engines not to index it.
 - An ALL IN chip in a corner makes the chasers fold for a few seconds: eat them for a chain bonus. An eaten friend
   sits out a few seconds before coming back.
 - A joker shows at your start spot once a round, after 60 chips. Run over it and keep it: the next time a friend
-  catches you, the joker is spent instead of a buy-in.
-- Every round the table changes, the friends get faster and leave the seat sooner.
+  catches you, the joker is spent instead of a buy-in. While you hold one, it rides on your head and glows in the
+  corner.
+- Eat all four friends on one ALL IN and you win a joker (or 1,000 if you already hold one).
+- The first rounds are gentle: the friends are slower, sometimes take a wrong turn and leave the seat later. From
+  round 5 it is the full game. Every round the table changes, the friends get faster and leave the seat sooner.
+- Big moments get a show: eating all four, clearing a table, a joker saving you, and your last buy-in.
 - **שולחן הערב No.N**, the nightly table: the same lineup for everyone that night, with a share line.
 - **שיאים**, the bests: the best score for each of the eight faces.
 
@@ -32,7 +36,8 @@ on the arcade home page and asks search engines not to index it.
 ## Comforts
 
 Pause, mute, a how-to screen reachable from the title and the pause menu, a first-20-seconds safety net on your
-first run, and reduced motion when your system asks for it. Best scores and the nightly result are saved on this
+first run, and reduced motion when your system asks for it (the shows and effects drop their shakes and zooms).
+The glow and particle effects use WebGL; without it the game looks the same, minus the effects. Best scores and the nightly result are saved on this
 device only. It works offline once loaded and can be installed as an app.
 
 ## Run locally
@@ -47,5 +52,5 @@ static file server (for example `python -m http.server`) and open it over `http:
 
 ## Credits
 
-Made by The Game Company. Fonts: Rubik Doodle Shadow, Karantina and Fredoka, under the SIL Open Font License 1.1
-(see `licenses/`).
+Made by The Game Company. Fonts: Rubik Doodle Shadow, Karantina and Fredoka, under the SIL Open Font License 1.1.
+Effects: three.js (MIT) and postprocessing (Zlib). See `licenses/`.

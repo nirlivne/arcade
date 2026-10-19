@@ -80,7 +80,13 @@ export function createRenderer(ctx, C, levelLooks = []) {
       if (sp) drawGhostActor(g, sp, T, ox, oy, t);
     }
     const chomperSprites = sprites[run.chomper];
-    if (chomperSprites) drawChomperActor(run.player, chomperSprites, T, ox, oy, t, !!run.player.dir);
+    if (chomperSprites) {
+      // the held joker (2026-10-19): a gold ring under the chomper, a joker card riding its head
+      const at = actorScreen(run.player, T, ox, oy);
+      if (run.joker) R.heldJokerRing(ctx, at.x, at.y, T, C, t);
+      drawChomperActor(run.player, chomperSprites, T, ox, oy, t, !!run.player.dir);
+      if (run.joker) R.heldJokerCard(ctx, at.x, at.y, T, C, t);
+    }
   }
 
   return { draw };

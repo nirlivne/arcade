@@ -41,7 +41,9 @@ export function levelFace(face, img) {
   const out = canvas(x1 - x0 + 2, y1 - y0 + 2); out.getContext("2d").drawImage(R, -x0, -y0);
   const m = mid(map(L.mouth_left), map(L.mouth_right), map(L.mouth_top), map(L.mouth_bottom));
   const ml = map(L.mouth_left), mr = map(L.mouth_right);
-  return { img: out, mouthX: m[0] - x0, mouthY: m[1] - y0, mouthW: Math.abs(mr[0] - ml[0]), w: out.width, h: out.height };
+  const el = map(le), er = map(re); // the eye centres, for the moments' shades and X eyes (rot.js, 2026-10-19)
+  return { img: out, mouthX: m[0] - x0, mouthY: m[1] - y0, mouthW: Math.abs(mr[0] - ml[0]), w: out.width, h: out.height,
+    eyeL: [el[0] - x0, el[1] - y0], eyeR: [er[0] - x0, er[1] - y0] };
 }
 
 // Scale a levelled face to height h (device px) and add the ink outline. tint = null | [colour, alpha].
@@ -163,10 +165,34 @@ export function jokerOnFelt(g, x, y, T, C, t = 0) {
   g.save(); g.translate(x, y + Math.sin(t * Math.PI * 3) * 1); g.rotate(-0.09);
   g.fillStyle = "rgba(0,0,0,.35)"; g.beginPath(); g.roundRect(-w / 2 + 1.5, -h / 2 + 2.5, w, h, w * 0.16); g.fill();
   cardShape(g, w, h, C);
-  const r = h * 0.3;
+  jokerStar(g, h * 0.3, w, C);
+  g.restore();
+}
+// The joker's marigold star pip, centred at the current origin; r = the outer radius, w = the card width (ink).
+function jokerStar(g, r, w, C) {
   g.beginPath();
   for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r * 0.45 : r; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
   g.closePath(); g.fillStyle = C.marigold; g.fill(); g.strokeStyle = C.ink; g.lineWidth = Math.max(1, w * 0.05); g.stroke();
+}
+// The held joker (board 2026-10-19: "the player should know he owns a joker!"). heldJokerRing goes under the
+// chomper: a gold halo under its chin, pulsing at 1.2 Hz. heldJokerCard goes over it: a joker card riding the
+// head's top corner, w 0.72 T, tilted 12 deg, bobbing 1 px at 2 Hz.
+export function heldJokerRing(g, x, y, T, C, t = 0) {
+  const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2.4), cy = y + T * 0.88, rx = T * 0.78, ry = T * 0.24;
+  g.save();
+  g.globalAlpha = 0.22 + 0.18 * pulse;
+  g.fillStyle = C.marigold; g.beginPath(); g.ellipse(x, cy, rx * 1.15, ry * 1.4, 0, 0, Math.PI * 2); g.fill();
+  g.globalAlpha = 0.7 + 0.3 * pulse;
+  g.strokeStyle = C.marigold; g.lineWidth = Math.max(2.5, T * 0.13);
+  g.beginPath(); g.ellipse(x, cy, rx, ry, 0, 0, Math.PI * 2); g.stroke();
+  g.restore();
+}
+export function heldJokerCard(g, x, y, T, C, t = 0) {
+  const w = T * 0.72, h = w * 1.38;
+  g.save(); g.translate(x + T * 0.72, y - T * 0.86 + Math.sin(t * Math.PI * 4)); g.rotate(0.21);
+  g.fillStyle = "rgba(0,0,0,.35)"; g.beginPath(); g.roundRect(-w / 2 + 1, -h / 2 + 2, w, h, w * 0.16); g.fill();
+  cardShape(g, w, h, C);
+  jokerStar(g, h * 0.3, w, C);
   g.restore();
 }
 // Our card back: cream border, hot-red panel, cream lattice.

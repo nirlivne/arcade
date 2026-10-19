@@ -73,6 +73,7 @@ window.THEME = {
       "ג'וקר על השולחן: קחו אותו, והוא מציל אתכם פעם אחת.",
     ],
     aboutFonts: "גופנים: Rubik Doodle Shadow, Karantina, Fredoka (SIL OFL 1.1), ראו licenses/.",
+    aboutLibs: "גרפיקה: three.js (MIT) ו-postprocessing (Zlib), ראו licenses/.", // the fx layer (2026-10-19)
     aboutStudio: "נוצר על ידי The Game Company.", // release checklist: About names the studio
 
     hint1: "החצים במקלדת (או ג'ויסטיק בעכבר): תאכלו את כל הצ'יפים.",
@@ -87,6 +88,15 @@ window.THEME = {
     rebuy: "עוד משחק", // was "ריבאי": poker slang the players don't know (board, 2026-10-17)
     backInGame: "{name} חזר למשחק!", // the dealer's shout over the door when a seated chaser's rebuy wait ends
     jokerShout: "ג'וקר!", // over the chomper when the held joker is spent on a catch
+    jokerHeld: "ג'וקר ביד", // under the HUD joker card while one is held (2026-10-19)
+    jokerGot: "יש לך ג'וקר!", // over the chomper when a joker is taken (felt or sweep)
+    rotSweep: "טרפת את כולם!!", // the clean-sweep moment (2026-10-19)
+    rotSweepPoints: "+3,000",
+    rotSweepJoker: "+3,000 · ג'וקר!",
+    rotSweepBonus: "+3,000 · +1,000",
+    rotJoker: "ג'וקר!", // the joker-save moment
+    rotJokerMissed: "{name} פספס!",
+    rotBust: "{name} בטילט!", // the game-over moment
     reachedLevel: "הגעת לסיבוב {n}", // game over, under the score
     clearShout: "השולחן נקי!", // the level-clear show
     clearNext: "שולחן חדש · החברים מהירים יותר",

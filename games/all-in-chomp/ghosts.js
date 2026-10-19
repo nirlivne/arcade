@@ -2,6 +2,7 @@
 // never from a person. Decisions happen only at tile centres (move.js's stepActor is called with
 // { preTurn: false } for ghosts - confirmed by the S1 feel check, THE-689). Pure.
 import { canEnter, DELTA, OPPOSITE } from "./move.js";
+import { levelTuning, CALM_SCHEDULE_SEC } from "./difficulty.js";
 
 // One scatter corner per release slot (0-3), independent of which ghost or behaviour sits in that slot.
 export const SCATTER_CORNERS = [
@@ -16,18 +17,20 @@ export const MODE_SCHEDULE_SEC = [7, 20, 7, 20, 5, 20, 5, Infinity];
 
 const SHY_FLEE_RADIUS_TILES_SQ = 64; // 8-tile radius, squared (compared against squared tile distance)
 
-// Which mode is active after `stepsElapsed` steps of level time (paused while any ghost is folded - S3).
-export function modeAt(stepsElapsed) {
+// Which mode is active after `stepsElapsed` steps of level time (paused while any ghost is folded - S3). L1-L3
+// use the gentle start's calm schedule (difficulty.js, 2026-10-19).
+export function modeAt(stepsElapsed, level) {
+  const schedule = levelTuning(level).calm ? CALM_SCHEDULE_SEC : MODE_SCHEDULE_SEC;
   let acc = 0;
-  for (let i = 0; i < MODE_SCHEDULE_SEC.length; i++) {
+  for (let i = 0; i < schedule.length; i++) {
     const mode = i % 2 === 0 ? "scatter" : "chase";
-    const sec = MODE_SCHEDULE_SEC[i];
+    const sec = schedule[i];
     if (sec === Infinity) return mode;
     const dur = sec * 60;
     if (stepsElapsed < acc + dur) return mode;
     acc += dur;
   }
-  return "chase"; // unreachable (the schedule ends in Infinity), kept total
+  return "chase"; // unreachable (both schedules end in Infinity), kept total
 }
 
 // The target tile for one ghost this step. `chomper` = { tile: {x,y}, dir }. `directChaserTile` is the
@@ -93,6 +96,14 @@ export function pickDirection(maze, col, row, currentDir, target) {
 export function foldDirection(maze, col, row, currentDir, rng) {
   const candidates = openCandidates(maze, col, row, currentDir);
   if (candidates.length === 0) return null;
+  return candidates[Math.floor(rng() * candidates.length)];
+}
+
+// The gentle start's wrong turn (2026-10-19): at a junction (two or more open ways, never back), with
+// `chance`, a random open way; null otherwise. Draws from rng only at junctions.
+export function wrongTurn(maze, col, row, currentDir, rng, chance) {
+  const candidates = openCandidates(maze, col, row, currentDir);
+  if (candidates.length < 2 || !(rng() < chance)) return null;
   return candidates[Math.floor(rng() * candidates.length)];
 }
 

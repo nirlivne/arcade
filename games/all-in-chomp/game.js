@@ -1,6 +1,6 @@
 // rAF loop, fixed 60Hz accumulator (capped at 5 steps a frame), DOM HUD, keys + the stick, window.__sim. S1:
 // no deal screen yet (that's S5) - the deal happens instantly and play starts right away. Thin.
-import { createRun, input, step, hash as simHash, levelSnapshot, resumeLevel, mazeKeyForLevel } from "./sim.js";
+import { createRun, input, step, hash as simHash, levelSnapshot, resumeLevel, mazeKeyForLevel, BONUS_SPOT } from "./sim.js";
 import { createRenderer, BEHAVIOUR_KEY } from "./render.js";
 import * as R from "./recipe.js";
 import { attachKeyboard, attachStick } from "./input.js";
@@ -9,6 +9,41 @@ import { nextChomper, dealGhosts, dealNightly, nightlySeed, nightNumber, localDa
 import { shareText } from "./share.js";
 import { createAudio } from "./audio.js";
 import { mulberry32 } from "./rng.js";
+import { createRot } from "./rot.js";
+
+// Review flags (2026-10-19): ?play=1[&steps=N] deals a table straight away (no title, deal or hint) and steps
+// it N frames, for screenshots; ?rot=0 no brain-rot moments; ?rotshow=sweep|clear|joker|bust[&rt=<s>] deals a
+// table and plays a moment on it (held at rt s); ?fx=0 no WebGL layer; ?q=1..3 a fixed fx quality.
+const QS = new URLSearchParams(location.search);
+const ROT_ON = QS.get("rot") !== "0";
+const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+let rot = null; // the brain-rot moments (rot.js), null with ?rot=0
+const rotFaceCache = {};
+// The fx layer (fx.js, 2026-10-19): null until loaded after the title, and again when off (?fx=0) or failed.
+let fx = null;
+let fxLoading = false;
+async function loadFx() {
+  if (fx || fxLoading || QS.get("fx") === "0") return;
+  fxLoading = true;
+  try {
+    const { createFx } = await import("./fx.js");
+    fx = createFx(document.getElementById("chomp-fx"), document.getElementById("chomp-canvas"), {
+      reduced: reducedMotion, quality: QS.get("q"), onFail: dropFx, onQuality: () => resize() });
+    document.getElementById("chomp-fx").hidden = false;
+    resize();
+  } catch (err) {
+    console.warn("fx layer off:", err);
+    dropFx();
+  }
+  fxLoading = false;
+}
+function dropFx() {
+  if (fx) fx.dispose();
+  fx = null;
+  document.getElementById("chomp-fx").hidden = true;
+  document.getElementById("chomp-canvas").style.opacity = "";
+  resize();
+}
 
 // Re-skin config (Game Standard v2 §2.5, spec §8): theme.js is a classic script loaded before this module,
 // so window.THEME already exists by the time this runs.
@@ -173,13 +208,15 @@ function resize() {
   const usableGutter = Math.min(stageOx - inset.left, stageOx - inset.right);
   document.getElementById("chomp-app").dataset.gutter = usableGutter >= 100 ? "wide" : "narrow";
 
-  const dpr = window.devicePixelRatio || 1;
+  // with the fx layer on, its quality sets the 2D canvas's resolution (the canvas is its texture, uploaded each frame)
+  const dpr = fx ? fx.dpr() : window.devicePixelRatio || 1;
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
   canvas.style.width = `${W}px`;
   canvas.style.height = `${H}px`;
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (fx) fx.resize(W, H);
 
   const stage = document.getElementById("chomp-stage");
   stage.style.left = "0";
@@ -208,7 +245,7 @@ function updateAudioCues() {
   if (run.allInEaten.size > prevAllInCount) audio.allin();
   prevAllInCount = run.allInEaten.size;
   if (run.joker && !prevJoker) audio.cardGrab(); // the joker card snaps into the hand
-  if (!run.joker && prevJoker && run.phase === "play") showJokerSpent(); // spent on a catch, play went on
+  if (!run.joker && prevJoker && run.phase === "play" && !rot) showJokerSpent(); // spent on a catch, play went on (with rot on, the joker moment covers it)
   prevJoker = run.joker;
   if (run.phase === "eatFreeze" && prevPhase !== "eatFreeze") audio.foldEaten();
   if (run.phase === "dying" && prevPhase !== "dying") audio.caught();
@@ -219,6 +256,94 @@ function updateAudioCues() {
 // The rebuy shout (board, 2026-10-17): the step a seated chaser's wait hits 0 it is back out through the
 // door, and the dealer shouts "{name} חזר למשחק!" over the door tile. Detected by diffing the previous
 // frame's rebuyLeft per ghost, like updateAudioCues, so it fires once per return.
+// A face for the moments (rot.js): the inked head at moment size, its closed frame, and the eye and hat points
+// as fractions of the canvas (shades, X eyes, the hat).
+function rotFace(id) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const hPx = Math.round(Math.min(window.innerHeight * 0.5, 420) * dpr);
+  const key = `${id}:${hPx}`;
+  if (rotFaceCache[key]) return rotFaceCache[key];
+  const face = facesById[id], imgs = rawImages[id];
+  if (!face || !imgs) return null;
+  const line = Math.max(2, hPx / 30);
+  const lv = R.levelFace(face, imgs.normal);
+  const cv = R.inkHead(lv.img, hPx, tokens, { line });
+  const closed = imgs.closed ? R.inkHead(R.levelFace(face, imgs.closed).img, hPx, tokens, { line }) : null;
+  const at = (p) => [(cv.pad + p[0] * cv.scale) / cv.width, (cv.pad + p[1] * cv.scale) / cv.height];
+  const eyeL = at(lv.eyeL), eyeR = at(lv.eyeR);
+  const hat = [(eyeL[0] + eyeR[0]) / 2, cv.pad / cv.height + 0.12];
+  return (rotFaceCache[key] = { cv, closed, eyeL, eyeR, hat });
+}
+const screenOf = (u, v) => [stageOx + (u / 240) * tile, stageOy + (v / 240) * tile];
+const nameOf = (id) => facesById[id]?.name_he || id;
+
+// The fx layer's per-frame picture of the table (CSS px): chips, ALL IN halos, the felt joker, the held joker,
+// the lamp on the chomper, and the bust moment's grey.
+function fxFrame(now, dtMs) {
+  if (!fx || !run) return;
+  const T = tile, ox = stageOx, oy = stageOy, chips = [], allIns = [];
+  for (let y = 0; y < run.maze.h; y++) {
+    for (let x = 0; x < run.maze.w; x++) {
+      const ch = run.maze.at(x, y);
+      if (ch !== "." && ch !== "o") continue;
+      const key = `${x},${y}`;
+      if (ch === "." ? run.eaten.has(key) : run.allInEaten.has(key)) continue;
+      (ch === "." ? chips : allIns).push(ox + (x + 0.5) * T, oy + (y + 0.5) * T);
+    }
+  }
+  const [px, py] = screenOf(run.player.x, run.player.y);
+  const jokerFelt = run.jokerSlot ? [ox + (BONUS_SPOT.x + 0.5) * T, oy + (BONUS_SPOT.y + 0.5) * T] : null;
+  fx.frame({ now, dt: dtMs / 1000, T, chips, allIns, jokerFelt, held: run.joker ? [px, py] : null, lamp: [px, py], gray: rot ? rot.gray() : 0 });
+  const canvas2d = document.getElementById("chomp-canvas");
+  if (fx && canvas2d.style.opacity !== "0") canvas2d.style.opacity = "0"; // the first fx frame is up: it shows the table now
+}
+
+// One fx burst at a screen point; a chaser's chips in its behaviour colour, confetti in this table's colours.
+function fxBurst(type, at, who = null) {
+  if (!fx || !run) return;
+  const g = who ? run.ghosts.find((gh) => gh.id === who) : null;
+  const color = g ? tokens.behaviour[BEHAVIOUR_KEY[g.behaviour]] : tokens.marigold;
+  const looks = THEME.levelLooks || [];
+  const look = looks.length ? Object.values(looks[(run.level - 1) % looks.length] || {}).filter((v) => /^#/.test(v)) : [];
+  fx.burst(type, at[0], at[1], { T: tile, color, look });
+}
+
+// The sim's cosmetic events (2026-10-19), drained once per frame after the HUD update: the joker pops, the
+// moments (rot.js) and the fx layer.
+function drainEvents() {
+  if (!run.events.length) return;
+  const events = run.events.splice(0);
+  for (const e of events) {
+    const at = screenOf(e.x, e.y);
+    // the level clear's confetti waits for the clear moment to end (it would fall behind the rays), so it lands on
+    // the new table
+    if (fx && ["chip", "allin", "eat", "caught", "jokerTaken"].includes(e.type)) fxBurst(e.type, at, e.who);
+    else if (fx && e.type === "clear" && !rot) fxBurst("clear", at);
+    if (e.type === "jokerTaken") showJokerGot();
+    else if (e.type === "sweep") {
+      if (rot && !rot.active()) {
+        const others = run.ghostIds.map(rotFace).filter(Boolean);
+        rot.sweep({ you: rotFace(run.chomper), others, from: at, toHead: at, prize: e.prize, top: TEXT.rotSweep,
+          bottom: TEXT.rotSweepPoints, bottomPrize: e.prize === "joker" ? TEXT.rotSweepJoker : TEXT.rotSweepBonus },
+          () => { if (e.prize === "joker") showJokerGot(); });
+      } else if (e.prize === "joker") showJokerGot();
+    } else if (e.type === "jokerSaved") {
+      if (rot) rot.joker({ you: rotFace(run.chomper), catcher: rotFace(e.who), from: at, top: TEXT.rotJoker, bottom: format(TEXT.rotJokerMissed, { name: nameOf(e.who) }) });
+    } else if (e.type === "bust") {
+      if (rot) rot.bust({ you: rotFace(run.chomper), catcher: rotFace(e.who), from: at, bottom: format(TEXT.rotBust, { name: nameOf(run.chomper) }) });
+    } else if (e.type === "clear") {
+      if (rot) {
+        // rays in the NEXT table's colours (run.level is still the cleared level here)
+        const looks = THEME.levelLooks || [], next = run.level + 1;
+        const look = looks.length ? looks[(next - 1) % looks.length] || {} : {};
+        const k = mazeKeyForLevel(next) === "A" ? "baize" : "wood";
+        rot.clear({ you: rotFace(run.chomper), rays: [look[`${k}-hi`] || tokens[`${k}-hi`], look[`${k}-lo`] || tokens[`${k}-lo`]], from: at },
+          () => fxBurst("clear", at));
+      }
+    }
+  }
+}
+
 function updateRebuyShouts() {
   run.ghosts.forEach((g, i) => {
     if (prevRebuyLeft[i] > 0 && g.rebuyLeft === 0 && g.active) showBackInGame(run.ghostIds[i]);
@@ -226,29 +351,46 @@ function updateRebuyShouts() {
   });
 }
 
-function showBackInGame(id) {
+// A shout over the maze at (x, y) maze px (.aic-pop--shout, 900 ms): the rebuy return, the joker.
+function shoutAt(text, x, y) {
   const pop = document.createElement("div");
   pop.className = "aic-pop aic-pop--shout";
-  pop.textContent = format(TEXT.backInGame, { name: facesById[id]?.name_he || id });
+  pop.textContent = text;
   // .aic-pop centres itself with translate(50%, -50%) (its keyframes animate that translate too), so it is
   // placed from the right edge of .aic-over, which is the maze rect.
-  const x = (run.maze.door.x + 0.5) * tile, y = (run.maze.door.y + 0.5) * tile;
   pop.style.right = `${run.maze.w * tile - x}px`;
   pop.style.top = `${y}px`;
   document.getElementById("chomp-over").appendChild(pop);
   setTimeout(() => pop.remove(), 900);
 }
 
+function showBackInGame(id) {
+  shoutAt(format(TEXT.backInGame, { name: facesById[id]?.name_he || id }), (run.maze.door.x + 0.5) * tile, (run.maze.door.y + 0.5) * tile);
+}
+
 // The joker was spent on a catch (board 2026-10-17): a shout over the chomper, same pop as the rebuy shout.
 function showJokerSpent() {
-  const pop = document.createElement("div");
-  pop.className = "aic-pop aic-pop--shout";
-  pop.textContent = TEXT.jokerShout;
+  shoutAt(TEXT.jokerShout, (run.player.x / 240) * tile, (run.player.y / 240) * tile);
+}
+
+// A joker was taken, from the felt or as the sweep's prize (2026-10-19): "יש לך ג׳וקר!" over the chomper
+// and a card flying from the chomper into the HUD slot.
+function showJokerGot() {
   const x = (run.player.x / 240) * tile, y = (run.player.y / 240) * tile;
-  pop.style.right = `${run.maze.w * tile - x}px`;
-  pop.style.top = `${y}px`;
-  document.getElementById("chomp-over").appendChild(pop);
-  setTimeout(() => pop.remove(), 900);
+  shoutAt(TEXT.jokerGot, x, y - tile);
+  const card = document.createElement("div");
+  card.className = "aic-flycard";
+  const sx = stageOx + x, sy = stageOy + y;
+  card.style.left = `${sx}px`;
+  card.style.top = `${sy}px`;
+  document.getElementById("chomp-app").appendChild(card);
+  const slot = document.getElementById("chomp-joker").getBoundingClientRect();
+  const tx = slot.width ? slot.left + slot.width / 2 : sx, ty = slot.height ? slot.top + slot.height / 2 : sy;
+  requestAnimationFrame(() => {
+    card.style.transform = `translate(${tx - sx}px, ${ty - sy}px) scale(1.4)`;
+    card.style.opacity = "0";
+  });
+  setTimeout(() => card.remove(), 600);
 }
 
 // The level-clear show (board 2026-10-17): shown for the whole `clear` phase (CLEAR_STEPS, 2 s), driven by
@@ -257,6 +399,7 @@ function updateClearShow() {
   const el = document.getElementById("chomp-clearshow");
   const show = run.phase === "clear";
   el.hidden = !show;
+  el.classList.toggle("aic-clearshow--rot", !!rot);
   if (!show) {
     clearShowRendered = false;
     return;
@@ -368,8 +511,9 @@ let gameOverRendered = false;
 
 function updateGameOverScreen() {
   const screen = document.getElementById("chomp-gameover");
-  screen.hidden = run.phase !== "over";
-  if (run.phase !== "over") {
+  const showOver = run.phase === "over" && !(rot && rot.active()); // the bust moment plays out first (2026-10-19)
+  screen.hidden = !showOver;
+  if (!showOver) {
     gameOverRendered = false;
     return;
   }
@@ -765,16 +909,25 @@ function loop(now) {
     return;
   }
   if (lastFrameTime == null) lastFrameTime = now;
-  acc += now - lastFrameTime;
+  const dtMs = now - lastFrameTime;
   lastFrameTime = now;
-  let steps = 0;
-  while (acc >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
-    step(run);
-    acc -= STEP_MS;
-    steps += 1;
+  if (rot && rot.holding()) {
+    acc = 0; // the sim holds still while a holding moment plays; no time is banked for later (2026-10-19)
+  } else {
+    acc += dtMs;
+    let steps = 0;
+    while (acc >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
+      step(run);
+      acc -= STEP_MS;
+      steps += 1;
+    }
   }
+  if (rot) rot.tick(Math.min(dtMs, 100) / 1000);
   drawFrame();
+  fxFrame(now, dtMs);
   updateHud();
+  drainEvents();
+  if (rot) rot.draw();
 }
 
 // t = seconds, the recipe's own animation clock (jaw/hop/wobble cycles - see recipe.js's drawChomper/
@@ -905,6 +1058,7 @@ function layoutTitle() {
 // Shell screens (spec §4/§8): title is shown on a fresh boot (no run to resume) and again from pause's
 // "לשולחן הראשי" - never mid-run, so loop() skips straight past every run-dependent step while it's up.
 function showTitle() {
+  loadFx(); // the fx layer loads while the title shows, so start-up isn't slower (2026-10-19)
   titleShowing = true;
   run = null;
   document.getElementById("chomp-title-night-n").textContent = String(nightNumber(todayDate()));
@@ -919,6 +1073,7 @@ function hideTitle() {
 // Pause's "לשולחן הראשי" (spec §8, design line 82): ends the run - the score banks the same way a game over
 // would - and returns to the title, not a fresh deal (THE-705; the old behaviour just re-dealt in place).
 function quitToTitle() {
+  if (rot) rot.cancel();
   if (run) {
     recordBest(run);
     recordNightResult(run);
@@ -928,6 +1083,7 @@ function quitToTitle() {
 }
 
 function startNewRun() {
+  if (rot) rot.cancel();
   const setupRng = mulberry32(randomSeed());
   const { chomper, bag } = nextChomper(save.loadBag(), setupRng);
   save.saveBag(bag);
@@ -948,6 +1104,7 @@ function startNewRun() {
 // The nightly table (G18): the same lineup and deck for everyone that local day, from the date seed - the
 // bag is never touched. Unlimited plays; only the night's best run's share line is kept (save.js).
 function startNightlyRun() {
+  if (rot) rot.cancel();
   const date = todayDate();
   const n = nightNumber(date);
   const { chomper, ghosts, behaviours, seed } = dealNightly(nightlySeed(date));
@@ -1038,6 +1195,7 @@ function byId(id) {
 // (round number, deal header, game-over best, played count) are applied where they're computed instead.
 function applyThemeText() {
   byId("chomp-pot-label").textContent = TEXT.potLabel;
+  byId("chomp-joker-label").textContent = TEXT.jokerHeld;
   byId("chomp-pause-btn").setAttribute("aria-label", TEXT.pauseAria);
   byId("chomp-sound-btn").setAttribute("aria-label", TEXT.soundAria);
 
@@ -1088,6 +1246,7 @@ function applyThemeText() {
   const aboutScrim = byId("chomp-about-scrim");
   aboutScrim.querySelector(".aic-sheet__title").textContent = TEXT.about;
   aboutScrim.querySelector("p").textContent = TEXT.aboutFonts;
+  byId("chomp-about-libs").textContent = TEXT.aboutLibs;
   byId("chomp-about-studio").textContent = TEXT.aboutStudio;
   byId("chomp-about-close").textContent = TEXT.close;
 
@@ -1127,6 +1286,7 @@ async function boot() {
   renderer = createRenderer(ctx, tokens, THEME.levelLooks || []);
   save = createSave(storageOrMemoryFallback());
   audio = createAudio();
+  if (ROT_ON) rot = createRot(document.getElementById("chomp-rot"), document.getElementById("chomp-rotcap"), { reduced: reducedMotion, sfx: audio });
   audio.setMuted(!save.settings().sound);
 
   const facesRes = await fetch("./faces.json");
@@ -1161,6 +1321,7 @@ async function boot() {
     firstRunMarked = false;
     run = resumeLevel({ ...snapshot, ownLineCount });
     resize();
+    loadFx(); // no title on a resume: load the fx layer now
   } else {
     // A fresh boot with nothing to resume (THE-705): the title, not an immediate deal. "חלק לי" deals.
     updateSpriteCache(); // at the default tile - the title table draws faces before any run ever sizes one
@@ -1304,6 +1465,7 @@ async function boot() {
       for (let i = 0; i < n; i++) step(run);
       drawFrame();
       updateHud();
+      drainEvents();
     },
     getState() {
       if (titleShowing) return { screen: "title" }; // run is null - nothing else to report
@@ -1347,6 +1509,26 @@ async function boot() {
     pause(on) {
       paused = on;
     },
+    // Test/review hook (2026-10-19): play a moment on the current table (sweep|clear|joker|bust); hold it at
+    // rt s if given. Returns whether a moment is playing.
+    rot(kind, rt = null) {
+      if (titleShowing || !rot) return false;
+      const type = kind === "joker" ? "jokerSaved" : kind;
+      run.events.push({ type, x: run.player.x, y: run.player.y, who: run.ghostIds[0], prize: "joker" });
+      drainEvents();
+      if (rt != null) rot.hold(rt);
+      return rot.active();
+    },
+    // Review hook (2026-10-19): fire one fx burst at the chomper (chip|allin|eat|caught|jokerTaken|clear).
+    fx(type) {
+      if (titleShowing || !fx) return false;
+      fxBurst(type, screenOf(run.player.x, run.player.y), type === "eat" ? run.ghostIds[0] : null);
+      return true;
+    },
+    // Test hook (2026-10-19): hold (or drop) a joker, to see the held-joker card on the head and in the HUD.
+    joker(on = true) {
+      if (!titleShowing) run.joker = on;
+    },
     input(dir) {
       if (!titleShowing) input(run, dir);
     },
@@ -1377,6 +1559,14 @@ async function boot() {
       Object.assign(run.player, { x: last.x * 240 + 120, y: last.y * 240 + 120, dir: null, want: null });
     },
   };
+
+  if (QS.has("play") || QS.has("rotshow")) {
+    if (titleShowing) { hideTitle(); startNewRun(); }
+    if (dealing) endDealScreen();
+    if (hintShowing) closeHint();
+    if (QS.has("steps")) window.__sim.step(Number(QS.get("steps")) || 0);
+    if (QS.has("rotshow")) setTimeout(() => window.__sim.rot(QS.get("rotshow"), QS.has("rt") ? Number(QS.get("rt")) : null), 400);
+  }
 
   requestAnimationFrame(loop);
 }

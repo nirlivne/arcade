@@ -15,6 +15,9 @@
      a live, still-rendering maze), so the game-over screen needs an opaque backdrop to actually hide play. */
   #chomp-gameover, #chomp-title, #chomp-deal { background: var(--aic-room); }
   #chomp-title-canvas, #chomp-deal-canvas { display: block; }
+  /* the fx layer (fx.js, 2026-10-19): WebGL over the 2D canvas, same rect; the 2D canvas goes transparent under it */
+  #chomp-fx { position: absolute; left: 0; top: 0; pointer-events: none; }
+  #chomp-fx[hidden] { display: none; }
   /* the lamp pool (.aic-app::before) sits behind this opaque screen, so game over re-draws its own glow,
      roughly over the catcher (THE-713 D2-F: "the lamp glow is missing"). */
   #chomp-gameover { background: radial-gradient(ellipse 60% 55% at 25% 42%, rgba(255, 210, 122, .16), transparent 70%), var(--aic-room); }
@@ -36,13 +39,14 @@
   <div id="chomp-inset-probe"></div>
   <div class="aic-stage" id="chomp-stage">
     <canvas id="chomp-canvas"></canvas>
+    <canvas id="chomp-fx" hidden></canvas>
   </div>
   <div class="aic-gutter aic-gutter--start" id="chomp-gutter-start">
     <div class="aic-label" id="chomp-pot-label">קופה</div>
     <div class="aic-score" id="chomp-score">0</div>
     <div class="aic-levelchip" id="chomp-round"><b id="chomp-round-n">1</b></div>
     <div class="aic-stacks" id="chomp-stacks"></div>
-    <div class="aic-joker" id="chomp-joker" hidden>🃏</div>
+    <div class="aic-joker" id="chomp-joker" hidden><span class="aic-joker__label" id="chomp-joker-label"></span></div>
   </div>
   <div class="aic-gutter aic-gutter--end" id="chomp-gutter-end">
     <div class="aic-gutter__icons">
@@ -54,12 +58,14 @@
   </div>
   <div class="aic-band" id="chomp-band" hidden></div>
   <div class="aic-stick" id="chomp-stick" hidden><div class="aic-stick__knob"></div></div>
+  <canvas class="aic-rot" id="chomp-rot" hidden></canvas>
   <div class="aic-over" id="chomp-over">
     <div class="aic-clearshow" id="chomp-clearshow" hidden>
       <div class="aic-clearshow__shout" id="chomp-clear-shout">השולחן נקי!</div>
       <div class="aic-clearshow__card"><b id="chomp-clear-round">סיבוב 2</b><small id="chomp-clear-next">שולחן חדש · החברים מהירים יותר</small></div>
     </div>
   </div>
+  <div class="aic-rotcap" id="chomp-rotcap" aria-live="polite"><div class="aic-rotcap__top" hidden></div><div class="aic-rotcap__bottom" hidden></div></div>
 
   <div class="aic-screen" id="chomp-title" dir="rtl" hidden>
     <canvas id="chomp-title-canvas"></canvas>
@@ -148,6 +154,7 @@
     <div class="aic-sheet" dir="rtl">
       <h2 class="aic-sheet__title">אודות</h2>
       <p>גופנים: Rubik Doodle Shadow, Karantina, Fredoka (SIL OFL 1.1), ראו licenses/.</p>
+      <p id="chomp-about-libs">גרפיקה: three.js (MIT) ו-postprocessing (Zlib), ראו licenses/.</p>
       <p id="chomp-about-studio">נוצר על ידי The Game Company.</p>
       <button class="aic-cardbtn--row" id="chomp-about-close">סגור</button>
     </div>

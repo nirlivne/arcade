@@ -141,12 +141,27 @@
 .aic-app[data-gutter="narrow"] .aic-levelchip { width: 34px; height: 34px; }
 .aic-app[data-gutter="narrow"] .aic-levelchip b { font-size: 18px; }
 
-/* the held joker (board 2026-10-17): a small cream card next to the buy-ins */
+/* the held joker (board 2026-10-19, "the player should know he owns a joker!"): a cream card with the star,
+   a gold edge and a slow gold pulse; its label under it */
 .aic-joker {
-  width: 24px; height: 33px; border-radius: 4px; background: var(--aic-cream); border: var(--aic-line) solid var(--aic-ink);
-  display: grid; place-items: center; font: 16px/1 system-ui; box-shadow: var(--aic-shadow-card); animation: aic-pop-in 160ms var(--aic-ease-clack);
+  position: relative; width: 44px; height: 60px; margin-bottom: 18px; border-radius: 6px; background: var(--aic-cream);
+  border: 2px solid var(--aic-ink); display: grid; place-items: center;
+  box-shadow: 0 0 0 2px var(--aic-marigold), 0 0 14px 3px rgba(255, 194, 51, .55), var(--aic-shadow-card);
+  animation: aic-pop-in 160ms var(--aic-ease-clack), aic-joker-glow 1.6s ease-in-out 160ms infinite;
 }
+.aic-joker::before { content: "★"; font: 30px/1 system-ui; color: var(--aic-marigold); -webkit-text-stroke: 1.5px var(--aic-ink); }
+.aic-joker__label { position: absolute; top: 100%; margin-top: 4px; right: 50%; transform: translateX(50%); white-space: nowrap;
+  font: 700 13px/1 var(--aic-font-label); color: var(--aic-marigold); text-shadow: 0 1px 0 var(--aic-ink); }
 .aic-joker[hidden] { display: none; }
+.aic-app[data-gutter="narrow"] .aic-joker { width: 34px; height: 46px; }
+.aic-app[data-gutter="narrow"] .aic-joker::before { font-size: 22px; }
+@keyframes aic-joker-glow { 50% { box-shadow: 0 0 0 2px var(--aic-marigold), 0 0 22px 7px rgba(255, 194, 51, .85), var(--aic-shadow-card); } }
+/* the joker card flying from the chomper to the HUD (450 ms) */
+.aic-flycard { position: fixed; z-index: 6; width: 30px; height: 41px; margin: -20px 0 0 -15px; border-radius: 5px; pointer-events: none;
+  background: var(--aic-cream); border: 2px solid var(--aic-ink); display: grid; place-items: center;
+  box-shadow: 0 0 0 2px var(--aic-marigold), 0 0 14px 3px rgba(255, 194, 51, .6);
+  transition: transform 450ms var(--aic-ease-deal), opacity 120ms linear 400ms; }
+.aic-flycard::before { content: "★"; font: 20px/1 system-ui; color: var(--aic-marigold); -webkit-text-stroke: 1px var(--aic-ink); }
 
 /* table talk: a mini head + a comic bubble, 1 at a time. On narrow gutters it's .aic-band under the maze. */
 .aic-talk { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: auto 0; max-width: 100%; }
@@ -201,14 +216,14 @@
   text-shadow: 0 2px 0 var(--aic-ink); transform: rotate(-4deg); animation: aic-slam 260ms var(--aic-ease-clack) both;
 }
 
-/* ------------------------------------------------------------ the level-clear show (board 2026-10-17): the shout slams, the next-round card flips in at 0.8 s */
+/* ------------------------------------------------------------ the level-clear show (board 2026-10-17): the shout slams, the next-round card flips in at 1.2 s (2026-10-19: after the moment's face) */
 .aic-clearshow { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 10px;
   background: radial-gradient(ellipse at center, rgba(17, 12, 10, .62), rgba(17, 12, 10, .2) 70%); }
 .aic-clearshow[hidden] { display: none; }
 .aic-clearshow__shout { font: 48px/1 var(--aic-font-display); color: var(--aic-cream); text-shadow: 0 3px 0 var(--aic-ink); transform: rotate(-3deg);
   animation: aic-slam 260ms var(--aic-ease-clack) both; }
 .aic-clearshow__card { background: var(--aic-cream); color: var(--aic-ink); border: 2.5px solid var(--aic-ink); border-radius: var(--aic-r-card);
-  padding: 8px 18px; text-align: center; box-shadow: var(--aic-shadow-card); animation: aic-flip var(--aic-t-flip) var(--aic-ease-deal) 800ms both; }
+  padding: 8px 18px; text-align: center; box-shadow: var(--aic-shadow-card); animation: aic-flip var(--aic-t-flip) var(--aic-ease-deal) 1200ms both; }
 .aic-clearshow__card b { display: block; font: 700 34px/1 var(--aic-font-label); color: var(--aic-hot); }
 .aic-clearshow__card small { display: block; margin-top: 4px; font: 600 14px/1.2 var(--aic-font-body); }
 .aic-app[data-gutter="narrow"] .aic-clearshow__shout { font-size: 40px; }
@@ -289,6 +304,23 @@
   -webkit-mask: radial-gradient(circle, transparent 0 73%, #000 74%); mask: radial-gradient(circle, transparent 0 73%, #000 74%);
 }
 @keyframes aic-stick-in { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: none; } }
+
+/* ------------------------------------------------------------ brain rot (2026-10-19): the moments' canvas and DOM captions */
+.aic-rot { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.aic-rot[hidden] { display: none; }
+.aic-rotcap { position: fixed; inset: 0; pointer-events: none; }
+.aic-rotcap__top, .aic-rotcap__bottom {
+  position: absolute; left: 4%; right: 4%; text-align: center; white-space: nowrap; overflow: visible;
+  font: clamp(30px, 10vh, 66px)/1 var(--aic-font-display); color: var(--fill, var(--aic-cream));
+  text-shadow: 3px 0 var(--ink), -3px 0 var(--ink), 0 3px var(--ink), 0 -3px var(--ink), 2px 2px var(--ink), -2px -2px var(--ink),
+    2px -2px var(--ink), -2px 2px var(--ink), 0 7px 0 rgba(0, 0, 0, .45);
+}
+.aic-rotcap__top { top: 7vh; transform: rotate(-4deg); }
+.aic-rotcap__bottom { bottom: 9vh; transform: rotate(3deg); }
+.aic-rotcap__top[hidden], .aic-rotcap__bottom[hidden] { display: none; }
+.aic-rotcap .is-in { animation: aic-slam 260ms var(--aic-ease-clack) both; }
+/* the level clear under a moment: no dark wash (the rays are the backdrop), shout and card in the lower half */
+.aic-clearshow--rot { background: none; align-content: end; padding-bottom: 6%; }
 
 @media (prefers-reduced-motion: reduce) {
   .aic-app *, .aic-app *::before, .aic-app *::after { animation-duration: 0ms !important; animation-delay: 0ms !important; transition-duration: 0ms !important; }

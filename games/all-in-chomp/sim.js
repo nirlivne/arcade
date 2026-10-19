@@ -6,8 +6,9 @@
 import { mulberry32 } from "./rng.js";
 import { MAZE_A, MAZE_B, parse } from "./maze.js";
 import { stepActor, placeAtTile, tileIndexOf, segIndexOf, isAtCentre, tileCenter, actorAtCentre, OPPOSITE, DELTA } from "./move.js";
-import { modeAt, targetTile, pickDirection, foldDirection, eyesDirection } from "./ghosts.js";
+import { modeAt, targetTile, pickDirection, foldDirection, eyesDirection, wrongTurn } from "./ghosts.js";
 import { createTalkState, updateTalk } from "./talk.js";
+import { levelTuning } from "./difficulty.js";
 
 export const READY_STEPS = 90; // 1.5s at 60Hz
 export const DYING_STEPS = 90;
@@ -23,6 +24,7 @@ export const MAX_SCALE_LEVEL = 6;
 const SPEED_STEP_PER_LEVEL = 0.07; // +7 %/level to MAX_SCALE_LEVEL (board 2026-10-17; was +4 % to L8)
 export const JOKER_AT_CHIPS = 60; // the joker shows once per level after this many chips (40 % of a table)
 export const JOKER_STEPS = 600; // 10s on the felt
+export const SWEEP_POINTS = 1000; // a clean sweep with a joker already held (2026-10-19)
 const FOLD_STEPS_PER_LEVEL = 30; // -0.5s a level
 const FOLD_STEPS_FLOOR = 120; // 2s, the fold duration never scales below this
 const CHOMPER_SPEED_L1 = 30; // 7.5 t/s
@@ -35,9 +37,20 @@ function scaleSpeed(base, level) {
   const mult = 1 + SPEED_STEP_PER_LEVEL * (Math.min(level, MAX_SCALE_LEVEL) - 1);
   return Math.round(base * mult);
 }
-// Release order follows the dealt slot order (G2/spec §3): 4/8/12/16s of level time at L1, a second sooner
-// each level, never under 1/2/3/4s (board 2026-10-17).
+export function chomperSpeed(level) {
+  return scaleSpeed(CHOMPER_SPEED_L1, level);
+}
+// The gentle start (2026-10-19): on L1-L4 the chasers run at a share of the chomper's speed (70/76/82/88 %);
+// from L5 at the old +7 %/level speed (93 %).
+export function chaserSpeed(level) {
+  const { share } = levelTuning(level);
+  return share ? Math.round(chomperSpeed(level) * share) : scaleSpeed(GHOST_SPEED_L1, level);
+}
+// Release order follows the dealt slot order (G2/spec §3). L1-L2 use the gentle start's own seconds
+// (difficulty.js); from L3, 4/8/12/16 s at L1 a second sooner each level, never under 1/2/3/4 s (board 2026-10-17).
 export function releaseStepsForLevel(level, slot) {
+  const { release } = levelTuning(level);
+  if (release) return release[slot] * 60;
   return Math.max(slot + 1, 4 * (slot + 1) - (level - 1)) * 60;
 }
 function foldStepsForLevel(level) {
@@ -63,7 +76,7 @@ const MODE_CODE = { scatter: 1, chase: 2 };
 function freshGhost(slot, id, behaviour, seatTile) {
   const actor = placeAtTile(seatTile.x, seatTile.y, null);
   actor.want = null;
-  return { ...actor, slot, id, behaviour, active: false, folded: false, foldLeft: 0, eaten: false, forceReverse: false, rebuyLeft: 0 };
+  return { ...actor, slot, id, behaviour, active: false, folded: false, foldLeft: 0, eaten: false, forceReverse: false, rebuyLeft: 0, rollTile: -1, wrongWay: null };
 }
 
 function freshActors(maze, ghostIds, behaviours) {
@@ -81,6 +94,15 @@ function freshLevelJoker() {
 // Two RNG streams seeded from the same run seed + a constant, so talk/cosmetic picks never move the sim
 // stream (and so hash(run) - which reads the sim stream - never shifts because of a talk draw).
 const FX_SEED_CONSTANT = 0x9e3779b9;
+
+// A cosmetic event for the effects and the moments (2026-10-19): { type, x, y, ... } in sub-units. game.js drains
+// the list every frame; a headless caller that never drains it only keeps the last 256.
+const MAX_EVENTS = 256;
+function emit(run, type, x, y, extra = {}) {
+  run.events.push({ type, x, y, ...extra });
+  if (run.events.length > MAX_EVENTS) run.events.shift();
+}
+const tileCentreOf = (tile) => tileCenter(tile.x, tile.y);
 
 export function createRun({
   seed,
@@ -119,7 +141,7 @@ export function createRun({
     levelSteps: 0,
     firstRunSteps: 0,
     modeSteps: 0,
-    mode: modeAt(0),
+    mode: modeAt(0, level),
     chain: 200,
     allInEaten: new Set(),
     bonusBuyInUsed: false,
@@ -129,6 +151,8 @@ export function createRun({
     eaten: new Set(),
     lastCatcherId: null,
     joker: false, // the held joker (board 2026-10-17): the run's, kept across levels, spent on a catch
+    chainEats: 0, // eats in this ALL IN's chain; the 4th is a clean sweep (2026-10-19)
+    events: [], // cosmetic (2026-10-19): drained by game.js each frame, never hashed
     ...freshLevelJoker(),
     player,
     ghosts,
@@ -197,6 +221,7 @@ function eatChip(run) {
     run.eaten.add(key);
     run.chipsLeft -= 1;
     run.chipsEatenLevel += 1;
+    { const c = tileCentreOf(tile); emit(run, "chip", c.x, c.y); }
     const bonus = awardScore(run, 10);
     return bonus;
   }
@@ -226,6 +251,7 @@ function tryGrabJoker(run) {
   if (tile.x !== BONUS_SPOT.x || tile.y !== BONUS_SPOT.y) return [];
   run.joker = true;
   run.jokerSlot = null;
+  { const c = tileCentreOf(BONUS_SPOT); emit(run, "jokerTaken", c.x, c.y); }
   return [{ event: "jokerTaken", who: null }];
 }
 
@@ -238,6 +264,8 @@ function tryGrabAllIn(run) {
   run.allInEaten.add(key);
   const bonus = awardScore(run, 50);
   run.chain = 200;
+  run.chainEats = 0;
+  { const c = tileCentreOf(tile); emit(run, "allin", c.x, c.y); }
   const foldSteps = foldStepsForLevel(run.level);
   for (const g of run.ghosts) {
     if (g.active && !g.eaten && !g.rebuyLeft) {
@@ -304,6 +332,7 @@ function moveGhosts(run) {
   const chomper = { tile: chomperTile, dir: run.player.dir };
   const directChaser = run.ghosts.find((g) => g.active && g.behaviour === "direct" && !g.folded && !g.eaten);
   const directChaserTile = directChaser ? currentTile(directChaser) : null;
+  const wrongChance = levelTuning(run.level).wrongTurn;
 
   for (const g of run.ghosts) {
     if (!g.active || g.rebuyLeft > 0) continue; // seated for the rebuy wait: still
@@ -325,10 +354,18 @@ function moveGhosts(run) {
     } else {
       const target = targetTile(g.behaviour, g.slot, run.mode, gTile, chomper, directChaserTile);
       want = pickDirection(run.maze, gTile.x, gTile.y, g.dir, target);
+      // The gentle start (2026-10-19): once per tile ahead, a chaser on L1-L4 may take a random open way
+      // instead of its target's (never back). Rolled on the sim's own RNG, so a seed replays exactly.
+      const key = gTile.y * 64 + gTile.x;
+      if (g.rollTile !== key) {
+        g.rollTile = key;
+        g.wrongWay = wrongChance > 0 ? wrongTurn(run.maze, gTile.x, gTile.y, g.dir, run.rng, wrongChance) : null;
+      }
+      if (g.wrongWay) want = g.wrongWay;
     }
     if (!forced && g.dir && want === OPPOSITE[g.dir] && !actorAtCentre(g)) want = null;
     g.want = want;
-    const speed = g.eaten ? EYES_SPEED : g.folded ? scaleSpeed(FOLD_SPEED_L1, run.level) : scaleSpeed(GHOST_SPEED_L1, run.level);
+    const speed = g.eaten ? EYES_SPEED : g.folded ? scaleSpeed(FOLD_SPEED_L1, run.level) : chaserSpeed(run.level);
     stepActor(run.maze, g, speed, { preTurn: false });
   }
 }
@@ -352,7 +389,7 @@ export function step(run) {
         run.ghosts = ghosts;
         run.levelSteps = 0;
         run.modeSteps = 0;
-        run.mode = modeAt(0);
+        run.mode = modeAt(0, run.level);
         run.phase = "ready";
         run.timer = READY_STEPS;
       } else {
@@ -378,7 +415,7 @@ export function step(run) {
       run.ghosts = ghosts;
       run.levelSteps = 0;
       run.modeSteps = 0;
-      run.mode = modeAt(0);
+      run.mode = modeAt(0, run.level);
       run.phase = "ready";
       run.timer = READY_STEPS;
       run.scoreAtLevelStart = run.score;
@@ -397,7 +434,7 @@ export function step(run) {
     const anyFolded = run.ghosts.some((g) => g.active && g.folded);
     if (!anyFolded) {
       run.modeSteps += 1;
-      const newMode = modeAt(run.modeSteps);
+      const newMode = modeAt(run.modeSteps, run.level);
       if (newMode !== run.mode) {
         run.mode = newMode;
         for (const g of run.ghosts) if (g.active && !g.folded && !g.eaten && !g.rebuyLeft) g.forceReverse = true;
@@ -410,7 +447,7 @@ export function step(run) {
     const prevPlayerTile = currentTile(run.player);
     const prevGhostTiles = run.ghosts.map((g) => currentTile(g));
 
-    stepActor(run.maze, run.player, scaleSpeed(CHOMPER_SPEED_L1, run.level), { forGhost: false });
+    stepActor(run.maze, run.player, chomperSpeed(run.level), { forGhost: false });
     moveGhosts(run);
 
     // Catches (by active, non-folded, non-eaten ghosts) beat grabs this step - no pickup is applied.
@@ -423,6 +460,7 @@ export function step(run) {
       caughtBy.folded = false;
       caughtBy.foldLeft = 0;
       caughtBy.eaten = true;
+      emit(run, "jokerSaved", run.player.x, run.player.y, { who: caughtBy.id });
       talkCandidates.push({ event: "jokerSaved", who: null });
     } else if (caughtBy) {
       // A1: the fold ends - folded (and already-eaten) ghosts go home unfolded, no chain score, chain resets.
@@ -434,6 +472,7 @@ export function step(run) {
         }
       }
       run.chain = 200;
+      run.chainEats = 0;
       // A joker still showing at the catch is orphaned by the respawn, not earned: the bonus spot is also the
       // respawn tile, so it would be grabbed for free the instant the chomper re-seats there (THE-690 #7).
       run.jokerSlot = null;
@@ -442,12 +481,14 @@ export function step(run) {
       const freeCatch = run.firstRun && run.firstRunSteps <= FREE_FIRST_RUN_STEPS;
       run.phase = "dying";
       run.timer = DYING_STEPS;
+      emit(run, "caught", run.player.x, run.player.y, { who: caughtBy.id });
       if (freeCatch) {
         talkCandidates.push({ event: "freeRedeal", who: null });
       } else {
         run.buyIns -= 1;
         talkCandidates.push({ event: "caught", who: caughtBy.id });
         if (run.buyIns === 1) talkCandidates.push({ event: "lastBuyIn", who: null });
+        if (run.buyIns === 0) emit(run, "bust", run.player.x, run.player.y, { who: caughtBy.id });
       }
     } else {
       const chipBonus = eatChip(run);
@@ -461,6 +502,21 @@ export function step(run) {
         const wasAtCap = run.chain === 1600;
         grabbed.folded = false;
         grabbed.eaten = true;
+        run.chainEats += 1;
+        emit(run, "eat", grabbed.x, grabbed.y, { who: grabbed.id, n: run.chainEats });
+        if (run.chainEats === 4) {
+          // The clean sweep (2026-10-19): all four on one ALL IN. The prize is the joker, or SWEEP_POINTS when
+          // one is already held.
+          let prize = "joker";
+          if (run.joker) {
+            prize = "points";
+            const sweepBonus = awardScore(run, SWEEP_POINTS);
+            if (sweepBonus) talkCandidates.push(sweepBonus);
+          } else {
+            run.joker = true;
+          }
+          emit(run, "sweep", run.player.x, run.player.y, { prize });
+        }
         const bonus = awardScore(run, run.chain);
         run.chain = Math.min(run.chain * 2, 1600);
         run.phase = "eatFreeze";
@@ -473,6 +529,7 @@ export function step(run) {
       if (run.chipsLeft <= 0) {
         run.phase = "clear";
         run.timer = CLEAR_STEPS;
+        emit(run, "clear", run.player.x, run.player.y);
         talkCandidates.push({ event: "clear", who: null });
       }
     }
@@ -540,6 +597,7 @@ export function hash(run) {
     run.modeSteps,
     MODE_CODE[run.mode] || 0,
     run.chain,
+    run.chainEats,
     run.player.x,
     run.player.y,
     DIR_CODE[run.player.dir] || 0,
