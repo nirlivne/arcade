@@ -9235,7 +9235,7 @@ postprocessing/build/index.js:
   var SCREEN = qs.get('screen');
   var REPORT = qs.has('report');
   var BOT = qs.has('bot');
-  var DEBUG = qs.has('debug'); // the bug reporter (see "debug" below)
+  var DEBUG = qs.get('debug') !== '0'; // the bug reporter (see "debug" below); on by default while the floating-face hunt lasts
   var SNAP_T = qs.has('snapt') ? parseFloat(qs.get('snapt')) : null; // test: freeze the family snapshot animation
   var FAM_AT = qs.has('famat') ? parseFloat(qs.get('famat')) : 0; // test: trigger a family photo at this time
   var BOT_WAIT = qs.has('botwait') ? parseFloat(qs.get('botwait')) : 0; // test: the bot waits this long before its first drop

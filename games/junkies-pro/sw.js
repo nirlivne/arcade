@@ -1,7 +1,7 @@
 // Service worker: precache the game's files and serve them cache-first. Bump CACHE_VERSION on every shipped change.
 // The prefix is 'junkiespro-', not 'junkies-': the original game shares this origin, and its worker deletes every
 // 'junkies-*' cache but its own.
-var CACHE_VERSION = 'junkiespro-v16';
+var CACHE_VERSION = 'junkiespro-v17';
 var FILES = [
   './', 'index.html', 'register-sw.js', 'favicon-32.png',
   'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',
