@@ -6291,6 +6291,18 @@ postprocessing/build/index.js:
     it = this.items[key] = { key: key, kind: kind, transparent: transparent, g: g, spin: spin, mesh: mesh, frame: this.frame, def: null };
     return it;
   };
+  // debug (?debug): the pooled chips and sprites whose centre is within rad CSS px of (cx, cy), nearest first; drawnNow:
+  // drawn in the last frame (the rest are hidden)
+  P.itemsAt = function (cx, cy, rad) {
+    var out = [], v = new T.Vector3();
+    for (var key in this.items) {
+      var it = this.items[key];
+      it.g.getWorldPosition(v); v.project(this.camera);
+      var sx = (v.x + 1) / 2 * this.w, sy = (1 - v.y) / 2 * this.h, d = Math.hypot(sx - cx, sy - cy);
+      if (d <= rad) out.push({ key: key, kind: it.kind, visible: it.g.visible, drawnNow: it.frame === this.frame, framesAgo: this.frame - it.frame, d: Math.round(d), at: [Math.round(sx), Math.round(sy)] });
+    }
+    return out.sort(function (a, b) { return a.d - b.d; });
+  };
   P.dropItem = function (key) {
     var it = this.items[key];
     if (!it) return;
@@ -8169,7 +8181,18 @@ postprocessing/build/index.js:
       }
     }
 
-    return { reset: reset, end: end, due: due, at: function () { return deck.at(); }, take: take, summon: summon, canSummon: canSummon, busy: busyNow, force: function (id) { deck.force(id); }, dealt: dealt,
+    // ?debug: the runtime state, for a bug report
+    function debug() {
+      function u(b) { return b ? b.uid : null; }
+      return { live: live && { id: live.id, uid: u(live.b), fuse: live.fuse }, dealtOut: dealtOut, dd: dd,
+        peeks: peeks.map(function (p) { return { id: p.id, side: p.side, x: Math.round(p.x), y: Math.round(p.y), life: +p.life.toFixed(2), hold: p.hold, fly: !!p.fly }; }),
+        pend: pend.map(function (p) { return { id: p.id, at: +p.at.toFixed(2) }; }),
+        gtr: gtr && { seg: gtr.seg, of: gtr.pts.length, x: Math.round(gtr.x), y: Math.round(gtr.y), who: gtr.who.map(u), held: u(gtr.held) },
+        zap: zap && { at: +zap.at.toFixed(2), list: zap.list.map(u) }, pops: pops,
+        treats: treats.map(function (p) { return { uid: p.uid, g: p.g, x: Math.round(p.x), y: Math.round(p.y), tt: +p.tt.toFixed(2), used: p.used, live: p.live, dead: !!p.dead }; }),
+        rain: rain.map(function (r) { return { kind: r.kind, n: r.n, at: +r.at.toFixed(2) }; }) };
+    }
+    return { debug: debug, reset: reset, end: end, due: due, at: function () { return deck.at(); }, take: take, summon: summon, canSummon: canSummon, busy: busyNow, force: function (id) { deck.force(id); }, dealt: dealt,
       onDrop: onDrop, onBox: onBox, drop: drop, tick: tick, moment: moment, show: show, draw: draw };
   }
 
@@ -8454,7 +8477,11 @@ postprocessing/build/index.js:
       boxes.push(b);
     }
     function force(kind) { deck.force(kind); }
-    return { reset: reset, due: due, at: function () { return off ? Infinity : deck.at(); }, take: take, force: force, busy: busy, onDrop: function () { deck.onDrop(); }, onGuest: function () { deck.onSpecial(); },
+    function debug() { // ?debug: the runtime state, for a bug report
+      return { dealtOut: dealtOut, boxes: boxes.map(function (b) { return { uid: b.uid, kind: b.kind, age: +b.age.toFixed(2), opened: b.opened, dead: !!b.dead }; }),
+        zaps: zaps.map(function (z) { return { t: +z.t.toFixed(2), end: +z.end.toFixed(2), list: z.list.map(function (o) { return o.uid; }) }; }) };
+    }
+    return { debug: debug, reset: reset, due: due, at: function () { return off ? Infinity : deck.at(); }, take: take, force: force, busy: busy, onDrop: function () { deck.onDrop(); }, onGuest: function () { deck.onSpecial(); },
       drop: drop, hit: hit, open: open, botOpen: botOpen, tick: tick, draw: draw, show: show };
   }
 
@@ -10613,9 +10640,83 @@ postprocessing/build/index.js:
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { el.classList.add('hidden'); }, 2000);
   }
 
+  // ---------------- debug (?debug) ----------------
+  // Nir, 2026-10-19, hunting a face that floats with no gravity or collisions: tap 🐞 (or press B), then tap what looks
+  // wrong. The report says what is drawn there (each drawn thing has a key: b<uid> a body, peek<n> a guest peeking in,
+  // fly<n> a sticker flying to the photo, fx<n> a merge ghost, bx<uid> a box, tr<uid> a treat...) and the state of every
+  // body, the guests and the boxes; it opens in a panel to copy or share.
+  var DEBUG = qs.has('debug'), bugArmed = false, bugBtn = null;
+  function r1(v) { return typeof v === 'number' ? Math.round(v * 10) / 10 : v; }
+  function dbgBody(b, lx, ly) {
+    var o = { uid: b.uid, g: b.g, t: b.t, x: r1(b.x), y: r1(b.y), vx: r1(b.vx), vy: r1(b.vy), ang: r1(b.ang), av: r1(b.av), age: r1(b.age), r: b.r,
+      d: r1(Math.hypot(b.x - lx, b.y - ly)), dead: !!b.dead, sleep: !!b.sleep, inPhysics: world.live.indexOf(b) >= 0, rb: null };
+    try {
+      if (b._rb) { var rb = b._rb, p = rb.translation(), v = rb.linvel();
+        o.rb = { x: r1(p.x * Physics.S), y: r1(p.y * Physics.S), rot: r1(rb.rotation()), vx: r1(v.x * Physics.S), vy: r1(v.y * Physics.S), sleeping: rb.isSleeping(),
+          enabled: rb.isEnabled(), type: rb.bodyType(), gravity: rb.gravityScale(), colliders: rb.numColliders(), collider: b._c ? b._c.isEnabled() : null }; }
+    } catch (x) { o.rbError = String(x); }
+    return o;
+  }
+  function bugReport(cx, cy) {
+    var lp = S.unproject(cx, cy, CHIP_Z), lx = lp[0], ly = lp[1], rep = { tap: [Math.round(cx), Math.round(cy)], logical: [r1(lx), r1(ly)] };
+    try {
+      rep.drawnHere = S.itemsAt(cx, cy, 80);
+      rep.game = { state: state, t: r1(t), playTime: r1(playTime), score: score, drops: drops, paused: paused, rot: rot.active(), slow: !!slow,
+        curG: curG, nextG: nextG, curB: curB, nextB: nextB, jokerWait: jokerWait ? { id: jokerWait.id, t: r1(jokerWait.t) } : null, cur: cur, next: next, look: boxLook };
+      var bs = world ? world.bodies.map(function (b) { return dbgBody(b, lx, ly); }) : [];
+      bs.sort(function (a, b) { return a.d - b.d; });
+      rep.bodies = bs;
+      rep.physicsOnly = world ? world.live.filter(function (b) { return world.bodies.indexOf(b) < 0; }).map(function (b) { return dbgBody(b, lx, ly); }) : []; // in the engine, not in the game's list
+      rep.guests = guests && guests.debug(); rep.boxes = boxes && boxes.debug();
+      rep.fx = fx.filter(function (f) { return f.k === 'fly' || f.k === 'ghost'; }).map(function (f) { return { k: f.k, id: f.id, life: r1(f.life), max: f.max, t: f.t }; });
+      rep.events = events.slice(-60);
+    } catch (x) { rep.error = String(x && x.stack || x); }
+    rep.device = { ua: navigator.userAgent, w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio, q: location.search };
+    // the one line to read first: the nearest drawn thing, and the body behind it (if it is one)
+    try {
+      var top = rep.drawnHere && rep.drawnHere[0], m = top && /^b(\d+)$/.exec(top.key), body = m && (rep.bodies || []).filter(function (o) { return o.uid === +m[1]; })[0];
+      rep.summary = !top ? 'nothing drawn here' : top.key + (top.drawnNow ? '' : ' (not drawn this frame)') + (m ? (body ? ': body ' + body.uid + ' ' + (body.g || 'tier ' + body.t) + (body.dead ? ' DEAD' : '') +
+        (body.inPhysics ? '' : ' NOT IN PHYSICS') + (isFinite(body.ang) && isFinite(body.x) ? '' : ' NaN') + (body.rb ? (body.rb.sleeping ? ' asleep' : ' awake') : ' no rigid body') : ': NO SUCH BODY in the game') : '');
+    } catch (x) { rep.summary = 'summary failed: ' + x; }
+    var done = function (cache) { rep.version = cache; showBug('SUMMARY: ' + rep.summary + '\n' + JSON.stringify(rep)); };
+    if (window.caches && caches.keys) caches.keys().then(function (k) { done(k.join(',')); }, function () { done('?'); }); else done('no caches');
+  }
+  function showBug(text) {
+    try { console.log('[bug report]\n' + text); localStorage.setItem('junkies-pro:lastbug', text); } catch (x) {}
+    var box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;top:30%;z-index:10000;background:#111;color:#eee;border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;direction:ltr;font:13px system-ui,sans-serif;box-shadow:0 6px 30px rgba(0,0,0,.6)';
+    var ta = document.createElement('textarea'); ta.readOnly = true; ta.value = text;
+    ta.style.cssText = 'flex:1;width:100%;box-sizing:border-box;background:#000;color:#9f9;font:11px ui-monospace,monospace;border:0;border-radius:6px;padding:6px';
+    var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px';
+    function b(label, fn) { var x = document.createElement('button'); x.textContent = label; x.style.cssText = 'flex:1;padding:10px;border:0;border-radius:8px;background:#2d6a4f;color:#fff;font:600 15px system-ui,sans-serif'; x.addEventListener('click', fn); row.appendChild(x); return x; }
+    var copy = b('Copy', function () {
+      var ok = function () { copy.textContent = 'Copied ✓'; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, function () { ta.select(); try { document.execCommand('copy'); ok(); } catch (x) {} });
+      else { ta.select(); try { document.execCommand('copy'); ok(); } catch (x) {} }
+    });
+    b('Share', function () { if (navigator.share) navigator.share({ text: text }).catch(function () {}); else copy.click(); });
+    b('Close', function () { box.remove(); });
+    box.appendChild(ta); box.appendChild(row); document.body.appendChild(box);
+  }
+  function bugButton() {
+    if (!bugBtn) return;
+    bugBtn.textContent = bugArmed ? '🐞 tap it' : '🐞';
+    bugBtn.style.background = bugArmed ? '#c0392b' : 'rgba(0,0,0,.55)';
+  }
+  if (DEBUG) {
+    bugBtn = document.createElement('button');
+    bugBtn.style.cssText = 'position:fixed;left:10px;bottom:10px;z-index:9999;padding:8px 12px;border:0;border-radius:999px;color:#fff;font:600 16px system-ui,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.4)';
+    bugBtn.addEventListener('click', function (e) { e.stopPropagation(); bugArmed = !bugArmed; bugButton(); });
+    document.body.appendChild(bugBtn); bugButton();
+    window.addEventListener('keydown', function (e) {
+      if ((e.key === 'b' || e.key === 'B') && !/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) { bugArmed = !bugArmed; bugButton(); }
+    });
+  }
+
   // ---------------- input ----------------
   function worldX(e) { return S.unproject(e.clientX, e.clientY, HANG_Z)[0]; }
   canvas.addEventListener('pointerdown', function (e) {
+    if (bugArmed) { bugArmed = false; bugButton(); bugReport(e.clientX, e.clientY); e.preventDefault(); return; } // ?debug: the bug tap
     if (state !== 'play' || paused) return;
     Sound.unlock();
     if (!rot.active()) { // a tap on a present opens it (and doesn't aim or drop)
