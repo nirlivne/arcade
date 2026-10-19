@@ -8190,7 +8190,9 @@ postprocessing/build/index.js:
   // guests' ones), at least GAP_N drops after the last guest or box, never while a guest or another box is around
   var FIRST_T = 150, FIRST_FRIENDS = 7, THRESH = [3000, 9000], GAP_N = 12; // 3000: about as often as the first guest (Nir: as often as the jokers)
 
-  function BoxDeck(rng, thresh) { this.rng = rng; this.thresh = thresh || THRESH; this.reset(); }
+  // many (?boxmany, for reviewing the box): one every MANY_GAP drops from the start, no thresholds, no cap
+  var MANY_GAP = 6;
+  function BoxDeck(rng, thresh, many) { this.rng = rng; this.thresh = thresh || THRESH; this.many = !!many; this.reset(); }
   BoxDeck.prototype.reset = function () { this.drops = GAP_N; this.dealt = 0; this.forced = null; };
   BoxDeck.prototype.onDrop = function () { this.drops++; };
   BoxDeck.prototype.onSpecial = function () { this.drops = 0; }; // a guest was dealt: the gap starts again
@@ -8198,13 +8200,14 @@ postprocessing/build/index.js:
   BoxDeck.prototype.due = function (score, play, friends, busy) {
     if (busy) return false;
     if (this.forced) return true;
+    if (this.many) return this.drops >= MANY_GAP;
     if (this.dealt >= this.thresh.length || this.drops < GAP_N) return false;
     if (play < FIRST_T && friends < FIRST_FRIENDS) return false;
     return score >= this.thresh[this.dealt];
   };
   BoxDeck.prototype.force = function (kind) { this.forced = kind; };
   // the score the next box waits for (a forced one: now; none left: never)
-  BoxDeck.prototype.at = function () { return this.forced ? -Infinity : this.dealt < this.thresh.length ? this.thresh[this.dealt] : Infinity; };
+  BoxDeck.prototype.at = function () { return this.forced || this.many ? -Infinity : this.dealt < this.thresh.length ? this.thresh[this.dealt] : Infinity; };
   // which special the line tries first after a drop: the one whose threshold the score passed first (a guest on a tie).
   // After a late opening both can be overdue, and the guests (more thresholds, the same 12-drop gap) took every turn.
   function dealOrder(guestAt, boxAt) { return boxAt < guestAt ? ['box', 'guest'] : ['guest', 'box']; }
@@ -8318,7 +8321,7 @@ postprocessing/build/index.js:
   var R = 27, OPEN_T = 60, SHAKE_T = 45, HINT_GAP = 2.6, WIG_T = 0.5, ZAP_N = [4, 5], ZAP_STEP = 0.09, ZAP_HOLD = 0.55;
   // api: guestApi() (js/guests.js) plus boxFace(), canSummon(), summon(), moment(kind, box, done), wave(x, y)
   function create(api, opt) {
-    var deck = new BoxDeck(api.rng, opt && opt.thresh), off = !!(opt && opt.off);
+    var deck = new BoxDeck(api.rng, opt && opt.thresh, opt && opt.many), off = !!(opt && opt.off);
     var boxes = [], zaps = [], hinted = false, dealtOut = false;
     function reset(rng) { if (rng) deck.rng = rng; deck.reset(); boxes = []; zaps = []; hinted = false; dealtOut = false; }
     function busy() { return dealtOut || boxes.length > 0 || zaps.length > 0; }
@@ -9387,7 +9390,8 @@ postprocessing/build/index.js:
       // the joker box: a present drawn in a face's cell, so it hangs, drops and shows in NEXT like a face (js/box.js)
       bakeBox();
       // ?boxoff: no joker boxes; ?bth=a,b: their score thresholds (balance runs)
-      boxes = Box.create(boxApi(), { off: GUESTS_OFF || qs.has('boxoff'), thresh: qs.has('bth') ? qs.get('bth').split(',').map(Number) : null });
+      // ?boxmany: a box every 6 drops from the start (for reviewing it)
+      boxes = Box.create(boxApi(), { off: GUESTS_OFF || qs.has('boxoff'), many: qs.has('boxmany'), thresh: qs.has('bth') ? qs.get('bth').split(',').map(Number) : null });
       var sp = Poses.sprites();
       Object.keys(sp).forEach(function (n) { propTex[n] = { tex: S.texture(sp[n].canvas), px: sp[n].px, py: sp[n].py }; rotProps[n] = sp[n]; });
       S.warm(gfaces.daniel.def, propTex.hat.tex); // compile every shader now, not at the first merge
@@ -9696,7 +9700,7 @@ postprocessing/build/index.js:
     Box.dealOrder(guests.at(), boxes.at()).forEach(function (k) { // at most one special into NEXT
       if (nextG || nextB) return;
       if (k === 'guest' && guests.due()) { nextG = guests.take(); boxes.onGuest(); }
-      else if (k === 'box' && boxes.due(guests.busy())) { nextB = boxes.take(); guests.onBox(); }
+      else if (k === 'box' && boxes.due(guests.busy())) { nextB = boxes.take(); if (!qs.has('boxmany')) guests.onBox(); } // (with many boxes the guests keep their own pace)
     });
     cooldown = DROP_CD;
     aimX = clampAim(aimX);
