@@ -10666,12 +10666,14 @@ postprocessing/build/index.js:
   }
   function bugButton() {
     if (!bugBtn) return;
-    bugBtn.textContent = bugArmed ? '🐞 tap it' : '🐞';
-    bugBtn.style.background = bugArmed ? '#c0392b' : 'rgba(0,0,0,.55)';
+    bugBtn.textContent = bugArmed ? '🐞 tap the face' : '🐞 BUG';
+    bugBtn.style.background = bugArmed ? '#e63946' : '#ffd23f';
+    bugBtn.style.color = bugArmed ? '#fff' : '#1b1b1b';
   }
   if (DEBUG) {
     bugBtn = document.createElement('button');
-    bugBtn.style.cssText = 'position:fixed;left:10px;bottom:10px;z-index:9999;padding:8px 12px;border:0;border-radius:999px;color:#fff;font:600 16px system-ui,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.4)';
+    // big and bright, above the phone's gesture bar (Nir couldn't see the first, small dark one)
+    bugBtn.style.cssText = 'position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom, 0px) + 22px);z-index:9999;padding:10px 16px;border:2px solid #1b1b1b;border-radius:999px;font:800 18px system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.5)';
     bugBtn.addEventListener('click', function (e) { e.stopPropagation(); bugArmed = !bugArmed; bugButton(); });
     document.body.appendChild(bugBtn); bugButton();
     window.addEventListener('keydown', function (e) {
