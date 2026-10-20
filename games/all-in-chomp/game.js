@@ -1258,6 +1258,13 @@ function applyThemeText() {
   aboutScrim.querySelector("p").textContent = TEXT.aboutFonts;
   byId("chomp-about-libs").textContent = TEXT.aboutLibs;
   byId("chomp-about-studio").textContent = TEXT.aboutStudio;
+  buildVersion.then((v) => {
+    const el = byId("chomp-about-version");
+    el.textContent = `${TEXT.aboutVersion}: `;
+    const b = document.createElement("bdi");
+    b.textContent = v || TEXT.aboutVersionDev;
+    el.appendChild(b);
+  });
   byId("chomp-about-close").textContent = TEXT.close;
 
   const bestsScrim = byId("chomp-bests-scrim");
@@ -1283,6 +1290,18 @@ async function loadThemeImages() {
     })
   );
 }
+
+// The build this page runs: the service worker's cache name is a hash of the game's files (tools/sw-build.mjs), and a
+// new version deletes the old cache when it takes over, so the one cache here at start-up is the one this page came
+// from (an update that lands later reloads the page between games). Shown in About so a phone can be checked.
+const buildVersion = (async () => {
+  try {
+    const keys = (await caches.keys()).filter((k) => k.startsWith("all-in-chomp-"));
+    return keys.length ? keys.map((k) => k.slice("all-in-chomp-".length)).join(", ") : null;
+  } catch {
+    return null; // no Cache Storage (file://, private modes)
+  }
+})();
 
 async function boot() {
   syncInitialHidden();

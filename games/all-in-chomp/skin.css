@@ -97,6 +97,7 @@
 .aic-sheet::after { top: auto; right: auto; bottom: 6px; left: 10px; transform: rotate(180deg); }
 .aic-sheet__title { font: 30px/1.1 var(--aic-font-display); text-align: center; margin: 2px 0 8px; color: var(--aic-ink); }
 .aic-sheet p { font: 500 15px/1.4 var(--aic-font-body); margin: 6px 0; }
+.aic-sheet p.aic-about-version { font-size: 12px; opacity: 0.6; text-align: center; margin-top: 10px; }
 .aic-howto { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .aic-howto figure { margin: 0; text-align: center; font: 600 13px/1.25 var(--aic-font-body); }
 .aic-howto canvas { width: 100%; aspect-ratio: 1; border-radius: 8px; background: var(--aic-baize); border: 2px solid var(--aic-ink); }

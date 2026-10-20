@@ -75,6 +75,8 @@ window.THEME = {
     aboutFonts: "גופנים: Rubik Doodle Shadow, Karantina, Fredoka (SIL OFL 1.1), ראו licenses/.",
     aboutLibs: "גרפיקה: three.js (MIT) ו-postprocessing (Zlib), ראו licenses/.", // the fx layer (2026-10-19)
     aboutStudio: "נוצר על ידי The Game Company.", // release checklist: About names the studio
+    aboutVersion: "גרסה", // + the build's cache hash, to check a phone runs the latest (2026-10-20)
+    aboutVersionDev: "פיתוח", // no service worker cache: a local run
 
     hint1: "החצים במקלדת (או ג'ויסטיק בעכבר): תאכלו את כל הצ'יפים.",
     hint1Touch: "הג'ויסטיק: הניחו אצבע ודחפו לכיוון. תאכלו את כל הצ'יפים.", // the floating stick (2026-10-17)
