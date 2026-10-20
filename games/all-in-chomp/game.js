@@ -1297,9 +1297,14 @@ async function loadThemeImages() {
 const buildVersion = (async () => {
   try {
     const keys = (await caches.keys()).filter((k) => k.startsWith("all-in-chomp-"));
-    return keys.length ? keys.map((k) => k.slice("all-in-chomp-".length)).join(", ") : null;
+    if (keys.length) return keys.map((k) => k.slice("all-in-chomp-".length)).join(", ");
+  } catch {} // no Cache Storage (file://, private modes)
+  // nothing cached yet (a first visit): this page came from the network, the same publish as the server's sw.js
+  try {
+    const m = (await (await fetch("sw.js", { cache: "no-store" })).text()).match(/CACHE_VERSION = 'all-in-chomp-([0-9a-f]+)'/);
+    return m ? m[1] : null;
   } catch {
-    return null; // no Cache Storage (file://, private modes)
+    return null;
   }
 })();
 
