@@ -1258,6 +1258,16 @@ function applyThemeText() {
   aboutScrim.querySelector("p").textContent = TEXT.aboutFonts;
   byId("chomp-about-libs").textContent = TEXT.aboutLibs;
   byId("chomp-about-studio").textContent = TEXT.aboutStudio;
+  // the install chip and Chrome's verdict in About (install.js)
+  const installBtn = byId("chomp-title-install");
+  setChipLabel(installBtn, TEXT.install);
+  if (window.GameInstall) {
+    window.GameInstall.onChange((s) => {
+      installBtn.hidden = s !== "ready";
+      byId("chomp-about-install").textContent = `${TEXT.aboutInstall}: ${TEXT.installState[s] || s}`;
+    });
+    installBtn.addEventListener("click", () => window.GameInstall.prompt());
+  }
   buildVersion.then((v) => {
     const el = byId("chomp-about-version");
     el.textContent = `${TEXT.aboutVersion}: `;

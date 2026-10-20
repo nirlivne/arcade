@@ -77,6 +77,9 @@ window.THEME = {
     aboutStudio: "נוצר על ידי The Game Company.", // release checklist: About names the studio
     aboutVersion: "גרסה", // + the build's cache hash, to check a phone runs the latest (2026-10-20)
     aboutVersionDev: "פיתוח", // no service worker cache: a local run
+    install: "התקן", // the title's install chip, shown only when Chrome offers installation (install.js, 2026-10-20)
+    aboutInstall: "התקנה",
+    installState: { none: "Chrome לא הציע", ready: "זמינה", installed: "הותקנה", dismissed: "בוטלה", app: "פתוח כאפליקציה" },
 
     hint1: "החצים במקלדת (או ג'ויסטיק בעכבר): תאכלו את כל הצ'יפים.",
     hint1Touch: "הג'ויסטיק: הניחו אצבע ודחפו לכיוון. תאכלו את כל הצ'יפים.", // the floating stick (2026-10-17)
