@@ -12,6 +12,36 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
+<script>
+// The game's own install button (2026-10-20). Chrome fires beforeinstallprompt when it judges the game installable and
+// not yet installed; we keep that event and show a button that calls prompt(), so nobody has to find Chrome's menu
+// entry. Loaded before the game so an early event is not missed. The About window shows what Chrome decided
+// (GameInstall.state()), to check a phone: 'none' never offered (not installable here, or Chrome thinks it is installed),
+// 'ready' offered, 'installed' just installed, 'dismissed' the prompt was cancelled, 'app' running as the installed app.
+(function () {
+  var ev = null, subs = [];
+  var app = (window.matchMedia && matchMedia('(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)').matches) || navigator.standalone === true;
+  var state = app ? 'app' : 'none';
+  function set(s) { state = s; subs.forEach(function (f) { try { f(state); } catch (e) {} }); }
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); ev = e; set('ready'); });
+  window.addEventListener('appinstalled', function () { ev = null; set('installed'); });
+  window.GameInstall = {
+    state: function () { return state; },
+    // f(state) now and on every change
+    onChange: function (f) { subs.push(f); try { f(state); } catch (e) {} },
+    // from a click: Chrome's install dialog; resolves 'accepted' | 'dismissed' | 'none'
+    prompt: function () {
+      if (!ev) return Promise.resolve('none');
+      var e = ev; ev = null;
+      return Promise.resolve(e.prompt()).then(function () { return e.userChoice; }).then(function (c) {
+        if (c && c.outcome === 'accepted') set('installed'); else set('dismissed'); // Chrome may offer again later
+        return c ? c.outcome : 'none';
+      }, function () { set('dismissed'); return 'none'; });
+    }
+  };
+})();
+
+</script>
 <style>
 /* Latin and digits: Marker (Permanent Marker), Hand (Patrick Hand). Hebrew: Doodle (Rubik Doodle Shadow, the title),
    Letter (Karantina: headings, buttons, table talk), Round (Fredoka: the rest) */
@@ -132,6 +162,7 @@ button:focus-visible,.radios input:focus-visible{outline:3px solid #fff;outline-
 #about-open,#share-start{position:absolute;top:716px;margin:0;padding:2px 12px;font-size:15px;color:var(--ink);pointer-events:auto}
 #about-open{left:22px}
 #share-start{right:22px}
+#install-app{position:absolute;top:716px;left:50%;transform:translateX(-50%);margin:0;padding:2px 12px;font-size:15px;color:var(--ink);pointer-events:auto;white-space:nowrap}
 #stoast{top:718px}
 /* home: on the end screen (in play, the pause card has it) */
 #btn-home{display:none;font-size:16px}
@@ -212,6 +243,7 @@ button.mv:disabled{opacity:.2;cursor:default}
     </div>
     <button id="about-open" type="button" class="small" aria-haspopup="dialog">אודות</button>
     <button id="share-start" type="button" class="small">שתף</button>
+    <button id="install-app" type="button" class="small hidden">התקן כאפליקציה</button>
     <div id="stoast" class="toast hidden"></div>
     <div class="caption">20 שנה ועדיין לא למדנו לשחק</div>
   </div>
@@ -252,6 +284,7 @@ button.mv:disabled{opacity:.2;cursor:default}
       <p class="muted keys"><span>Mouse/touch: aim, release to drop</span> · <span>← → aim</span> · <span>Space drop</span> ·
         <span>P pause</span> · <span>M sound</span> · <span>N music</span></p>
       <p class="muted">Fonts: Rubik Doodle Shadow, Karantina, Fredoka, Patrick Hand (SIL OFL)<br>Permanent Marker (Apache 2.0)</p>
+      <p class="muted" id="about-build"><span id="about-ver">Version: …</span> · <span id="about-inst"></span></p>
       <button id="about-close" type="button" class="big">Close</button>
     </div>
   </div>
@@ -10656,6 +10689,29 @@ postprocessing/build/index.js:
     (open ? $('about-close') : $('about-open')).focus();
   }
   $('about-open').addEventListener('click', function () { Sound.sfx.click(); setAbout(true); });
+  // the install button and Chrome's verdict in About (js/install.js), and the build: the service worker's cache name
+  // (pwa/sw.js CACHE_VERSION; a new version deletes the old cache on taking over, so the cache here at start-up is the
+  // one this page came from; with nothing cached yet, a first visit, the server's sw.js says it)
+  var INSTALL_STATE = { none: 'not offered by Chrome', ready: 'available', installed: 'installed', dismissed: 'cancelled', app: 'running as the app' };
+  if (window.GameInstall) {
+    GameInstall.onChange(function (s) {
+      $('install-app').classList.toggle('hidden', s !== 'ready');
+      $('about-inst').textContent = 'Install: ' + (INSTALL_STATE[s] || s);
+    });
+    $('install-app').addEventListener('click', function () { Sound.sfx.click(); GameInstall.prompt(); });
+  }
+  (function () {
+    function show(v) { $('about-ver').textContent = 'Version: ' + (v || 'local'); }
+    function fromServer() {
+      return fetch('sw.js', { cache: 'no-store' }).then(function (r) { return r.text(); })
+        .then(function (t) { var m = t.match(/CACHE_VERSION = 'junkiespro-([^']+)'/); return m ? m[1] : null; });
+    }
+    var keys = window.caches ? caches.keys() : Promise.reject();
+    keys.then(function (ks) {
+      ks = ks.filter(function (k) { return k.indexOf('junkiespro-') === 0; });
+      return ks.length ? ks.map(function (k) { return k.slice(11); }).join(', ') : fromServer();
+    }).catch(function () { return fromServer().catch(function () { return null; }); }).then(show, function () { show(null); });
+  })();
   $('about-close').addEventListener('click', function () { setAbout(false); });
   elAbout.addEventListener('click', function (e) { if (e.target === elAbout) setAbout(false); });
 
@@ -10974,7 +11030,9 @@ postprocessing/build/index.js:
     },
     get cardUp() { return cardUp; }, banner: banner, talk: talk,
     screenPt: screenPt, get events() { return events.slice(); }, // test: where a body is on screen (CSS px); the event log
-    dealGuest: function (id) { guests.force(id); nextG = guests.take(); } // test: this guest into NEXT now
+    dealGuest: function (id) { guests.force(id); nextG = guests.take(); }, // test: this guest into NEXT now
+    drawn: function () { return S.itemsAt(0, 0, 1e9); }, // test: every pooled chip/sprite, with its time on screen
+    get t() { return t; } // test: the game clock (stops while paused and during a brain-rot moment)
   };
 
   // ---------------- boot ----------------
