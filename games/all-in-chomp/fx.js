@@ -139,6 +139,7 @@ export function createFx(canvas, source, { reduced, quality = null, onFail = () 
   const fixedQ = quality ? Math.max(1, Math.min(3, Number(quality))) : null;
   let q = fixedQ || 3, W = 1, H = 1;
   const parts = [], waves = [];
+  let srcW = 0, srcH = 0; // the 2D canvas's size at the texture's last allocation
   let flash = 0, flashCol = [1, 1, 1], ca = 0, grayHit = 0, shake = 0, bloomKick = 0, lastNow = null, slowFor = 0, ema = 16, frames = 0;
 
   function dpr() { return Math.min(window.devicePixelRatio || 1, QUALITY_DPR[q]); }
@@ -208,6 +209,10 @@ export function createFx(canvas, source, { reduced, quality = null, onFail = () 
   function frame(info) {
     if (!watch(info.now)) return;
     const dt = Math.min(0.05, info.dt || 1 / 60), T = info.T, t = info.now / 1000;
+    // three.js allocates a texture once, at its image's size on the first upload, and later uploads only fill it.
+    // A new canvas size (a window resize, a quality step) needs a new texture, or the board shows shrunk in a
+    // corner over the stale one (Nir's phone, 2026-10-20).
+    if (source.width !== srcW || source.height !== srcH) { srcTex.dispose(); srcW = source.width; srcH = source.height; }
     srcTex.needsUpdate = true;
     glow.begin(); chips.begin(); paper.begin();
     // the always-on glows: chips, ALL IN halos, the felt joker, the held-joker ring

@@ -465,10 +465,19 @@ function bubbleEl(name, text, dealer = false) {
   return bubble;
 }
 
+// The line on screen (gutter mode, speaker, line), null for none, undefined until the first sync of a run. The
+// bubble is built when this changes, not every frame: a fresh bubble restarts its pop-in, and rebuilt every
+// frame it never got past the first, invisible keyframe ("the words blink and flash", Nir's phone 2026-10-20;
+// reduced motion hid it on desktop).
+let talkShown;
+
 function updateTalk() {
   const talkEl = document.getElementById("chomp-talk");
   const bandEl = document.getElementById("chomp-band");
   const wide = document.getElementById("chomp-app").dataset.gutter === "wide";
+  const key = run.talk.active ? `${wide}|${run.talk.active.speaker}|${run.talk.active.line}` : null;
+  if (key === talkShown) return;
+  talkShown = key;
   const target = wide ? talkEl : bandEl;
   const other = wide ? bandEl : talkEl;
   other.hidden = true;
@@ -947,6 +956,7 @@ function resetRunFlags() {
   prevRebuyLeft = [];
   prevLevel = 0;
   prevJoker = false;
+  talkShown = undefined;
   snapshotRngAtLevelStart = null; // force the new run's first level-start snapshot write
 }
 
