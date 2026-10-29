@@ -20,7 +20,11 @@ export function attachRecorder(match, { firstServeWaitArmed = false } = {}) {
   const rngLog = [];
   const original = match.rng;
   match.rng = () => { const v = original(); rngLog.push(v); return v; };
-  return { rngLog, inputLog: [], firstServeWaitArmed };
+  // THE-1143 B1: re-sim must create its match with the same { distractions } option the live match
+  // used, or the rng draw sequence desyncs from this log the moment distraction logic would have
+  // consumed an extra draw (its own createMatch-time "next spawn target" pick) that a distractions-off
+  // re-sim never asks for -- read straight off the live match so this can never drift from reality.
+  return { rngLog, inputLog: [], firstServeWaitArmed, distractionsEnabled: !!match.distractionsEnabled };
 }
 
 export function recordTick(rec, targets) {
@@ -32,7 +36,7 @@ export function recordTick(rec, targets) {
 // C.REPLAY_MAX_SIM_S of sim time (the design's "last 4.0s" rule; THE-774's skip logic and the
 // 1x-then-0.4x playback speed are game.js/screens.js display concerns, not stored here).
 export function resimulate(seed, rec) {
-  const m = Sim.createMatch(seed);
+  const m = Sim.createMatch(seed, { distractions: rec.distractionsEnabled });
   if (rec.firstServeWaitArmed) Sim.armFirstServeWait(m);
   let i = 0;
   m.rng = () => rec.rngLog[i++];
@@ -47,7 +51,11 @@ export function resimulate(seed, rec) {
     Sim.step(m, 1 / C.STEP_HZ);
     if (m.state === "rally" && !wasRally) lastServeLaunchTick = tick;
     wasRally = m.state === "rally";
-    fullTrace.push({ tick, x: m.ball.x, y: m.ball.y, paddles: [m.paddles[0].y, m.paddles[1].y] });
+    // THE-1143 B1: carry the active distraction into the trace so replay playback can draw it too.
+    fullTrace.push({
+      tick, x: m.ball.x, y: m.ball.y, paddles: [m.paddles[0].y, m.paddles[1].y],
+      distraction: m.distraction ? { type: m.distraction.type, x: m.distraction.x, y: m.distraction.y, vx: m.distraction.vx, r: m.distraction.r } : null,
+    });
   }
 
   const capTicks = Math.round(C.REPLAY_MAX_SIM_S * C.STEP_HZ);

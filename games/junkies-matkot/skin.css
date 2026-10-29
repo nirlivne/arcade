@@ -67,14 +67,15 @@
   transform-origin: 50% 100%;
   transition: transform var(--jm-t-hit) var(--jm-ease-spring), box-shadow var(--jm-t-hit), filter var(--jm-t-ui);
 }
-.jm-tube::before { /* the top highlight */
-  content: ""; position: absolute; top: 11%; inset-inline: 1.1em; height: 17%; border-radius: 999px;
-  background: rgba(255, 255, 255, .38); pointer-events: none;
+/* Board tuning r1, note 1: no stripes on buttons. The hard-edged highlight band and the two foam-seam lines read
+   as stripes on a phone (they cut through short labels like "צליל"), so the tube is now one clean body: the
+   3-stop vertical gradient above plus a soft sheen that fades to nothing, with no hard edge anywhere. */
+.jm-tube::before { /* soft top sheen */
+  content: ""; position: absolute; top: 5%; inset-inline: .5em; height: 46%; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .34) 0%, rgba(255, 255, 255, .12) 55%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
 }
-.jm-tube::after { /* foam seams near both ends */
-  content: ""; position: absolute; top: 9%; bottom: 9%; inset-inline: .85em;
-  border-inline: 1.5px solid rgba(42, 22, 56, .25); pointer-events: none;
-}
+.jm-tube::after { content: none; } /* (was: foam seams) */
 .jm-tube:active, .jm-tube.is-pressed { transform: scaleY(.92); box-shadow: .08em .14em 0 rgba(74, 46, 107, .35); }
 .jm-tube[disabled], .jm-tube[aria-disabled="true"] { filter: saturate(.35) brightness(.92); pointer-events: none; }
 .jm-tube--gold { --c: var(--jm-gold); --hi: var(--jm-gold-hi); --lo: var(--jm-gold-lo); --ink: var(--jm-plum); --ink-w: 0; }
@@ -84,7 +85,7 @@
 .jm-tube--big { font-size: var(--jm-fs-lg) !important; min-height: max(56px, 2.1em); padding-inline: 1.4em; }
 .jm-tube--small { font-size: var(--jm-fs-sm) !important; min-height: var(--jm-hit-min); min-width: 0; padding-inline: .95em; }
 .jm-tube--icon { min-width: var(--jm-hit-min); padding: 0; aspect-ratio: 1.25; font-family: var(--jm-font-symbol) !important; }
-.jm-tube--icon::before, .jm-tube--icon::after { inset-inline: .45em; }
+.jm-tube--icon::before { inset-inline: .3em; }
 .jm-tube__sym { font-family: var(--jm-font-symbol); -webkit-text-stroke: 0; font-size: .8em; }
 
 /* small round buttons (pause, carousel arrows): a cream float with a plum ring */
@@ -100,6 +101,15 @@
 .jm-iconbtn:active { transform: scale(.9); }
 .jm-iconbtn--big { width: 52px; height: 52px; font-size: 24px !important; }
 .jm-icon-pause { width: 34%; height: 38%; border-inline: 4px solid var(--jm-plum); }
+/* full screen (board note 7): four plum corner brackets; in full screen they turn inward */
+.jm-icon-fullscreen { width: 18px; height: 18px; background-repeat: no-repeat;
+  background-image: linear-gradient(var(--jm-plum) 0 0), linear-gradient(var(--jm-plum) 0 0), linear-gradient(var(--jm-plum) 0 0),
+    linear-gradient(var(--jm-plum) 0 0), linear-gradient(var(--jm-plum) 0 0), linear-gradient(var(--jm-plum) 0 0),
+    linear-gradient(var(--jm-plum) 0 0), linear-gradient(var(--jm-plum) 0 0);
+  background-size: 7px 3px, 3px 7px, 7px 3px, 3px 7px, 7px 3px, 3px 7px, 7px 3px, 3px 7px;
+  background-position: 0 0, 0 0, 11px 0, 15px 0, 0 15px, 0 11px, 11px 15px, 15px 11px; }
+.jm-fullscreen[aria-pressed="true"] .jm-icon-fullscreen {
+  background-position: 0 4px, 4px 0, 11px 4px, 11px 0, 0 11px, 4px 11px, 11px 11px, 11px 11px; }
 .jm-icon-prev, .jm-icon-next { width: 0; height: 0; border-block: 9px solid transparent; }
 .jm-icon-prev { border-right: 13px solid var(--jm-plum); margin-right: 3px; }   /* points left */
 .jm-icon-next { border-left: 13px solid var(--jm-plum); margin-left: 3px; }     /* points right */
@@ -204,6 +214,55 @@
 }
 .jm-countdown .jm-num { display: inline-block; min-width: 1ch; }
 
+/* ------------------------------------------------------------ solo setup sheet (board tuning r1, notes 2 + 3)
+   "נגד המחשב" opens a towel sheet: pick your side, pick the level, "יאללה!". Markup: design/junkies-matkot/r1/solo-sheet.html.
+   Side tubes sit in physical order (left tube = left side) whatever the text direction; level tubes run RTL,
+   easy at the right. A pressed choice takes the side's own colour (side) or gold (level) plus a plum ring. */
+.jm-solo-sheet { width: min(520px, 70vw); }
+.jm-solo-sheet .jm-sheet__row { flex-direction: column; align-items: stretch; gap: clamp(3px, 1vh, 6px); }
+.jm-solo-sheet .jm-sheet__row > span { text-align: center; }
+.jm-seg { display: flex; gap: 10px; justify-content: center; }
+.jm-seg--side { direction: ltr; }
+.jm-seg--level { direction: rtl; }
+.jm-seg > .jm-tube {
+  flex: 1 1 0; min-width: 0; padding-inline: .6em;
+  --c: var(--jm-cream); --hi: #FFFFFF; --lo: var(--jm-cream-2); --ink: var(--jm-plum); --ink-w: 0;
+  font-size: var(--jm-fs-sm) !important;
+}
+.jm-seg--level > .jm-tube { flex-direction: column; gap: .12em; min-height: max(var(--jm-hit-min), 2.6em); }
+.jm-seg__plain { font: 400 var(--jm-fs-xs)/1 var(--jm-font-body); -webkit-text-stroke: 0; opacity: .78; }
+.jm-seg__head { width: 1.7em; height: 1.7em; border-radius: 50%; overflow: hidden; flex: none;
+  border: 2px solid var(--jm-plum); background: var(--jm-wood, #C98B4E); }
+.jm-seg__head > img, .jm-seg__head > canvas { width: 100%; height: 100%; object-fit: cover; }
+.jm-seg > .jm-tube[aria-pressed="true"] {
+  --c: var(--jm-gold); --hi: var(--jm-gold-hi); --lo: var(--jm-gold-lo);
+  box-shadow: 0 0 0 3px var(--jm-plum), .14em .32em 0 rgba(74, 46, 107, .35);
+}
+.jm-seg--side > .jm-tube[data-side="0"][aria-pressed="true"] { --c: var(--jm-p1); --hi: var(--jm-p1-hi); --lo: var(--jm-p1-lo); }
+.jm-seg--side > .jm-tube[data-side="1"][aria-pressed="true"] { --c: var(--jm-p2); --hi: var(--jm-p2-hi); --lo: var(--jm-p2-lo);
+  --ink: var(--jm-cream); --ink-w: var(--jm-stroke-tube); }
+.jm-seg > .jm-tube[aria-pressed="false"] .jm-seg__head { filter: saturate(.6); opacity: .8; }
+/* the r1 build's inline pickers on the pick screen (.jm-cpu-level / .jm-solo-side, until the sheet lands): same
+   pressed look as .jm-seg. Side tubes in physical order; level tubes RTL, easy at the right. */
+.jm-cpu-level, .jm-solo-side { display: flex; gap: 8px; justify-content: center; }
+.jm-solo-side { direction: ltr; }
+.jm-cpu-level { direction: rtl; }
+.jm-cpu-level > .jm-tube[aria-pressed="true"], .jm-solo-side > .jm-tube[aria-pressed="true"] {
+  --c: var(--jm-gold); --hi: var(--jm-gold-hi); --lo: var(--jm-gold-lo);
+  box-shadow: 0 0 0 3px var(--jm-plum), .14em .32em 0 rgba(74, 46, 107, .35);
+}
+.jm-solo-side > .jm-tube[data-side="0"][aria-pressed="true"] { --c: var(--jm-p1); --hi: var(--jm-p1-hi); --lo: var(--jm-p1-lo); }
+.jm-solo-side > .jm-tube[data-side="1"][aria-pressed="true"] { --c: var(--jm-p2); --hi: var(--jm-p2-hi); --lo: var(--jm-p2-lo);
+  --ink: var(--jm-cream); --ink-w: var(--jm-stroke-tube); }
+.jm-cpu-level > .jm-tube[aria-pressed="false"], .jm-solo-side > .jm-tube[aria-pressed="false"] { opacity: .88; }
+/* "אתם" (you): a gold tag beside the human's name on the pick screen and in the HUD for the first serve */
+.jm-you { display: inline-block; vertical-align: middle; margin-inline-start: .35em; rotate: -6deg;
+  font: 400 var(--jm-fs-xs)/1 var(--jm-font-display); color: var(--jm-plum); -webkit-text-stroke: 0; text-shadow: none;
+  background: var(--jm-gold); border: 2px solid var(--jm-plum); border-radius: 999px; padding: .3em .6em .2em; }
+.jm-skip-hint { position: absolute; bottom: calc(10px + var(--jm-inset-bottom)); left: 50%; translate: -50% 0; direction: rtl;
+  font: 400 var(--jm-fs-xs)/1 var(--jm-font-body); color: var(--jm-cream); background: rgba(42, 22, 56, .55);
+  padding: .5em .9em; border-radius: 999px; animation: jm-moment-in var(--jm-t-ui) both; } /* same look as .jm-replay-skip */
+
 /* ------------------------------------------------------------ match HUD (spec §6) */
 .jm-hud { pointer-events: none; }
 .jm-hud > button { pointer-events: auto; }
@@ -218,8 +277,11 @@
   position: absolute; top: calc(6px + var(--jm-inset-top)); font-size: clamp(18px, 5.6vh, 40px); direction: rtl;
 }
 .jm-name--l { --stroke: var(--jm-p1); left: calc(14px + var(--jm-inset-left)); }
-.jm-name--r { --stroke: var(--jm-p2); right: calc(66px + var(--jm-inset-right)); }   /* clear of the pause float */
+.jm-name--r { --stroke: var(--jm-p2); right: calc(116px + var(--jm-inset-right)); }  /* clear of the pause + full-screen floats */
 .jm-pause { position: absolute; top: calc(6px + var(--jm-inset-top)); right: calc(12px + var(--jm-inset-right)); }
+.jm-fullscreen { position: absolute; top: calc(6px + var(--jm-inset-top)); right: calc(64px + var(--jm-inset-right)); }
+.jm-hud > .jm-fullscreen[hidden] { display: none; }
+.jm-hud:has(> .jm-fullscreen[hidden]) .jm-name--r { right: calc(66px + var(--jm-inset-right)); }
 .jm-rally { /* "ראלי N" above the buoy rope; "ראלי 12 · בוער!" when on fire */
   position: absolute; left: 50%; top: var(--jm-court-b); translate: -50% -118%;
   font-size: clamp(16px, 4.6vh, 34px); direction: rtl;

@@ -28,7 +28,7 @@ export function reduce(state, event, ctx = {}) {
 
   if (type === "down") {
     if (state.stale.has(id)) return state;
-    const half = ctx.solo ? 0 : x < ctx.midlineX ? 0 : 1;
+    const half = ctx.solo ? (ctx.humanSide ?? 0) : x < ctx.midlineX ? 0 : 1;
     const stacks = state.stacks.map((s) => s.slice());
     stacks[half].push({ id, lastY: y });
     const ownerHalf = new Map(state.ownerHalf);

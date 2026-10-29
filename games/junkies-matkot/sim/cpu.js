@@ -7,10 +7,11 @@
 // gate and any side a caller wants CPU-driven outside solo play.
 import { C } from "./constants.js";
 
-export function create(side, rng) {
+export function create(side, rng, level) {
   return {
     side,
     rng,
+    level, // THE-1142 S2: undefined = legacy/unleveled (today's exact numbers); see knobsFor
     targetY: C.COURT_H / 2, // fed to Sim.setInput -- rate-limited toward aimY by this mode's max speed
     aimY: C.COURT_H / 2, // the desired point (lagged ball position +- error), updated every re-target
     lastRetargetMs: -Infinity,
@@ -26,14 +27,24 @@ export function autopilot(on) { return !!on; }
 // scorePerspective: [thisSide'sScore, opponent'sScore]. Contact-offset aiming (CONTACT_OFFSET_RATIO)
 // isn't applied yet -- the CPU currently just gets its paddle to the ball's y; sim.js's existing
 // offset-to-angle physics already gives its returns some natural angle variation.
-export function knobsFor(scorePerspective) {
+//
+// level (THE-1142 S2, board note 2): an explicit "easy"/"medium"/"hard" scales the rubber-band's base
+// numbers via C.CPU_LEVELS. No level argument (or an unknown one) is the legacy/unleveled path and
+// returns exactly the pre-S2 numbers -- every existing caller that doesn't pass a level (the G16 gates,
+// the pre-S2 unit tests) is unaffected byte-for-byte.
+export function knobsFor(scorePerspective, level) {
   const diff = scorePerspective[0] - scorePerspective[1];
   const mode = diff >= 3 ? "leading" : diff <= -3 ? "trailing" : "base";
+  const baseAimErrorMult = mode === "base" ? 1 : C.CPU.AIM_ERROR_MULT[mode];
+  const lvl = level && C.CPU_LEVELS[level];
+  if (!lvl) {
+    return { mode, reactionLagMs: C.CPU.REACTION_LAG_MS[mode], aimErrorMult: baseAimErrorMult, maxPaddleSpeed: C.CPU.MAX_PADDLE_SPEED[mode] };
+  }
   return {
     mode,
-    reactionLagMs: C.CPU.REACTION_LAG_MS[mode],
-    aimErrorMult: mode === "base" ? 1 : C.CPU.AIM_ERROR_MULT[mode],
-    maxPaddleSpeed: C.CPU.MAX_PADDLE_SPEED[mode],
+    reactionLagMs: Math.max(40, C.CPU.REACTION_LAG_MS[mode] + lvl.reactionLagAddMs),
+    aimErrorMult: baseAimErrorMult * lvl.aimErrorMult,
+    maxPaddleSpeed: C.CPU.MAX_PADDLE_SPEED[mode] * lvl.maxPaddleSpeedMult,
   };
 }
 
@@ -47,7 +58,7 @@ function sampleAt(history, t) {
 export function update(cpu, match, nowMs) {
   const side = cpu.side, opponent = 1 - side;
   const history = [...cpu.history, { t: nowMs, y: match.ball.y }].filter((h) => nowMs - h.t <= 2000);
-  const knobs = knobsFor([match.score[side], match.score[opponent]]);
+  const knobs = knobsFor([match.score[side], match.score[opponent]], cpu.level);
 
   const incomingToMe = side === 0 ? match.ball.vx < 0 : match.ball.vx > 0;
   let aimError = cpu.aimError;

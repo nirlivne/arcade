@@ -3,7 +3,7 @@
   "short_name": "מטקות",
   "start_url": ".",
   "scope": ".",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "landscape",
   "background_color": "#3B1F5E",
   "theme_color": "#3B1F5E",

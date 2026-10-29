@@ -63,6 +63,7 @@ export function createScreens(root, theme, callbacks = {}) {
         <button class="jm-tube jm-tube--cream jm-tube--small jm-about" tabindex="0">אודות</button>
         <button class="jm-tube jm-tube--cream jm-tube--small jm-install" tabindex="0" hidden>התקנה</button>
         <button class="jm-tube jm-tube--cream jm-tube--small jm-sound" tabindex="0" aria-pressed="true">צליל</button>
+        <button class="jm-tube jm-tube--cream jm-tube--small jm-pick-fullscreen" tabindex="0" aria-pressed="false">מסך מלא</button>
       </div>
     </div>
     ${halfMarkup(1)}
@@ -80,15 +81,28 @@ export function createScreens(root, theme, callbacks = {}) {
   const aboutBtn = pick.querySelector(".jm-about");
   const soundBtn = pick.querySelector(".jm-sound");
   const installBtn = pick.querySelector(".jm-install");
+  const pickFullscreenBtn = pick.querySelector(".jm-pick-fullscreen");
 
   for (const btn of pick.querySelectorAll(".jm-prev")) btn.addEventListener("click", () => cb("cycle", Number(btn.dataset.side), -1));
   for (const btn of pick.querySelectorAll(".jm-next")) btn.addEventListener("click", () => cb("cycle", Number(btn.dataset.side), 1));
   for (const btn of pick.querySelectorAll(".jm-dice")) btn.addEventListener("click", () => cb("randomize", Number(btn.dataset.side)));
   for (const btn of readyBtns) btn.addEventListener("click", () => cb("toggleReady", Number(btn.dataset.side)));
-  soloBtn.addEventListener("click", () => cb("solo"));
+  soloBtn.addEventListener("click", () => cb("openSoloSheet"));
   aboutBtn.addEventListener("click", () => cb("about"));
   soundBtn.addEventListener("click", () => cb("toggleSound"));
   installBtn.addEventListener("click", () => cb("install"));
+  pickFullscreenBtn.addEventListener("click", () => cb("toggleFullscreen"));
+
+  // THE-1142 S5b (board note 7): both toggle buttons (pick screen + HUD) share one state, kept in sync
+  // with the real Fullscreen API -- including a change the game didn't initiate itself (Esc, the
+  // back gesture). Hidden entirely where the API doesn't exist (iPhone Safari).
+  function setFullscreenState(supported, active) {
+    pickFullscreenBtn.hidden = !supported;
+    hudFullscreenBtn.hidden = !supported;
+    pickFullscreenBtn.setAttribute("aria-pressed", String(active));
+    hudFullscreenBtn.setAttribute("aria-pressed", String(active));
+    pickFullscreenBtn.textContent = active ? "יציאה ממסך מלא" : "מסך מלא";
+  }
 
   function paintPortrait(side, head) {
     const canvas = headCanvases[side];
@@ -101,12 +115,16 @@ export function createScreens(root, theme, callbacks = {}) {
     });
   }
 
-  function renderPick(ids, ready, muted) {
+  // youSide: THE-1141 DESIGN.md §11.2 -- a gold "אתם" tag beside the human's name, solo only, during
+  // the CPU's dice spin (shown on the pick screen while that's happening).
+  function renderPick(ids, ready, muted, youSide = null) {
     for (const side of sides) {
       const head = headById(ids[side]);
       if (!head) continue;
       paintPortrait(side, head);
+      headNames[side].innerHTML = "";
       headNames[side].textContent = head.name;
+      if (side === youSide) headNames[side].insertAdjacentHTML("beforeend", '<span class="jm-you">אתם</span>');
       headLines[side].textContent = head.lines[0];
       readyBtns[side].innerHTML = ready[side] ? 'מוכן <span class="jm-tube__sym">✓</span>' : "מוכן?";
       readyBtns[side].classList.toggle("is-ready", ready[side]);
@@ -123,6 +141,52 @@ export function createScreens(root, theme, callbacks = {}) {
   function setInstallVisible(on) { installBtn.hidden = !on; }
   function setCpuHalf(side, on) { halves[side]?.classList.toggle("is-cpu", on); }
 
+  // ---- solo setup sheet (THE-1141 DESIGN.md §11.2, design/junkies-matkot/r1/solo-sheet.html) --------
+  // Side tubes are DOM-order == physical order inside their own `direction: ltr` group (skin.css
+  // .jm-seg--side), independent of the page's RTL, per the designer's "the left tube is the left side,
+  // whatever the text direction" rule. Each side tube's head image is repainted from whichever head is
+  // currently on that physical half of the pick screen (renderSoloSheet), so the choice reads as
+  // "I play as <head> on the left/right", not a static placeholder.
+  const soloSheet = h(`<div class="jm-scrim" hidden><div class="jm-towel jm-sheet jm-solo-sheet" role="dialog" aria-label="נגד המחשב">
+    <div class="jm-sign jm-sign--p2 jm-sheet__title">נגד המחשב</div>
+    <div class="jm-sheet__row"><span>באיזה צד אתם?</span>
+      <div class="jm-seg jm-seg--side" role="group" aria-label="צד">
+        <button class="jm-tube" data-side="0" aria-pressed="false"><span class="jm-seg__head"><img alt=""></span>שמאל</button>
+        <button class="jm-tube" data-side="1" aria-pressed="false"><span class="jm-seg__head"><img alt=""></span>ימין</button>
+      </div>
+    </div>
+    <div class="jm-sheet__row"><span>רמה</span>
+      <div class="jm-seg jm-seg--level" role="group" aria-label="רמה">
+        <button class="jm-tube" data-level="easy" aria-pressed="false">תייר<span class="jm-seg__plain">קל</span></button>
+        <button class="jm-tube" data-level="medium" aria-pressed="false">מקומי<span class="jm-seg__plain">בינוני</span></button>
+        <button class="jm-tube" data-level="hard" aria-pressed="false">אלוף החוף<span class="jm-seg__plain">קשה</span></button>
+      </div>
+    </div>
+    <div class="jm-sheet__actions"><button class="jm-tube jm-tube--big jm-soloGo">יאללה!</button><button class="jm-tube jm-tube--cream jm-tube--small jm-soloBack">חזרה</button></div>
+  </div></div>`);
+  const soloSheetScrim = soloSheet; // the scrim itself is the outer element
+  const soloSideTubes = [...soloSheet.querySelectorAll(".jm-seg--side > .jm-tube")];
+  const soloLevelTubes = [...soloSheet.querySelectorAll(".jm-seg--level > .jm-tube")];
+  const soloGoBtn = soloSheet.querySelector(".jm-soloGo");
+  const soloBackBtn = soloSheet.querySelector(".jm-soloBack");
+  for (const btn of soloSideTubes) btn.addEventListener("click", () => cb("setSoloSide", Number(btn.dataset.side)));
+  for (const btn of soloLevelTubes) btn.addEventListener("click", () => cb("setCpuLevel", btn.dataset.level));
+  soloGoBtn.addEventListener("click", () => cb("soloGo"));
+  soloBackBtn.addEventListener("click", () => cb("soloBack"));
+
+  function renderSoloSheet(ids, side, level) {
+    for (const btn of soloSideTubes) {
+      const s = Number(btn.dataset.side);
+      const on = s === side;
+      btn.setAttribute("aria-pressed", String(on));
+      const head = headById(ids[s]);
+      if (head) btn.querySelector(".jm-seg__head > img").src = head.image;
+    }
+    for (const btn of soloLevelTubes) btn.setAttribute("aria-pressed", String(btn.dataset.level === level));
+  }
+  function showSoloSheet() { soloSheetScrim.hidden = false; soloGoBtn.focus(); } // designer: focus starts on "יאללה!"
+  function hideSoloSheet() { soloSheetScrim.hidden = true; }
+
   // ---- match HUD ------------------------------------------------------
   const hud = h(`<div class="jm-screen jm-hud">
     <div class="jm-sign jm-name jm-name--l"></div>
@@ -130,6 +194,7 @@ export function createScreens(root, theme, callbacks = {}) {
     <div class="jm-sign jm-score jm-score--l"><span class="jm-num"></span></div>
     <div class="jm-sign jm-score jm-score--r"><span class="jm-num"></span></div>
     <button class="jm-iconbtn jm-pause" aria-label="השהיה"><span class="jm-icon-pause"></span></button>
+    <button class="jm-iconbtn jm-fullscreen" aria-label="מסך מלא" aria-pressed="false"><span class="jm-icon-fullscreen"></span></button>
     <div class="jm-sign jm-rally"></div>
     <div class="jm-guide jm-guide--l" hidden></div>
     <div class="jm-guide jm-guide--r" hidden></div>
@@ -140,11 +205,12 @@ export function createScreens(root, theme, callbacks = {}) {
   const scoreRight = hud.querySelector(".jm-score--r .jm-num");
   const rallyLabel = hud.querySelector(".jm-rally");
   const guides = [hud.querySelector(".jm-guide--l"), hud.querySelector(".jm-guide--r")];
+  const hudFullscreenBtn = hud.querySelector(".jm-fullscreen");
 
   // THE-1119 M4: first-match guides (design/junkies-matkot/screens.html's two markup variants --
   // touch gets a dotted drag arrow + ghost thumb, keyboard gets two keycaps). Shown once per side on
   // the very first match, faded on that side's first touch or key (fadeGuide). Solo: left side only.
-  function showGuides(isTouch, solo = false) {
+  function showGuides(isTouch, solo = false, humanSide = 0) {
     guides[0].innerHTML = isTouch
       ? `<div class="jm-guide__arrow"></div><div class="jm-guide__thumb"></div>`
       : `<span class="jm-keycap">W</span><span class="jm-keycap">S</span>`;
@@ -152,11 +218,12 @@ export function createScreens(root, theme, callbacks = {}) {
       ? `<div class="jm-guide__arrow"></div><div class="jm-guide__thumb"></div>`
       : `<span class="jm-keycap jm-keycap--sym">↑</span><span class="jm-keycap jm-keycap--sym">↓</span>`;
     for (const g of guides) { g.hidden = false; g.classList.remove("is-gone"); }
-    if (solo) guides[1].hidden = true;
+    if (solo) guides[1 - humanSide].hidden = true; // THE-1142 S3: hide the CPU side's guide, whichever side that is
   }
   function fadeGuide(side) { guides[side]?.classList.add("is-gone"); }
   function hideGuides() { for (const g of guides) { g.hidden = true; g.classList.remove("is-gone"); g.innerHTML = ""; } }
   hud.querySelector(".jm-pause").addEventListener("click", () => cb("pause"));
+  hudFullscreenBtn.addEventListener("click", () => cb("toggleFullscreen"));
 
   // ---- meme moments (G13) ---------------------------------------------
   const memeLayer = h(`<div class="jm-meme-layer"></div>`);
@@ -188,6 +255,14 @@ export function createScreens(root, theme, callbacks = {}) {
     if (el) memeLayer.appendChild(el);
   }
   function clearMoment() { for (const el of memeLayer.children) el.remove(); }
+
+  // THE-1141 DESIGN.md §11.3: a "נגיעה מדלגת" pill fades in once a moment becomes skippable (keyboard-
+  // only devices read "כל מקש מדלג" instead).
+  const skipHint = h(`<div class="jm-skip-hint" hidden>נגיעה מדלגת</div>`);
+  function setSkipHintVisible(on, keyboardOnly = false) {
+    skipHint.hidden = !on;
+    if (on) skipHint.textContent = keyboardOnly ? "כל מקש מדלג" : "נגיעה מדלגת";
+  }
 
   // ---- result (G14) -----------------------------------------------------
   const result = h(`<div class="jm-screen jm-result">
@@ -250,9 +325,11 @@ export function createScreens(root, theme, callbacks = {}) {
   root.appendChild(pick);
   root.appendChild(hud);
   root.appendChild(memeLayer);
+  root.appendChild(skipHint);
   root.appendChild(result);
   root.appendChild(replay);
   root.appendChild(rotate);
+  root.appendChild(soloSheet);
   root.appendChild(pauseSheet);
   root.appendChild(aboutSheet);
 
@@ -263,13 +340,20 @@ export function createScreens(root, theme, callbacks = {}) {
     hud.hidden = name !== "match";
     result.hidden = name !== "result";
     replay.hidden = name !== "replay";
-    if (name !== "match") clearMoment();
+    if (name !== "match") { clearMoment(); setSkipHintVisible(false); }
   }
 
-  function updateHud(score, rally, names) {
+  // youSide: THE-1141 -- the "אתם" tag beside the human's name in the HUD, solo only, until the first
+  // point ends (the caller decides when that window has closed).
+  function updateHud(score, rally, names, youSide = null) {
     scoreLeft.textContent = `${LRI}${score[0]}${PDI}`;
     scoreRight.textContent = `${LRI}${score[1]}${PDI}`;
-    if (names) { nameLeft.textContent = names[0]; nameRight.textContent = names[1]; }
+    if (names) {
+      nameLeft.innerHTML = ""; nameLeft.textContent = names[0];
+      nameRight.innerHTML = ""; nameRight.textContent = names[1];
+      if (youSide === 0) nameLeft.insertAdjacentHTML("beforeend", '<span class="jm-you">אתם</span>');
+      else if (youSide === 1) nameRight.insertAdjacentHTML("beforeend", '<span class="jm-you">אתם</span>');
+    }
     rallyLabel.textContent = rally >= 2 ? `${theme.text.rally} ${LRI}${rally}${PDI}` : "";
     rallyLabel.classList.toggle("is-hot", rally >= 8 && rally < 12);
     rallyLabel.classList.toggle("is-fire", rally >= 12);
@@ -292,6 +376,7 @@ export function createScreens(root, theme, callbacks = {}) {
   return {
     el: {
       pick, hud, result, replay, rotate, pauseSheet, aboutSheet,
+      soloSheet: soloSheetScrim, soloGoBtn, soloBackBtn, soloSideTubes, soloLevelTubes,
       rotateTitle: rotate.querySelector(".jm-rotateTitle"),
       startBtn: null,
       rematchBtn: result.querySelector(".jm-rematch"),
@@ -306,8 +391,13 @@ export function createScreens(root, theme, callbacks = {}) {
     updateHud,
     updateResult,
     renderPick,
+    renderSoloSheet,
+    showSoloSheet,
+    hideSoloSheet,
+    setSkipHintVisible,
     setCountdown,
     setInstallVisible,
+    setFullscreenState,
     setCpuHalf,
     showMoment,
     clearMoment,

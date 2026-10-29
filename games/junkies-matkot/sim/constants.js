@@ -75,4 +75,18 @@ export const C = Object.freeze({
     RUBBER_BAND_LEAD: 3,
     RUBBER_BAND_TRAIL: 3,
   }),
+
+  // THE-1142 S2 (board note 2): the player-selectable difficulty level. Unrelated to the CPU block
+  // above, which stays exactly as it was (every existing gate/test that calls Cpu.create/knobsFor
+  // without a level argument keeps getting those unmodified numbers -- G16's solo gates in particular
+  // were already tuned against them). Each level scales the CPU block's reaction lag (additive ms),
+  // aim-error multiplier and max paddle speed. Tuned (tools/junkies-matkot-gate.mjs's
+  // runLevelVsDecentHuman, 200 seeds/level) against a scripted "decent human" (250ms reaction, keyboard
+  // paddle speed, human aim noise) to hit: easy 5-20%, medium 30-50%, hard 55-75% CPU win rate --
+  // measured 8.0% / 39.5% / 63.0%.
+  CPU_LEVELS: Object.freeze({
+    easy: { reactionLagAddMs: 300, aimErrorMult: 3.5, maxPaddleSpeedMult: 0.35 },
+    medium: { reactionLagAddMs: 170, aimErrorMult: 2.0, maxPaddleSpeedMult: 0.5 },
+    hard: { reactionLagAddMs: 70, aimErrorMult: 1.5, maxPaddleSpeedMult: 0.75 },
+  }),
 });

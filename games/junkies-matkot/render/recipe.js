@@ -30,6 +30,35 @@ export const COLORS = {
   confetti: ['#0FA3B1', '#E8457C', '#FFC25A', '#FFF6E2', '#E8402F'],
 };
 
+// THE-1141 DESIGN.md §11.5 / design/junkies-matkot/r1/recipe-r1.js. sizeOfD = the sprite's main size
+// (crab/gull: width, people: height) as a fraction of HEAD.discU. Pre-baked by render/crowd.js
+// (bakeCrowd), the same pattern as render/headSprite.js. The CTO's single "passerby" distraction type
+// (sim/distractions.js) renders as the designer's "walker" character (the closer match of the two
+// people the brief splits "ice-cream seller / passer-by" into).
+export const CROWD = {
+  outline: '#2A1638', outlineOfS: 0.028, rimLight: '#FFECBE',
+  shadow: { dxOfS: 0.05, dyOfS: 0.04, rxOfS: 0.24, ryOfS: 0.06, alpha: 0.26 }, // a flat pool under the feet, toward the camera
+  crab: {
+    name: 'סרטן', sizeOfD: 0.55, frames: 2, frameMs: 120,
+    colors: { body: '#F2674A', bodyHi: '#FF9A72', eye: '#FFF6E2' },
+  },
+  seller: {
+    name: 'מוכר ארטיק', sizeOfD: 1.15, frames: 2, frameMs: 260, bobOfS: 0.02,
+    colors: { skin: '#C98B5E', cap: '#FFF6E2', brim: '#FFC25A', shirt: '#FFF6E2', shorts: '#1F4C7A', box: '#6FA8DC', boxLid: '#FFF6E2', pop: '#FF8A2E', stick: '#F2C489' },
+  },
+  walker: {
+    name: 'עובר אורח', sizeOfD: 1.2, frames: 2, frameMs: 300, bobOfS: 0.02,
+    colors: { skin: '#F0C09A', hat: '#F2C489', hatBand: '#E8402F', shirt: '#FFE7A1', shorts: '#173A63', ring: '#FF8FB0', ringHi: '#FFF6E2', shades: '#2A1638' },
+  },
+  gull: {
+    name: 'שחף', sizeOfD: 0.85, frames: 2, frameMs: 125, flyHN: [0.4, 1.0],
+    colors: { body: '#FFF6E2', wing: '#CDB9D9', tip: '#4A2E6B', beak: '#FFC25A', legs: '#FFC25A' },
+  },
+};
+
+// sim/distractions.js type -> crowd.js kind (render-only; the sim knows nothing about this mapping).
+export const DISTRACTION_KIND = { crab: 'crab', seagull: 'gull', passerby: 'walker' };
+
 // Screen layout (spec §6, Δ7). Returns CSS px. The game sets --jm-court-l/-r/-t/-b on .jm-app from this.
 export function courtLayout(W, H, safe = { l: 0, r: 0, t: 0, b: 0 }) {
   const m = Math.max(0.08 * W, Math.max(safe.l, safe.r) + 16);
@@ -84,9 +113,13 @@ export const BALL = {
   hitRU: 14, drawRU: 16, minDrawPx: 5,  // drawn 15 % larger than the hitbox so it reads on a phone (1.4 px at 844x390)
   outline: { ofR: 0.2, minPx: 2, color: '#2A1638' },  // plum; min 2 px (was 1.5, THE-1110): the cream ball reads on sand by its outline
   highlight: { dxOfR: -0.35, dyOfR: -0.35 },  // radial fill centre
-  shadow: { dxOfR: 0.6, dyOfR: 2.2, rxOfR: 0.9, ryOfR: 1.6, alpha: 0.35 }, // the ball's height reads from its shadow
+  // The full shadow shape (dx/dy/rx/ry/alpha/lift/ballScale by height) lives in render/shadow.js, per
+  // the designer's numbers (DESIGN.md §11.4) -- nothing to duplicate here.
   glow: { rOfR: 5, alpha: 0.6 },              // heat 2 only, additive
   serveRing: { ms: 800, rOfR: [6, 1.4], w: 2, color: '#FFF6E2', alpha: 0.8 }, // the 0.8 s count: a ring closing on the ball
+  // DESIGN.md §11.4: "The CTO owns the arc model" -- the designer's numbers interpolate linearly in hN,
+  // but the wall-clock period of one bounce cycle is this game's own call, not a design number to adopt.
+  bounce: { periodMs: 420 },
 };
 
 export const TRAIL = { // G5. High = feedback buffer; Mid = half-res buffer; Low = drawn tail

@@ -6,13 +6,20 @@
 // and the rematch's left/right swap, are game.js concerns -- the sim only knows paddle indices.
 import { C } from "./constants.js";
 import { createRng, range } from "./rng.js";
+import * as Distractions from "./distractions.js";
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
-export function createMatch(seed) {
+// opts.distractions (THE-1142 S5, default false): every pre-S5 caller omits it, so match creation draws
+// the exact same rng sequence as before and the distraction step is skipped entirely -- every existing
+// gate/test (G15/A5/G16, sim.test.mjs's seed-exact assertions) stays byte-identical. game.js turns it on
+// for real solo/2P matches; the window.__pong.seed() test-hook intentionally leaves it off, so the rest
+// of the Playwright suite keeps its distraction-free, fully predictable physics.
+export function createMatch(seed, opts = {}) {
   const rng = createRng(seed >>> 0);
   const match = {
     seed, rng,
+    distractionsEnabled: !!opts.distractions,
     state: "pointPause",
     stateTimer: 0,
     score: [0, 0],
@@ -33,6 +40,7 @@ export function createMatch(seed) {
     pendingScorer: null,
     firstServeWait: null, // spec §5/D2-6: armed by game.js only for the very first match of a session
   };
+  if (match.distractionsEnabled) Object.assign(match, Distractions.initialState(rng));
   enterPointPause(match);
   return match;
 }
@@ -51,6 +59,7 @@ export function armFirstServeWait(match) {
 export function step(match, dt = 1 / C.STEP_HZ) {
   if (match.state === "matchEnd") return match;
   movePaddles(match, dt);
+  if (match.distractionsEnabled) Distractions.step(match, dt);
   if (match.state === "pointPause") {
     match.stateTimer -= dt;
     if (match.stateTimer <= 1e-9) enterServe(match);
@@ -90,6 +99,7 @@ function enterPointPause(match) {
   match.ball.vx = 0;
   match.ball.vy = 0;
   match.ball.speed = 0;
+  if (match.distractionsEnabled) Distractions.onPointEnd(match);
 }
 
 function enterServe(match) {

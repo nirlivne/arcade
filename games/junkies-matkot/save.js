@@ -3,6 +3,7 @@
 export const SAVE_KEY = "junkies-matkot.v1";
 const HEAD_IDS = ["dagi", "eitan", "saalem", "shaiko", "yontsi", "nir", "ronzo", "even", "daniel", "miki", "koko"];
 const TIERS = ["high", "mid", "low"];
+const CPU_LEVELS = ["easy", "medium", "hard"]; // THE-1142 S2 (board note 2)
 
 function isPlainObject(x) { return !!x && typeof x === "object" && !Array.isArray(x); }
 
@@ -15,6 +16,8 @@ function freshSave() {
     reduceMotion: null, // null = not yet decided; game.js seeds it from prefers-reduced-motion once
     tier: "high",
     muted: false,
+    cpuLevel: "medium",
+    soloSide: 0, // THE-1142 S3 (board note 3): 0 = left, 1 = right
   };
 }
 
@@ -42,6 +45,8 @@ export function sanitise(raw) {
     reduceMotion: typeof raw.reduceMotion === "boolean" ? raw.reduceMotion : null,
     tier: TIERS.includes(raw.tier) ? raw.tier : "high",
     muted: typeof raw.muted === "boolean" ? raw.muted : false,
+    cpuLevel: CPU_LEVELS.includes(raw.cpuLevel) ? raw.cpuLevel : "medium",
+    soloSide: raw.soloSide === 0 || raw.soloSide === 1 ? raw.soloSide : 0,
   };
 }
 
@@ -64,5 +69,7 @@ export function createSave(storage, key = SAVE_KEY) {
   function setReduceMotion(on) { load(); data.reduceMotion = !!on; write(); }
   function setTier(tier) { load(); data.tier = TIERS.includes(tier) ? tier : data.tier; write(); }
   function setMuted(on) { load(); data.muted = !!on; write(); }
-  return { load, get, setLastPicks, setSoloPick, addWin, setReduceMotion, setTier, setMuted };
+  function setCpuLevel(level) { load(); data.cpuLevel = CPU_LEVELS.includes(level) ? level : data.cpuLevel; write(); }
+  function setSoloSide(side) { load(); data.soloSide = side === 0 || side === 1 ? side : data.soloSide; write(); }
+  return { load, get, setLastPicks, setSoloPick, addWin, setReduceMotion, setTier, setMuted, setCpuLevel, setSoloSide };
 }

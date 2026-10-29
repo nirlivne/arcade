@@ -16,7 +16,8 @@ import { computeLayout } from "./render/layout.js";
 import { createRenderer } from "./render/gl.js";
 import { loadAtlas } from "./render/atlas.js";
 import { paintBackdrop } from "./render/backdrop.js";
-import { COLORS, HEAD, BALL, MOMENTS } from "./render/recipe.js";
+import { COLORS, HEAD, BALL, MOMENTS, CROWD, DISTRACTION_KIND } from "./render/recipe.js";
+import { bakeCrowd } from "./render/crowd.js";
 import { createAudio } from "./audio.js";
 import { buildCard, shareResult } from "./share.js";
 import * as Tiers from "./render/tiers.js";
@@ -25,6 +26,8 @@ import * as Moments from "./sim/moments.js";
 import * as Cpu from "./sim/cpu.js";
 import { createRng } from "./sim/rng.js";
 import * as Replay from "./sim/replay.js";
+import { CROSS_MARGIN_U } from "./sim/distractions.js";
+import { shadowFor, CONTACT_HN } from "./render/shadow.js";
 
 const theme = window.THEME;
 document.title = theme.title;
@@ -68,6 +71,10 @@ let pickIds = [savedPicks[0] || HEADS[0].id, savedPicks[1] || HEADS[1].id];
 let pickReady = [false, false];
 let pickReadyAt = null; // performance.now() of the first ready tap; 10s auto-start counts from here
 let solo = false;
+let humanSide = save.get().soloSide; // THE-1142 S3 (board note 3): 0 = left, 1 = right; the CPU takes the other side
+let diceSpinning = false; // THE-1141: true while the CPU's head is spinning on the pick screen, between "יאללה!" and the match
+let diceSpinShownAt = -Infinity;
+const DICE_SPIN_MIN_SKIP_MS = 400; // designer's number, DESIGN.md §11.2
 let cpuController = null;
 let cpuNowMs = 0;
 let headColor = {}; // head id -> hex colour, D2-3: colour follows the head, not the side, across a swap
@@ -92,17 +99,33 @@ const screens = createScreens(appRoot, theme, {
     pickIds[side] = HEADS[Math.floor(Math.random() * HEADS.length)].id;
     renderPickScreen();
   },
-  toggleReady(side) { toggleReadyKey(side); },
-  solo() {
-    solo = true;
-    const human = pickIds[0];
-    const others = HEADS.filter((h) => h.id !== human);
-    pickIds = [human, others[Math.floor(Math.random() * others.length)].id];
-    renderPickScreen();
-    scheduleTimer("soloDice", 600, () => { if (screen === "pick") beginMatchFromPick(); }); // the dice-spin beat (spec §5)
+  toggleReady(side) { requestFullscreenOnFirstPlayTap(); toggleReadyKey(side); },
+  // THE-1141 DESIGN.md §11.2: "נגד המחשב" opens the solo setup sheet (side + level) instead of starting
+  // the dice spin immediately; "יאללה!"/Enter confirms, "חזרה"/Esc cancels with nothing started.
+  openSoloSheet() {
+    requestFullscreenOnFirstPlayTap(); // THE-1142 S5b: the first Play tap of the session, straight from this click's own gesture
+    screens.renderSoloSheet(pickIds, humanSide, save.get().cpuLevel);
+    screens.showSoloSheet();
   },
+  setCpuLevel(level) { save.setCpuLevel(level); screens.renderSoloSheet(pickIds, humanSide, level); }, // THE-1142 S2: takes effect on the next solo match (cpuController is only (re)built there)
+  setSoloSide(side) { humanSide = side; save.setSoloSide(side); screens.renderSoloSheet(pickIds, humanSide, save.get().cpuLevel); }, // THE-1142 S3
+  soloGo() {
+    screens.hideSoloSheet();
+    solo = true;
+    const human = pickIds[humanSide];
+    const others = HEADS.filter((h) => h.id !== human);
+    const cpuHeadId = others[Math.floor(Math.random() * others.length)].id;
+    pickIds = humanSide === 0 ? [human, cpuHeadId] : [cpuHeadId, human];
+    diceSpinning = true;
+    diceSpinShownAt = performance.now();
+    renderPickScreen();
+    // Designer's number (DESIGN.md §11.2/§11.3): 1200ms, was 600; skippable after 400ms (skipDiceSpinIfDue).
+    scheduleTimer("soloDice", 1200, () => { if (screen === "pick") { diceSpinning = false; beginMatchFromPick(); } });
+  },
+  soloBack() { screens.hideSoloSheet(); },
   about(on = true) { toggleAbout(on); },
   toggleSound() { toggleMute(); },
+  toggleFullscreen() { doToggleFullscreen(); }, // THE-1142 S5b
   toggleReduceMotion() {
     const on = !fxCtrl.reduceMotion;
     setReduceMotion(on);
@@ -114,11 +137,14 @@ const screens = createScreens(appRoot, theme, {
   resume() { setPaused(false); },
   pauseToPick() { setPaused(false); setScreen("pick"); },
   _setIds(ids) { pickIds = [ids[0] || pickIds[0], ids[1] || pickIds[1]]; renderPickScreen(); },
-  share() { doShare(); },
-  replayAgain() { replayAgainFromResult(); },
+  share() { if (!resultInputBlocked()) doShare(); },
+  replayAgain() { if (!resultInputBlocked()) replayAgainFromResult(); },
 });
 const renderer = createRenderer(canvas);
-loadAtlas(HEADS).then((atlas) => { headAtlas = atlas; if (renderer) renderer.setAtlas(atlas.canvas); });
+// THE-1143 B2: the crowd sprites bake once at a fixed reference size (atlas.js's own head CELL, 256px),
+// independent of the court's on-screen scale -- same as heads, the renderer scales the drawn quad to
+// whatever size pushDistraction asks for, so there's no need to re-bake this on resize.
+loadAtlas(HEADS, bakeCrowd(256)).then((atlas) => { headAtlas = atlas; if (renderer) renderer.setAtlas(atlas.canvas); });
 let headAtlas = null;
 if (renderer) {
   renderer.setTier(tiersCtrl.tier);
@@ -127,7 +153,15 @@ if (renderer) {
 }
 canvas.addEventListener("webglcontextlost", () => setPaused(true));
 
-function renderPickScreen() { screens.renderPick(pickIds, pickReady, save.get().muted); }
+function renderPickScreen() { screens.renderPick(pickIds, pickReady, save.get().muted, solo && diceSpinning ? humanSide : null); }
+// A fresh tap/click/key, once the dice spin has shown for at least DICE_SPIN_MIN_SKIP_MS, starts the
+// match immediately instead of waiting out the rest of the spin (designer's number, DESIGN.md §11.2).
+function skipDiceSpinIfDue() {
+  if (!diceSpinning || performance.now() - diceSpinShownAt < DICE_SPIN_MIN_SKIP_MS) return;
+  clearTimer("soloDice");
+  diceSpinning = false;
+  beginMatchFromPick();
+}
 renderPickScreen();
 
 // --- About / pause sheets (skin.css .jm-scrim > .jm-towel.jm-sheet; built by screens.js) ---
@@ -148,8 +182,10 @@ function setPaused(on) {
     clearTimer("resume");
     screens.el.pauseSheet.hidden = false;
     screens.setPauseState(fxCtrl.reduceMotion, save.get().muted);
+    letSleep(); // THE-1142 S5b
   } else {
     screens.el.pauseSheet.hidden = true;
+    keepAwake(); // THE-1142 S5b: reacquired right on the resume tap, not after the 0.8s count below
     scheduleTimer("resume", C.SERVE_COUNT_S * 1000, () => {
       if (screen === "match" || screen === "swap") isPaused = false;
     });
@@ -171,9 +207,17 @@ function toggleMute() {
 }
 
 // --- Meme moments (G13): the megaphone banner overlay, built by screens.js. skin.css says remove it
-// on our own timer, never animationend (that event doesn't fire under reduce-motion). ---
-let momentHideAt = 0;
-const MOMENT_DURATION_MS = { smash: 700, comeback: 1200, matchPoint: 500 };
+// on our own timer, never animationend (that event doesn't fire under reduce-motion).
+// THE-1142 S4 (board note 4): held longer than before (placeholder numbers, pending the designer's),
+// and skippable -- a tap/click/key after MOMENT_MIN_SKIP_MS clears it early, via the timer registry
+// instead of a bare wall-clock compare in draw(). ---
+// Designer's numbers (DESIGN.md §11.3 / design/junkies-matkot/r1/recipe-r1.js HOLDS), landed on the
+// design branch (THE-1141) after this slice started with placeholders -- adopted here. Comeback has no
+// skip at all (it's a banner over live play, nothing is blocked by it).
+const MOMENT_DURATION_MS = { smash: 2200, comeback: 1800, matchPoint: 1500 };
+const MOMENT_MIN_SKIP_MS = { smash: 900, matchPoint: 600 }; // comeback: intentionally absent (no skip)
+let momentShownAt = -Infinity;
+let activeMomentType = null;
 function showMoment(fired) {
   const head = headById(fired.headId);
   if (!["smash", "comeback", "matchPoint"].includes(fired.type)) return;
@@ -183,7 +227,24 @@ function showMoment(fired) {
     image: head ? head.image : "",
     speedKmh: fired.speedKmh,
   });
-  momentHideAt = performance.now() + (MOMENT_DURATION_MS[fired.type] || 700);
+  momentShownAt = performance.now();
+  activeMomentType = fired.type;
+  screens.setSkipHintVisible(false);
+  scheduleTimer("moment", MOMENT_DURATION_MS[fired.type] || 700, () => { activeMomentType = null; screens.clearMoment(); screens.setSkipHintVisible(false); });
+  // THE-1141 DESIGN.md §11.3: the "נגיעה מדלגת" pill fades in once skip is actually allowed.
+  const minSkipMs = MOMENT_MIN_SKIP_MS[fired.type];
+  if (minSkipMs != null) scheduleTimer("skipHint", minSkipMs, () => screens.setSkipHintVisible(true, !isCoarsePointer()));
+}
+// A fresh tap/click/key, once the moment has shown for at least its type's minSkipMs, dismisses it
+// early. A type with no entry in MOMENT_MIN_SKIP_MS (comeback) can never be skipped.
+function skipMomentIfDue() {
+  const minSkipMs = activeMomentType && MOMENT_MIN_SKIP_MS[activeMomentType];
+  if (minSkipMs == null || performance.now() - momentShownAt < minSkipMs) return;
+  clearTimer("moment");
+  clearTimer("skipHint");
+  activeMomentType = null;
+  screens.clearMoment();
+  screens.setSkipHintVisible(false);
 }
 
 // --- Rotate screen (G21): phone portrait, or a coarse-pointer device in portrait (Δ4) ---
@@ -203,6 +264,66 @@ function updateRotateScreen() {
   if (shouldShow && (screen === "match" || screen === "swap")) setPaused(true);
 }
 window.addEventListener("resize", updateRotateScreen);
+
+// --- Full screen + wake lock (THE-1142 S5b, board note 7): copies the Junkies Pro pattern
+// (games/junkies-pro/js/game.js:1693 -- requestFullscreen/webkit fallback, a screen wake lock, an
+// orientation lock). THE-1143 N3 (CTO review): the automatic first-Play-tap request is still gated to
+// coarse pointers, like Junkies Pro's own immerse() (a mouse/keyboard user on desktop doesn't expect
+// their first click to suddenly take over the screen) -- but the *toggle button* stays available and
+// works on phone, tablet and desktop alike, so a desktop player can still choose full screen. ---
+function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+function requestFullscreen() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req || fsEl()) return;
+  try {
+    const p = req.call(el, { navigationUI: "hide" });
+    if (p && p.then) p.then(lockLandscape, () => {}); // a refusal is silent: the game goes on either way
+  } catch (e) {}
+}
+function lockLandscape() { try { screen.orientation.lock("landscape").catch(() => {}); } catch (e) {} }
+let firstPlayTapHandled = false;
+function requestFullscreenOnFirstPlayTap() {
+  if (firstPlayTapHandled || !isCoarsePointer()) return; // THE-1143 N3: automatic only on touch; the toggle button covers desktop
+  firstPlayTapHandled = true;
+  requestFullscreen();
+}
+function doToggleFullscreen() {
+  if (fsEl()) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) { try { exit.call(document); } catch (e) {} }
+  } else {
+    requestFullscreen();
+  }
+}
+function updateFullscreenButton() {
+  const supported = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+  screens.setFullscreenState(supported, !!fsEl());
+}
+document.addEventListener("fullscreenchange", updateFullscreenButton);
+document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
+updateFullscreenButton();
+
+let wakeLock = null;
+let wakeLockReleasePending = false; // THE-1143 N2: letSleep() called while a request() was still in flight
+function keepAwake() {
+  if (wakeLock || !navigator.wakeLock || document.hidden) return;
+  wakeLock = "asking";
+  wakeLockReleasePending = false;
+  navigator.wakeLock.request("screen").then(
+    (l) => {
+      if (wakeLockReleasePending) { wakeLockReleasePending = false; wakeLock = null; l.release().catch(() => {}); return; }
+      wakeLock = l;
+      l.addEventListener("release", () => { if (wakeLock === l) wakeLock = null; });
+    },
+    () => { wakeLock = null; wakeLockReleasePending = false; }
+  );
+}
+function letSleep() {
+  if (wakeLock === "asking") { wakeLockReleasePending = true; return; } // release once request() resolves, not before
+  if (wakeLock && wakeLock.release) wakeLock.release().catch(() => {});
+  wakeLock = null;
+}
 
 // --- PWA: install button + offline (sw.js registered after game:ready) ------
 let deferredInstallPrompt = null;
@@ -230,8 +351,15 @@ let keysState = Keys.createKeysState();
 let arbiterState = Arbiter.createArbiterState();
 const firstEverPointerId = { value: null };
 let resultActionTaken = false; // rematch/Space/Enter disables after the first press (spec §2)
+// THE-1142 S4/S6 (designer's number, DESIGN.md §11.3 recipe-r1.js HOLDS.resultInputGuardMs): the result
+// screen's buttons ignore presses for this long after it appears, so a mis-tap carried over from
+// dismissing the replay can't fire a result action by accident.
+const RESULT_INPUT_GUARD_MS = 700;
+let resultShownAt = -Infinity;
+function resultInputBlocked() { return screen === "result" && performance.now() - resultShownAt < RESULT_INPUT_GUARD_MS; }
 const squashHitAt = [-Infinity, -Infinity]; // performance.now() of each side's last hit (wall clock, render-only)
 const SQUASH_MS = 140;
+let lastBounceAt = -Infinity; // THE-1142 S1: performance.now() of the ball's last hit/wall/serve (wall clock, render-only bounce arc)
 let guideFaded = [true, true]; // M4: both already "faded" until the first match arms them
 let momentsSched = Moments.create();
 let maxTrailEver = [0, 0]; // the worst deficit each side has faced so far this match (G13 comeback detection)
@@ -303,6 +431,8 @@ function setScreen(name) {
   // match, which is the same match continuing: a resume count started during the swap must survive it,
   // or the match stays paused with the sheet already hidden (THE-1108 r2).
   clearAllTimers(screen === "swap" && name === "match" ? "resume" : null);
+  if (name !== "match") activeMomentType = null; // THE-1142 S4: its timer was just cleared above; screens.show() below hides the DOM overlay
+  if (name === "match") keepAwake(); else if (name !== "swap") letSleep(); // THE-1142 S5b: release on result/pick/replay, not mid-swap
   screen = name;
   screens.show(name === "swap" ? "match" : name); // swap reuses the match DOM, canvas-only transition
   if (name !== "match" && name !== "swap") { isPaused = false; screens.el.pauseSheet.hidden = true; }
@@ -318,14 +448,17 @@ function beginMatchFromPick() {
   headColor = {};
   headColor[headIds[0]] = theme.playerColors[0];
   headColor[headIds[1]] = theme.playerColors[1];
-  match = Sim.createMatch((seedParam || Date.now()) >>> 0);
+  match = Sim.createMatch((seedParam || Date.now()) >>> 0, { distractions: true }); // THE-1142 S5: real matches only, not the ?seed= / __pong.seed() test-hook path
   const armWait = isFirstMatchOfSession;
   if (armWait) { Sim.armFirstServeWait(match); isFirstMatchOfSession = false; }
   replayRec = Replay.attachRecorder(match, { firstServeWaitArmed: armWait });
   resetMoments();
   // M4: first match only. Solo has no guide on the CPU's side (it would never fade).
-  if (armWait) { guideFaded = [false, solo]; screens.showGuides(isCoarsePointer(), solo); }
-  if (solo) { cpuController = Cpu.create(1, createRng((match.seed ^ 0x9e3779b9) >>> 0)); cpuNowMs = 0; }
+  if (armWait) {
+    guideFaded = solo ? (humanSide === 0 ? [false, true] : [true, false]) : [false, false];
+    screens.showGuides(isCoarsePointer(), solo, humanSide);
+  }
+  if (solo) { cpuController = Cpu.create(1 - humanSide, createRng((match.seed ^ 0x9e3779b9) >>> 0), save.get().cpuLevel); cpuNowMs = 0; }
   else cpuController = null;
   setScreen("match");
 }
@@ -341,25 +474,25 @@ function startMatch(seed) { // test-hook entry (window.__pong.seed)
 }
 
 function doRematch() {
-  if (resultActionTaken) return;
+  if (resultActionTaken || resultInputBlocked()) return;
   resultActionTaken = true;
   setScreen("swap");
   scheduleTimer("swap", 400, () => {
     if (screen !== "swap") return; // the player backed out (pause -> title) before this fired
-    // Side-swap on rematch (G6) is a two-human "swap seats" cue; solo keeps the human on side 0
-    // (touch.js/keys.js hard-wire solo input to half 0) and just re-picks a fresh CPU opponent.
+    // Side-swap on rematch (G6) is a two-human "swap seats" cue; solo keeps the human on their chosen
+    // side (humanSide, THE-1142 S3) and just re-picks a fresh CPU opponent for the other side.
     if (!solo) headIds = [headIds[1], headIds[0]];
     pickIdsForMatch = headIds.slice(); // headColor map is untouched: colour follows the head across the swap
     save.setLastPicks(headIds);
-    match = Sim.createMatch((match.seed + 1) >>> 0);
+    match = Sim.createMatch((match.seed + 1) >>> 0, { distractions: true }); // THE-1142 S5
     replayRec = Replay.attachRecorder(match);
     resetMoments();
-    if (solo) { cpuController = Cpu.create(1, createRng((match.seed ^ 0x9e3779b9) >>> 0)); cpuNowMs = 0; }
+    if (solo) { cpuController = Cpu.create(1 - humanSide, createRng((match.seed ^ 0x9e3779b9) >>> 0), save.get().cpuLevel); cpuNowMs = 0; }
     setScreen("match");
   }); // 0.4s swap tween (A4/D2-3); rematch-to-serve stays well under 1s
 }
 screens.el.rematchBtn.addEventListener("click", doRematch);
-screens.el.changeHeadsBtn.addEventListener("click", () => setScreen("pick"));
+screens.el.changeHeadsBtn.addEventListener("click", () => { if (!resultInputBlocked()) setScreen("pick"); });
 
 // --- in-game replay (B1/G14/THE-774, THE-1117): the final point auto-plays once between matchEnd and
 // the result screen -- last REPLAY_MAX_SIM_S of sim time at 1x, then the last REPLAY_SLOWMO_LAST_S at
@@ -396,7 +529,7 @@ function replaySample(pb) {
     : pb.splitIndex + (pb.elapsedMs - pb.splitWallMs) / (tickMs / C.REPLAY_SLOWMO_SCALE);
   const idx = Math.max(0, Math.min(pb.trace.length - 1, Math.floor(tickIndex)));
   const f = pb.trace[idx];
-  return { ball: { x: f.x, y: f.y }, paddles: [f.paddles[0], f.paddles[1]] };
+  return { ball: { x: f.x, y: f.y }, paddles: [f.paddles[0], f.paddles[1]], distraction: f.distraction || null };
 }
 
 function replayAgainFromResult() {
@@ -410,6 +543,7 @@ function onMatchEnd() {
     save.addWin(headIds[match.winner]);
     screens.updateResult(match.winner, match.score, headIds);
     resultActionTaken = false;
+    resultShownAt = performance.now();
     setScreen("result");
     buildResultCard().then((canvas) => {
       if (canvas && screen === "result") screens.el.cardSlot.replaceChildren(canvas);
@@ -486,7 +620,7 @@ function pointerEventToTouchEvent(type, e) {
   return { type, id, x, y };
 }
 
-const touchCtx = () => ({ midlineX: C.COURT_W / 2, viewportH: window.innerHeight, solo });
+const touchCtx = () => ({ midlineX: C.COURT_W / 2, viewportH: window.innerHeight, solo, humanSide });
 
 function fadeGuideOnce(side) {
   if (guideFaded[side]) return;
@@ -495,11 +629,12 @@ function fadeGuideOnce(side) {
 }
 function onPointerDown(e) {
   if (screen !== "match") return;
+  skipMomentIfDue(); // THE-1142 S4: a fresh press also dismisses an on-screen moment early, past its minimum hold
   const te = pointerEventToTouchEvent("down", e);
   touchState = Touch.reduce(touchState, te, touchCtx());
-  const side = te.x < touchCtx().midlineX ? 0 : 1;
+  const side = solo ? humanSide : te.x < touchCtx().midlineX ? 0 : 1; // solo: touch.js routes every touch to humanSide regardless of x
   arbiterState = Arbiter.noteTouch(arbiterState, side);
-  fadeGuideOnce(solo ? 0 : side); // solo: touch.js maps both halves to side 0
+  fadeGuideOnce(side);
 }
 function onPointerMove(e) {
   if (screen !== "match") return;
@@ -520,23 +655,52 @@ window.addEventListener("pointercancel", onPointerCancel);
 // from before (a finger down before the match ended, carried into the replay) never fires a new
 // "pointerdown" for the same contact, so it can't skip -- only a fresh press can. Capture-phase and
 // window-wide so it catches a press anywhere, including on the `.jm-letterbox` overlay itself.
-window.addEventListener("pointerdown", () => { if (screen === "replay") finishReplay(); }, { capture: true });
+window.addEventListener("pointerdown", () => {
+  if (screen === "replay") finishReplay();
+  else if (screen === "pick" && diceSpinning) skipDiceSpinIfDue(); // THE-1141 DESIGN.md §11.2
+}, { capture: true });
 
 const LEFT_KEYS = new Set(["KeyW", "KeyS"]);
 const RIGHT_KEYS = new Set(["ArrowUp", "ArrowDown"]);
+// THE-1143 N1 (CTO review r2): in solo either pair drives the human, so both pairs are folded onto the
+// human's own pair right at the event -- keys.js, the arbiter and the guide then see one player only.
+const SOLO_KEY_CODES = [{ up: "KeyW", down: "KeyS" }, { up: "ArrowUp", down: "ArrowDown" }];
+function paddleKeyCode(code) {
+  if (!solo || !(LEFT_KEYS.has(code) || RIGHT_KEYS.has(code))) return code;
+  return SOLO_KEY_CODES[humanSide][code === "KeyW" || code === "ArrowUp" ? "up" : "down"];
+}
 // Keys auto-repeat while held (and a key can already be held when `replay` starts), so replay skip and
 // rematch only count a fresh press (`!e.repeat`) -- unlike pointerdown, a held keydown is not a one-shot.
 window.addEventListener("keydown", (e) => {
   if (screen === "match") {
-    if (LEFT_KEYS.has(e.code)) { keysState = Keys.onKey(keysState, e.code, true); arbiterState = Arbiter.noteKeys(arbiterState, 0); fadeGuideOnce(0); }
-    else if (RIGHT_KEYS.has(e.code)) { keysState = Keys.onKey(keysState, e.code, true); arbiterState = Arbiter.noteKeys(arbiterState, 1); fadeGuideOnce(1); }
+    if (!e.repeat) skipMomentIfDue(); // THE-1142 S4: a fresh key also dismisses an on-screen moment early, past its minimum hold
+    const code = paddleKeyCode(e.code);
+    if (LEFT_KEYS.has(code)) { keysState = Keys.onKey(keysState, code, true); arbiterState = Arbiter.noteKeys(arbiterState, 0); fadeGuideOnce(0); }
+    else if (RIGHT_KEYS.has(code)) { keysState = Keys.onKey(keysState, code, true); arbiterState = Arbiter.noteKeys(arbiterState, 1); fadeGuideOnce(1); }
     return;
   }
   if (screen === "replay") {
     if ((e.code === "Space" || e.code === "Enter") && !e.repeat) finishReplay();
     return;
   }
+  // THE-1141 DESIGN.md §11.2 keyboard contract for the solo sheet: ←/→ picks the side (physical),
+  // ↑/↓ the level, Enter = "יאללה!", Esc = "חזרה". The sheet is a modal overlay on top of the pick
+  // screen (screen is still "pick" while it's open), so this is checked ahead of that screen's own keys.
+  if (!screens.el.soloSheet.hidden) {
+    const tubeFocused = document.activeElement && document.activeElement.classList?.contains("jm-tube");
+    if (e.code === "ArrowLeft") screens.el.soloSideTubes[0].click();
+    else if (e.code === "ArrowRight") screens.el.soloSideTubes[1].click();
+    else if (e.code === "ArrowUp" || e.code === "ArrowDown") {
+      const levels = ["easy", "medium", "hard"];
+      const idx = levels.indexOf(save.get().cpuLevel);
+      const next = levels[(idx + (e.code === "ArrowUp" ? -1 : 1) + levels.length) % levels.length];
+      screens.el.soloLevelTubes.find((b) => b.dataset.level === next)?.click();
+    } else if (e.code === "Enter" && !tubeFocused) screens.el.soloGoBtn.click();
+    else if (e.code === "Escape") screens.el.soloBackBtn.click();
+    return;
+  }
   if (screen === "pick") {
+    if (diceSpinning) { if (!e.repeat) skipDiceSpinIfDue(); return; } // THE-1141 DESIGN.md §11.2
     // A1: the carousel keys (W/S/D, Up/Down/Left) keep working even while a centre tube has focus.
     // Enter is the one key a focused tube already handles itself (native button activation), so only
     // treat it as "both ready now" when nothing is focused, to avoid double-handling a tube's own Enter.
@@ -557,7 +721,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "Escape" && !screens.el.aboutSheet.hidden) toggleAbout(false);
 });
 window.addEventListener("keyup", (e) => {
-  if (LEFT_KEYS.has(e.code) || RIGHT_KEYS.has(e.code)) keysState = Keys.onKey(keysState, e.code, false);
+  if (LEFT_KEYS.has(e.code) || RIGHT_KEYS.has(e.code)) keysState = Keys.onKey(keysState, paddleKeyCode(e.code), false);
 });
 function cyclePick(side, dir) {
   const idx = HEADS.findIndex((h) => h.id === pickIds[side]);
@@ -621,23 +785,31 @@ function tick() {
   if (match && screen === "match" && !isPaused) {
     keysState = Keys.step(keysState, DT);
     const targets = Arbiter.resolve(arbiterState, touchState.targetY, keysState.y);
-    Sim.setInput(match, 0, targets[0]);
-    let target1 = targets[1];
-    if (solo && cpuController) {
+    const inputs = [targets[0], targets[1]];
+    if (solo && cpuController) { // THE-1142 S3: the human drives humanSide; the CPU takes the other index
+      const cpuSide = 1 - humanSide;
       const r = Cpu.update(cpuController, match, cpuNowMs);
       cpuController = r.cpu;
       cpuNowMs += DT * 1000;
-      target1 = cpuController.targetY;
+      inputs[cpuSide] = cpuController.targetY;
     }
-    Sim.setInput(match, 1, target1);
-    if (replayRec) Replay.recordTick(replayRec, [targets[0], target1]);
+    Sim.setInput(match, 0, inputs[0]);
+    Sim.setInput(match, 1, inputs[1]);
+    if (replayRec) Replay.recordTick(replayRec, inputs);
     Sim.step(match, DT);
-    if (match.state !== lastMatchState) { tiersCtrl = Tiers.notifyStateChange(tiersCtrl, performance.now()); lastMatchState = match.state; }
+    if (match.state !== lastMatchState) {
+      tiersCtrl = Tiers.notifyStateChange(tiersCtrl, performance.now());
+      if (match.state === "rally" && lastMatchState !== "rally") lastBounceAt = performance.now(); // serve launch: the ball takes off
+      lastMatchState = match.state;
+    }
     const momentCandidates = [];
     for (const ev of match.events) {
       if (ev.type === "hit") {
         squashHitAt[ev.side] = performance.now();
+        lastBounceAt = performance.now();
         audio.tok(match.rally);
+      } else if (ev.type === "wall") {
+        lastBounceAt = performance.now();
       } else if (ev.type === "point") {
         audio.whistle();
         const scorer = ev.scorer;
@@ -742,24 +914,93 @@ function pushHead(instances, side, cx, cy, scale, color, uv, opts = {}) {
 // THE-1119 M3: the ball -- cream fill, a plum outline that reads on bright sand, and a shadow that
 // gives it height. Heat-tinted fill (recipe.js COLORS.heat); the warm streak itself comes from the
 // trail-feedback buffer in render/gl.js (its decay is fixed to dt there), not from extra instances here.
-function pushBall(instances, bx, by, scale, heat) {
+function pushBall(instances, bx, by, scale, heat, heightNorm = 0) {
   const r = Math.max(BALL.minDrawPx, BALL.drawRU * scale);
   const heatColors = COLORS.heat[heat] || COLORS.heat[0];
-  instances.push({
-    x: bx + BALL.shadow.dxOfR * r, y: by + BALL.shadow.dyOfR * r,
-    w: BALL.shadow.rxOfR * r * 2, h: BALL.shadow.ryOfR * r * 2,
-    color: rgba(COLORS.shadow, BALL.shadow.alpha), shape: "circle",
-  });
-  if (heat === 2 && heatColors.glow) instances.push({ x: bx, y: by, w: BALL.glow.rOfR * r * 2, h: BALL.glow.rOfR * r * 2, color: rgba(heatColors.glow, 0.18), shape: "circle" });
-  const outlinePx = Math.max(BALL.outline.minPx, BALL.outline.ofR * r);
-  instances.push({ x: bx, y: by, w: (r + outlinePx) * 2, h: (r + outlinePx) * 2, color: hexToRgb(BALL.outline.color), shape: "circle" });
-  instances.push({ x: bx, y: by, w: r * 2, h: r * 2, color: hexToRgb(heatColors.ballMid), shape: "circle" });
-  instances.push({ x: bx + BALL.highlight.dxOfR * r, y: by + BALL.highlight.dyOfR * r, w: r * 0.7, h: r * 0.7, color: [1, 1, 1, 0.85], shape: "circle" });
+  // THE-1142 S1 (board note 5): the shadow sits at the ball's ground position (bx, by) and scales/
+  // fades/leans with heightNorm; the ball sprite itself is drawn lifted off it and a little larger, per
+  // shadowFor's liftOfR/ballScale. 3 GL layers approximate blur (DESIGN.md §11.4), the same trick
+  // pushHead's cast shadow already uses.
+  const sh = shadowFor(heightNorm);
+  const sx = bx + sh.dxOfR * r, sy = by + sh.dyOfR * r;
+  for (const layer of sh.layers) {
+    if (layer.alpha <= 0) continue;
+    instances.push({
+      x: sx, y: sy,
+      w: sh.rxOfR * r * 2 * layer.sizeMult, h: sh.ryOfR * r * 2 * layer.sizeMult,
+      color: rgba(COLORS.shadow, layer.alpha), shape: "circle",
+    });
+  }
+  const ballR = r * sh.ballScale;
+  const ballY = by - sh.liftOfR * r;
+  if (heat === 2 && heatColors.glow) instances.push({ x: bx, y: ballY, w: BALL.glow.rOfR * ballR * 2, h: BALL.glow.rOfR * ballR * 2, color: rgba(heatColors.glow, 0.18), shape: "circle" });
+  const outlinePx = Math.max(BALL.outline.minPx, BALL.outline.ofR * ballR);
+  instances.push({ x: bx, y: ballY, w: (ballR + outlinePx) * 2, h: (ballR + outlinePx) * 2, color: hexToRgb(BALL.outline.color), shape: "circle" });
+  instances.push({ x: bx, y: ballY, w: ballR * 2, h: ballR * 2, color: hexToRgb(heatColors.ballMid), shape: "circle" });
+  instances.push({ x: bx + BALL.highlight.dxOfR * ballR, y: ballY + BALL.highlight.dyOfR * ballR, w: ballR * 0.7, h: ballR * 0.7, color: [1, 1, 1, 0.85], shape: "circle" });
+}
+
+// THE-1143 B2: the designer's pre-baked crowd sprites (render/crowd.js, DESIGN.md §11.5), drawn from
+// the shared atlas like a head. "Main size" (the axis sizeOfD scales) is width for crab/gull, height
+// for seller/walker, matching crowd.js's own BOX aspect boxes. Foot point is bottom-centre (gull: its
+// centre), so the quad's drawn centre is offset up by half its height to plant the feet at the
+// distraction's actual (sim) ground position. A 2-frame walk/wing cycle ticks on CROWD[kind].frameMs,
+// wall-clock (cosmetic only, like the ball's bounce arc); the gull mirrors horizontally to fly left.
+const DISTRACTION_MAIN_AXIS = { crab: "w", seller: "h", walker: "h", gull: "w" };
+function pushDistraction(instances, d, scale, toPx) {
+  const kind = DISTRACTION_KIND[d.type] || "crab";
+  const recipe = CROWD[kind];
+  const [cx, cy] = toPx(d.x, d.y);
+  const frame = Math.floor(performance.now() / recipe.frameMs) % 2;
+  const uv = headAtlas ? headAtlas.crowdUvOf(kind, frame) : null;
+  const aspect = headAtlas ? headAtlas.crowdAspectOf(kind, frame) : 1;
+  const mainU = recipe.sizeOfD * HEAD.discU * scale; // world "main size" -> screen px
+  let drawW, drawH;
+  if (DISTRACTION_MAIN_AXIS[kind] === "w") { drawW = mainU; drawH = mainU / aspect; }
+  else { drawH = mainU; drawW = mainU * aspect; }
+  if (d.vx < 0) drawW = -drawW; // THE-1149: every sprite faces its direction of travel (negative width flips the quad, not the uv)
+
+  let centerY;
+  if (kind === "gull") {
+    // THE-1149 (DESIGN.md §11.5): the gull dives on a quadratic arc, lowest hN 0.4 at mid-court, and its
+    // shadow is the §11.4 ball shadow with r = 0.13 S. hN comes from crossing progress along x, so live
+    // play, replay samples and forceDistraction all draw it the same way.
+    const span = C.COURT_W + 2 * CROSS_MARGIN_U;
+    const p = Math.max(0, Math.min(1, (d.x + CROSS_MARGIN_U) / span));
+    const hN = 0.4 + 0.6 * (2 * p - 1) ** 2;
+    const r = 0.13 * mainU;
+    const sh = shadowFor(hN);
+    for (const layer of sh.layers) {
+      if (layer.alpha <= 0) continue;
+      instances.push({
+        x: cx + sh.dxOfR * r, y: cy + sh.dyOfR * r,
+        w: sh.rxOfR * r * 2 * layer.sizeMult, h: sh.ryOfR * r * 2 * layer.sizeMult,
+        color: rgba(COLORS.shadow, layer.alpha), shape: "circle",
+      });
+    }
+    centerY = cy - sh.liftOfR * r; // the gull's foot point is its centre
+  } else {
+    const sh = CROWD.shadow; // the flat ground pool under the feet
+    instances.push({
+      x: cx + sh.dxOfS * mainU, y: cy + sh.dyOfS * mainU,
+      w: sh.rxOfS * mainU * 2, h: sh.ryOfS * mainU * 2,
+      color: rgba(COLORS.shadow, sh.alpha), shape: "circle",
+    });
+    centerY = cy - Math.abs(drawH) / 2;
+  }
+  if (uv) instances.push({ x: cx, y: centerY, w: drawW, h: drawH, color: [1, 1, 1, 1], shape: "circle", uv });
+  else instances.push({ x: cx, y: centerY, w: Math.abs(drawW), h: Math.abs(drawH), color: hexToRgb(COLORS.plum), shape: "circle" }); // atlas not loaded yet: a flat placeholder disc
+}
+
+function ballHeightNorm(nowMs) {
+  const t = Math.min(1, (nowMs - lastBounceAt) / BALL.bounce.periodMs);
+  // DESIGN.md §11.4: the ball sits at CONTACT_HN (0.18), not fully on the sand, at every hit/serve --
+  // sin(pi*t) still runs 0 -> 1 -> 0 across one bounce, rescaled into [CONTACT_HN, 1].
+  return CONTACT_HN + (1 - CONTACT_HN) * Math.sin(Math.PI * t);
 }
 
 function draw(dt = 1 / 60) {
   if (!renderer) return;
-  if (performance.now() >= momentHideAt || screen !== "match") screens.clearMoment();
   const layout = computeLayout(canvas.width, canvas.height);
   const scale = layout.scale;
   const [shakeX, shakeY] = screen === "match" ? shakeOffset() : [0, 0];
@@ -777,8 +1018,11 @@ function draw(dt = 1 / 60) {
       pushHead(instances, side, hx, hy, scale * capsuleScale, colorForSide(side), uv, { sqx: sq.x, sqy: sq.y });
     }
     const [bx, by] = toPx(match.ball.x, match.ball.y);
-    pushBall(instances, bx, by, scale, heat);
-    screens.updateHud(match.score, match.rally, [headById(headIds[0])?.name || "", headById(headIds[1])?.name || ""]);
+    pushBall(instances, bx, by, scale, heat, ballHeightNorm(performance.now()));
+    if (match.distraction) pushDistraction(instances, match.distraction, scale, toPx);
+    // THE-1141 DESIGN.md §11.2: the "אתם" tag stays in the HUD until the first point ends.
+    const youSide = solo && match.score[0] + match.score[1] === 0 ? humanSide : null;
+    screens.updateHud(match.score, match.rally, [headById(headIds[0])?.name || "", headById(headIds[1])?.name || ""], youSide);
   } else if (replayPlayback && screen === "replay") {
     // B1: the same paddle/ball draw as live play, fed from the re-sim trace instead of `match` -- no
     // heat glow/rings (the trace doesn't carry heat) and capsuleScale is always 1 (big head isn't
@@ -791,6 +1035,7 @@ function draw(dt = 1 / 60) {
     }
     const [bx, by] = toPx(sample.ball.x, sample.ball.y);
     pushBall(instances, bx, by, scale, 0);
+    if (sample.distraction) pushDistraction(instances, sample.distraction, scale, toPx); // THE-1143 B1
   }
 
   const now = performance.now();
@@ -889,4 +1134,7 @@ window.__pong = {
   moments() { return momentsSched.log; },
   replay() { return match && replayRec ? Replay.resimulate(match.seed, replayRec) : null; },
   pendingTimerTags() { return [...activeTimers.keys()]; }, // test-only: B3's registry dedupe (THE-1117)
+  fireMoment(type, side = 0) { showMoment({ type, side, headId: headIds[side] }); }, // test-only: THE-1142 S4's hold/skip timing, bypassing the natural trigger condition
+  momentShowing() { return activeMomentType; }, // test-only: THE-1142 S4
+  forceDistraction(type, x, y, vx = 0) { if (match) match.distraction = { type, x, y, vx, r: 55, lifetimeLeft: 4, triggered: false }; }, // test-only: THE-1142 S5, bypassing the 20s onboarding gate; vx (THE-1149) sets the facing
 };
