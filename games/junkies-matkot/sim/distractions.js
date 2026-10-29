@@ -17,7 +17,13 @@ import { range } from "./rng.js";
 export const TYPES = ["crab", "seagull", "passerby"];
 
 const ONBOARDING_S = 20; // no distraction before this much total match time has elapsed
-const RALLY_TARGET_MIN_S = 20, RALLY_TARGET_MAX_S = 30; // placeholder, pending the designer's number
+// THE-1156 S3 (board note 3, "no distractions seen at all"): paced by *match* time across points now,
+// not accumulated *rally* seconds reset to 0 on every point end -- a match of short rallies (the common
+// case) almost never reached the old rally-time target before it was reset. First target still 20-30s;
+// every one after that is 20-40s (placeholder range, pending the designer's number).
+const FIRST_TARGET_MIN_S = 20, FIRST_TARGET_MAX_S = 30;
+const NEXT_TARGET_MIN_S = 20, NEXT_TARGET_MAX_S = 40;
+const RALLY_GRACE_S = 1; // a target due between points waits this long into the next rally, not the instant it starts
 export const CROSS_MARGIN_U = 80; // how far off-court the crossing starts/ends
 
 const LIFETIME_S = { crab: 4, seagull: 3, passerby: 5 };
@@ -90,7 +96,11 @@ export function step(match, dt) {
   }
 
   match.distractionMatchS += dt;
-  if (match.state === "rally") match.distractionRallyS += dt;
+
+  // Track when the current rally began (match-time), so a target that came due between points (during
+  // pointPause/serve) can wait for RALLY_GRACE_S into the new rally instead of firing the instant it starts.
+  if (match.state === "rally" && match.distractionPrevState !== "rally") match.distractionRallyStartS = match.distractionMatchS;
+  match.distractionPrevState = match.state;
 
   if (match.distraction) {
     const d = match.distraction;
@@ -99,8 +109,7 @@ export function step(match, dt) {
     if (!d.triggered && !match.distractionHold) applyEffect(match, d);
     if (d.lifetimeLeft <= 0) {
       match.distraction = null;
-      match.distractionRallyS = 0;
-      match.distractionNextTargetS = range(match.rng, RALLY_TARGET_MIN_S, RALLY_TARGET_MAX_S);
+      match.distractionNextAtS = match.distractionMatchS + range(match.rng, NEXT_TARGET_MIN_S, NEXT_TARGET_MAX_S);
     }
     return;
   }
@@ -108,7 +117,8 @@ export function step(match, dt) {
   if (match.distractionHold) return; // the ball is mid-snatch: no new spawn until it's released
   if (match.state !== "rally") return;
   if (match.distractionMatchS < ONBOARDING_S) return;
-  if (match.distractionRallyS < match.distractionNextTargetS) return;
+  if (match.distractionMatchS - match.distractionRallyStartS < RALLY_GRACE_S) return;
+  if (match.distractionMatchS < match.distractionNextAtS) return;
 
   const type = TYPES[Math.floor(match.rng() * TYPES.length)];
   match.distraction = spawn(match.rng, type);
@@ -116,19 +126,22 @@ export function step(match, dt) {
 }
 
 // Called when a point ends (sim.js's enterPointPause): an in-flight distraction doesn't carry into the
-// next point, and the rally-seconds clock restarts fresh for the next one.
+// next point. THE-1156 S3: the match-time pacing clock (distractionMatchS/distractionNextAtS) is NOT
+// reset here -- that was the bug (board note 3). A distraction cut short still re-arms a fresh future
+// target, the same way a naturally-finished one does, so the cadence isn't lost either way.
 export function onPointEnd(match) {
+  if (match.distraction) match.distractionNextAtS = match.distractionMatchS + range(match.rng, NEXT_TARGET_MIN_S, NEXT_TARGET_MAX_S);
   match.distraction = null;
   match.distractionHold = null;
-  match.distractionRallyS = 0;
 }
 
 export function initialState(rng) {
   return {
     distraction: null,
     distractionHold: null,
-    distractionRallyS: 0,
     distractionMatchS: 0,
-    distractionNextTargetS: range(rng, RALLY_TARGET_MIN_S, RALLY_TARGET_MAX_S),
+    distractionNextAtS: range(rng, FIRST_TARGET_MIN_S, FIRST_TARGET_MAX_S),
+    distractionRallyStartS: -Infinity,
+    distractionPrevState: null,
   };
 }

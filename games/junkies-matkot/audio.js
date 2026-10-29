@@ -64,6 +64,23 @@ export function createAudio() {
     osc.stop(now + 0.26);
   }
 
+  // THE-1156 S4 (DESIGN.md §12.3): the point moment's 2nd whistle blast, scheduled by the caller at +0.28s.
+  function whistle2() {
+    if (muted) return;
+    const c = getCtx();
+    const now = c.currentTime;
+    const osc = c.createOscillator();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(2100, now);
+    osc.frequency.linearRampToValueAtTime(2400, now + 0.3);
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    osc.connect(gain).connect(c.destination);
+    osc.start(now);
+    osc.stop(now + 0.31);
+  }
+
   function drumroll() {
     if (muted) return;
     const c = getCtx();
@@ -82,5 +99,5 @@ export function createAudio() {
 
   function setMuted(on) { muted = !!on; }
 
-  return { tok, whistle, drumroll, setMuted };
+  return { tok, whistle, whistle2, drumroll, setMuted };
 }

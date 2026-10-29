@@ -28,6 +28,7 @@ import { createRng } from "./sim/rng.js";
 import * as Replay from "./sim/replay.js";
 import { CROSS_MARGIN_U } from "./sim/distractions.js";
 import { shadowFor, CONTACT_HN } from "./render/shadow.js";
+import * as Arc from "./render/arc.js";
 
 const theme = window.THEME;
 document.title = theme.title;
@@ -359,7 +360,24 @@ let resultShownAt = -Infinity;
 function resultInputBlocked() { return screen === "result" && performance.now() - resultShownAt < RESULT_INPUT_GUARD_MS; }
 const squashHitAt = [-Infinity, -Infinity]; // performance.now() of each side's last hit (wall clock, render-only)
 const SQUASH_MS = 140;
-let lastBounceAt = -Infinity; // THE-1142 S1: performance.now() of the ball's last hit/wall/serve (wall clock, render-only bounce arc)
+// THE-1156 S2 (board note 2): one height arc per paddle-to-paddle flight, started at the serve launch or
+// a hit (never a wall bounce -- a wall only flips vy, not vx, so the flight's duration doesn't change).
+let flightStartAt = -Infinity; // performance.now() the current flight began
+let flightMs = 0; // that flight's total duration, computed once at flightStartAt
+let wasDistractionHeld = false; // tracks the distractionHold edge, so a seagull release starts a new flight
+
+// THE-1162 (DESIGN.md §12.5): the crowd entry bubble, shown once per distraction's crossing of x 150-1450 u.
+const BUBBLE_ENTER_X_MIN = 150, BUBBLE_ENTER_X_MAX = 1450;
+const BUBBLE_MS = 1600, BUBBLE_OUT_MS = 200; // tokens.css --jm-t-bubble; .is-out for the last BUBBLE_OUT_MS
+const BUBBLE_TEXT = { crab: "סליחה, רק עובר!", gull: "יש ציפס?", seller: "ארטיק! ארטיק!" };
+let bubbleShownFor = null; // the match.distraction instance already given its entry bubble (edge-trigger, once per spawn)
+let activeBubbleDistraction = null; // the distraction instance the on-screen bubble is following, for the per-frame position update in draw()
+function startFlight(nowMs) {
+  flightStartAt = nowMs;
+  const vx = match.ball.vx;
+  const targetX = vx >= 0 ? C.FRONT_FACE_X[1] : C.FRONT_FACE_X[0];
+  flightMs = Arc.flightDurationMs(match.ball.x, targetX, vx);
+}
 let guideFaded = [true, true]; // M4: both already "faded" until the first match arms them
 let momentsSched = Moments.create();
 let maxTrailEver = [0, 0]; // the worst deficit each side has faced so far this match (G13 comeback detection)
@@ -432,6 +450,10 @@ function setScreen(name) {
   // or the match stays paused with the sheet already hidden (THE-1108 r2).
   clearAllTimers(screen === "swap" && name === "match" ? "resume" : null);
   if (name !== "match") activeMomentType = null; // THE-1142 S4: its timer was just cleared above; screens.show() below hides the DOM overlay
+  // THE-1157 r1 fix: clearAllTimers() above cancels the point/teach/bubble clear timers without removing
+  // the DOM nodes they were going to remove -- a stale .jm-point/.jm-teach/.jm-bubble otherwise survives
+  // into the next match. screens.show() doesn't touch .jm-hud's children, so this has to be explicit.
+  if (name !== "match") { screens.clearPointMoment(); screens.clearTeachBanner(); screens.clearBubble(); activeBubbleDistraction = null; }
   if (name === "match") keepAwake(); else if (name !== "swap") letSleep(); // THE-1142 S5b: release on result/pick/replay, not mid-swap
   screen = name;
   screens.show(name === "swap" ? "match" : name); // swap reuses the match DOM, canvas-only transition
@@ -457,6 +479,9 @@ function beginMatchFromPick() {
   if (armWait) {
     guideFaded = solo ? (humanSide === 0 ? [false, true] : [true, false]) : [false, false];
     screens.showGuides(isCoarsePointer(), solo, humanSide);
+    // THE-1156 S4 (board note 4, DESIGN.md §12.4): the first-serve teaching banner, same one-time flag.
+    screens.showTeachBanner();
+    scheduleTimer("teach-banner-clear", 3500, () => screens.clearTeachBanner());
   }
   if (solo) { cpuController = Cpu.create(1 - humanSide, createRng((match.seed ^ 0x9e3779b9) >>> 0), save.get().cpuLevel); cpuNowMs = 0; }
   else cpuController = null;
@@ -748,7 +773,7 @@ function updateBackdrop(w, h) {
   if (!backdropCanvas) backdropCanvas = document.createElement("canvas");
   backdropCanvas.width = w;
   backdropCanvas.height = h;
-  paintBackdrop(backdropCanvas.getContext("2d"), computeLayout(w, h));
+  paintBackdrop(backdropCanvas.getContext("2d"), computeLayout(w, h), { playerColors: theme.playerColors });
   renderer.setBackground(backdropCanvas);
 }
 
@@ -799,20 +824,54 @@ function tick() {
     Sim.step(match, DT);
     if (match.state !== lastMatchState) {
       tiersCtrl = Tiers.notifyStateChange(tiersCtrl, performance.now());
-      if (match.state === "rally" && lastMatchState !== "rally") lastBounceAt = performance.now(); // serve launch: the ball takes off
+      if (match.state === "rally" && lastMatchState !== "rally") startFlight(performance.now()); // serve launch: the ball takes off
       lastMatchState = match.state;
+    }
+    // THE-1156 S4 (DESIGN.md §12.1 restarts): a seagull release hands the ball a new velocity mid-air --
+    // a new flight starts from here, same as a hit. A crab only flips vy (no restart, same flight).
+    if (wasDistractionHeld && !match.distractionHold) startFlight(performance.now());
+    wasDistractionHeld = !!match.distractionHold;
+    // THE-1162 (DESIGN.md §12.5): the entry bubble, once per spawn, the first tick its foot point is
+    // inside x 150-1450 u. bubbleShownFor edge-triggers on the distraction object's identity, so a new
+    // spawn (a different object) always gets its own chance even if an old reference is stale.
+    if (match.distraction && match.distraction !== bubbleShownFor &&
+        match.distraction.x >= BUBBLE_ENTER_X_MIN && match.distraction.x <= BUBBLE_ENTER_X_MAX) {
+      bubbleShownFor = match.distraction;
+      activeBubbleDistraction = match.distraction;
+      const { kind, x, y, below } = distractionBubblePlacement(match.distraction);
+      screens.showBubble(BUBBLE_TEXT[kind] || "", x, y, below);
+      scheduleTimer("bubble-out", BUBBLE_MS - BUBBLE_OUT_MS, () => screens.setBubbleOut());
+      scheduleTimer("bubble-clear", BUBBLE_MS, () => { screens.clearBubble(); activeBubbleDistraction = null; });
     }
     const momentCandidates = [];
     for (const ev of match.events) {
-      if (ev.type === "hit") {
+      if (ev.type === "distractionHit" && ev.kind === "passerby") {
+        startFlight(performance.now()); // a block reverses vx: a new flight, same as a hit
+      } else if (ev.type === "hit") {
         squashHitAt[ev.side] = performance.now();
-        lastBounceAt = performance.now();
+        startFlight(performance.now()); // THE-1156 S2: a new flight starts at every hit, not a wall bounce
         audio.tok(match.rally);
-      } else if (ev.type === "wall") {
-        lastBounceAt = performance.now();
       } else if (ev.type === "point") {
         audio.whistle();
         const scorer = ev.scorer;
+        // THE-1156 S4 (board note 4, DESIGN.md §12.3): the "point!" moment. No sign on a smash point --
+        // the smash takeover is that point's moment already. The 2nd whistle blast still plays either way.
+        scheduleTimer("point-whistle2", 280, () => audio.whistle2());
+        if (!ev.smash) {
+          const conceder = 1 - scorer;
+          // THE-1157 r1 fix: canvas.width/height are the backing-buffer px (device px at DPR > 1);
+          // computeLayout wants CSS px, same as the --x/--y the DOM element actually renders at.
+          const rect = canvas.getBoundingClientRect();
+          const layout = computeLayout(rect.width, rect.height);
+          const lineX = conceder === 0 ? layout.l : layout.r;
+          const inward = conceder === 0 ? 1 : -1;
+          const signX = lineX + inward * 0.17 * layout.cw;
+          const crossY = Math.max(C.COURT_H * 0.22, Math.min(C.COURT_H * 0.78, match.ball.y));
+          const signY = layout.t + crossY * layout.scale;
+          const scorerHead = headById(headIds[scorer]);
+          screens.showPointMoment(signX, signY, scorer, scorerHead ? scorerHead.name : "");
+          scheduleTimer("point-moment-clear", 1100, () => screens.clearPointMoment());
+        }
         if (ev.smash) { shakeAt.t = performance.now(); shakeAt.context = "play"; }
         // G13 comeback: the score is tied right now, and this scorer trailed by >= 3 at some
         // earlier point this match (not necessarily this one). Checked before the tracker updates.
@@ -992,11 +1051,45 @@ function pushDistraction(instances, d, scale, toPx) {
   else instances.push({ x: cx, y: centerY, w: Math.abs(drawW), h: Math.abs(drawH), color: hexToRgb(COLORS.plum), shape: "circle" }); // atlas not loaded yet: a flat placeholder disc
 }
 
+// THE-1162 (DESIGN.md §12.5): the crowd entry bubble's anchor, in CSS px -- same reasoning as the F1
+// point-sign fix (THE-1157): the .jm-bubble DOM node needs CSS px, not the canvas's backing-buffer
+// scale, so this recomputes the layout from the canvas's CSS rect rather than draw()'s device-space one.
+function distractionAnchorCss(d) {
+  const rect = canvas.getBoundingClientRect();
+  const layout = computeLayout(rect.width, rect.height);
+  const [cx, cy] = [layout.courtX + d.x * layout.scale, layout.courtY + d.y * layout.scale];
+  const kind = DISTRACTION_KIND[d.type] || "crab";
+  const recipe = CROWD[kind];
+  const aspect = headAtlas ? headAtlas.crowdAspectOf(kind, 0) : 1;
+  const mainU = recipe.sizeOfD * HEAD.discU * layout.scale;
+  const drawH = DISTRACTION_MAIN_AXIS[kind] === "w" ? mainU / aspect : mainU;
+  let centerY;
+  if (kind === "gull") {
+    const span = C.COURT_W + 2 * CROSS_MARGIN_U;
+    const p = Math.max(0, Math.min(1, (d.x + CROSS_MARGIN_U) / span));
+    const hN = 0.4 + 0.6 * (2 * p - 1) ** 2;
+    centerY = cy - shadowFor(hN).liftOfR * 0.13 * mainU;
+  } else {
+    centerY = cy - Math.abs(drawH) / 2;
+  }
+  return { kind, x: cx, top: centerY - Math.abs(drawH) / 2, bottom: centerY + Math.abs(drawH) / 2, layout };
+}
+
+// DESIGN.md §12.5 clamp: 8 px in from the court's sides, its top >= the court top + 4 px; if that would
+// put the bubble on the sprite (a low-flying gull near the top wall), flip to .jm-bubble--below instead.
+function distractionBubblePlacement(d) {
+  const { kind, x, top, bottom, layout } = distractionAnchorCss(d);
+  const marginTop = layout.t + 4;
+  const cx = Math.max(layout.l + 8, Math.min(layout.r - 8, x));
+  let y = top - 6, below = false;
+  if (y < marginTop) { below = true; y = Math.max(marginTop, bottom + 6); }
+  return { kind, x: cx, y, below };
+}
+
 function ballHeightNorm(nowMs) {
-  const t = Math.min(1, (nowMs - lastBounceAt) / BALL.bounce.periodMs);
-  // DESIGN.md §11.4: the ball sits at CONTACT_HN (0.18), not fully on the sand, at every hit/serve --
-  // sin(pi*t) still runs 0 -> 1 -> 0 across one bounce, rescaled into [CONTACT_HN, 1].
-  return CONTACT_HN + (1 - CONTACT_HN) * Math.sin(Math.PI * t);
+  // THE-1156 S2: one arc for the whole current paddle-to-paddle flight (render/arc.js), started at
+  // startFlight() on serve launch or a hit -- a wall bounce never touches flightStartAt/flightMs.
+  return Arc.flightHeightNorm(nowMs - flightStartAt, flightMs, CONTACT_HN);
 }
 
 function draw(dt = 1 / 60) {
@@ -1020,6 +1113,12 @@ function draw(dt = 1 / 60) {
     const [bx, by] = toPx(match.ball.x, match.ball.y);
     pushBall(instances, bx, by, scale, heat, ballHeightNorm(performance.now()));
     if (match.distraction) pushDistraction(instances, match.distraction, scale, toPx);
+    // THE-1162: the entry bubble follows its distraction every frame while it's up (the sprite keeps
+    // moving); it stops once that distraction's own clear timer removes the bubble (activeBubbleDistraction = null).
+    if (activeBubbleDistraction && match.distraction === activeBubbleDistraction) {
+      const { x, y, below } = distractionBubblePlacement(activeBubbleDistraction);
+      screens.updateBubblePosition(x, y, below);
+    }
     // THE-1141 DESIGN.md §11.2: the "אתם" tag stays in the HUD until the first point ends.
     const youSide = solo && match.score[0] + match.score[1] === 0 ? humanSide : null;
     screens.updateHud(match.score, match.rally, [headById(headIds[0])?.name || "", headById(headIds[1])?.name || ""], youSide);
@@ -1093,9 +1192,41 @@ window.dispatchEvent(new CustomEvent("game:ready"));
 // PWA offline (G18): sw.js is generated by `node tools/sw-build.mjs junkies-matkot`, registered only
 // after the game itself is interactive (true at this point, right after first paint) so a slow
 // install can't block the first paint.
+// THE-1156 S5 (board note: version row + update reload): same pattern as games/all-in-chomp/register-
+// sw.js + game.js buildVersion. A published update's sw.js claims the page immediately, but this page's
+// already-running files are stale -- reload once, only between games (pick/result), never mid-match.
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(() => {});
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController) return; // first install: nothing stale on screen
+    reloadBetweenGames();
+  });
 }
+function reloadBetweenGames() {
+  if (screen === "pick" || screen === "result") location.reload();
+  else setTimeout(reloadBetweenGames, 2000);
+}
+
+// DESIGN.md §12.6: "גרסה <hash>" in the About sheet, the first 8 chars of the cache's version hash
+// ("פיתוח" with no cache, e.g. local dev over file:// or before the first install completes).
+// THE-1157 r1 (non-blocking): sw.js's own CACHE_VERSION is the authoritative "what should be running"
+// answer -- if that exact entry is actually in Cache Storage, show it; a stale leftover cache key from a
+// prior version (not yet purged) must not shadow it.
+const buildVersion = (async () => {
+  let swVersion = null;
+  try {
+    const m = (await (await fetch("sw.js", { cache: "no-store" })).text()).match(/CACHE_VERSION = 'junkies-matkot-([0-9a-f]+)'/);
+    swVersion = m ? m[1] : null;
+  } catch {} // sw.js unreachable (file://, offline before first load)
+  try {
+    const keys = (await caches.keys()).filter((k) => k.startsWith("junkies-matkot-"));
+    if (swVersion && keys.includes(`junkies-matkot-${swVersion}`)) return swVersion;
+    if (keys.length) return keys[0].slice("junkies-matkot-".length);
+  } catch {} // no Cache Storage (file://, private modes)
+  return swVersion;
+})();
+buildVersion.then((v) => screens.setVersion(v ? v.slice(0, 8) : "פיתוח"));
 
 // The test hook. Headless gates import sim/ directly; this hook is for browser/Playwright checks.
 window.__pong = {
@@ -1137,4 +1268,5 @@ window.__pong = {
   fireMoment(type, side = 0) { showMoment({ type, side, headId: headIds[side] }); }, // test-only: THE-1142 S4's hold/skip timing, bypassing the natural trigger condition
   momentShowing() { return activeMomentType; }, // test-only: THE-1142 S4
   forceDistraction(type, x, y, vx = 0) { if (match) match.distraction = { type, x, y, vx, r: 55, lifetimeLeft: 4, triggered: false }; }, // test-only: THE-1142 S5, bypassing the 20s onboarding gate; vx (THE-1149) sets the facing
+  heightNorm() { return ballHeightNorm(performance.now()); }, // test-only: THE-1156 S2, so a shots/QA script can poll the current flight's arc instead of guessing a wall-clock delay
 };

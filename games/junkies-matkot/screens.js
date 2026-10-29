@@ -162,6 +162,7 @@ export function createScreens(root, theme, callbacks = {}) {
         <button class="jm-tube" data-level="hard" aria-pressed="false">אלוף החוף<span class="jm-seg__plain">קשה</span></button>
       </div>
     </div>
+    <p class="jm-sheet__fine">כדור שעובר את הקו שלכם = נקודה למחשב · הראשון ל-7 לוקח</p>
     <div class="jm-sheet__actions"><button class="jm-tube jm-tube--big jm-soloGo">יאללה!</button><button class="jm-tube jm-tube--cream jm-tube--small jm-soloBack">חזרה</button></div>
   </div></div>`);
   const soloSheetScrim = soloSheet; // the scrim itself is the outer element
@@ -256,6 +257,51 @@ export function createScreens(root, theme, callbacks = {}) {
   }
   function clearMoment() { for (const el of memeLayer.children) el.remove(); }
 
+  // THE-1156 S4 (board note 4, DESIGN.md §12.3): the "point!" moment, on the sim's "point" event. Lives
+  // in .jm-hud per the designer's spec; the game removes it on a timer (--jm-t-point, 1100ms), never on
+  // animationend. x/y are CSS px, already computed by the caller (the crossing point on the conceder's line).
+  function showPointMoment(x, y, side, whoName) {
+    clearPointMoment();
+    const el = h(`<div class="jm-point jm-point--p${side === 0 ? 1 : 2}" style="--x:${x}px;--y:${y}px">
+      <span class="jm-point__word jm-sign">נקודה!</span>
+      <span class="jm-point__who">ל<bdi></bdi></span>
+    </div>`);
+    el.querySelector(".jm-point__who bdi").textContent = whoName || "";
+    hud.appendChild(el);
+  }
+  function clearPointMoment() { for (const el of hud.querySelectorAll(".jm-point")) el.remove(); }
+
+  // THE-1162 (DESIGN.md §12.5): a crowd entry speech bubble, shown once per distraction crossing the
+  // court's interior band. Lives in .jm-hud, same timer-not-animationend removal rule as showPointMoment
+  // above. x/y are CSS px, set by the caller each frame while the bubble is up (the sprite keeps moving).
+  function showBubble(text, x, y, below) {
+    clearBubble();
+    const el = h(`<div class="jm-bubble${below ? " jm-bubble--below" : ""}" style="--x:${x}px;--y:${y}px"></div>`);
+    el.textContent = text;
+    hud.appendChild(el);
+  }
+  function updateBubblePosition(x, y, below) {
+    const el = hud.querySelector(".jm-bubble");
+    if (!el) return;
+    el.style.setProperty("--x", `${x}px`);
+    el.style.setProperty("--y", `${y}px`);
+    el.classList.toggle("jm-bubble--below", !!below);
+  }
+  function setBubbleOut() { hud.querySelector(".jm-bubble")?.classList.add("is-out"); }
+  function clearBubble() { for (const el of hud.querySelectorAll(".jm-bubble")) el.remove(); }
+
+  // THE-1156 S4 (board note 4, DESIGN.md §12.4): the first-serve teaching banner, shown once per device
+  // (the same flag as the first-match guides). The game removes it on a timer (--jm-t-teach + 300ms).
+  function showTeachBanner() {
+    if (hud.querySelector(".jm-teach")) return;
+    const el = h(`<div class="jm-teach"><div class="jm-megaphone"><span class="jm-megaphone__text">
+      <span class="jm-teach__big">מחזירים עם המטקה!</span>
+      <span class="jm-teach__small">כדור שעובר את הקו שלכם = נקודה לצד השני</span>
+    </span></div></div>`);
+    hud.appendChild(el);
+  }
+  function clearTeachBanner() { for (const el of hud.querySelectorAll(".jm-teach")) el.remove(); }
+
   // THE-1141 DESIGN.md §11.3: a "נגיעה מדלגת" pill fades in once a moment becomes skippable (keyboard-
   // only devices read "כל מקש מדלג" instead).
   const skipHint = h(`<div class="jm-skip-hint" hidden>נגיעה מדלגת</div>`);
@@ -314,8 +360,11 @@ export function createScreens(root, theme, callbacks = {}) {
     <div class="jm-sheet__row"><span>צליל</span><button class="jm-toggle jm-aboutSound" role="switch" aria-checked="true" aria-label="צליל"></button></div>
     <div class="jm-sheet__row"><span>הפחתת תנועה<small>בלי רעידות, הבזקים וגלים</small></span><button class="jm-toggle jm-aboutReduceMotion" role="switch" aria-checked="false" aria-label="הפחתת תנועה"></button></div>
     <p class="jm-sheet__fine">משחק של <bdi>The Game Company</bdi> לג'אנקיס. הפרצופים באישור החבר'ה, למשחק הזה בלבד. גופנים: <bdi>Secular One</bdi>, <bdi>Varela Round</bdi> (<bdi>OFL</bdi>).</p>
+    <p class="jm-sheet__version">גרסה <bdi></bdi></p>
     <div class="jm-sheet__actions"><button class="jm-tube jm-aboutClose">חזרה למשחק</button><button class="jm-tube jm-tube--cream jm-tube--small jm-install2" hidden>התקנה</button></div>
   </div></div>`);
+  const versionBdi = aboutSheet.querySelector(".jm-sheet__version bdi");
+  function setVersion(text) { versionBdi.textContent = text; }
   aboutSheet.querySelector(".jm-aboutClose").addEventListener("click", () => cb("about", false));
   aboutSheet.querySelector(".jm-aboutSound").addEventListener("click", () => cb("toggleSound"));
   const aboutReduceMotionToggle = aboutSheet.querySelector(".jm-aboutReduceMotion");
@@ -401,6 +450,15 @@ export function createScreens(root, theme, callbacks = {}) {
     setCpuHalf,
     showMoment,
     clearMoment,
+    showPointMoment,
+    clearPointMoment,
+    showBubble,
+    updateBubblePosition,
+    setBubbleOut,
+    clearBubble,
+    showTeachBanner,
+    clearTeachBanner,
+    setVersion,
     setPauseState,
     showGuides,
     fadeGuide,

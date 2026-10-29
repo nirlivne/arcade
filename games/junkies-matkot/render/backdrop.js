@@ -71,6 +71,54 @@ function drawBuoyRope(ctx, W, floorY, u) {
   ctx.restore();
 }
 
+function hexRgba(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+// THE-1156 S4 (board note 4, DESIGN.md §12.2): the goal line is the court-side edge of each player's
+// beach towel -- baked into the backdrop (so it reads under every per-frame GL instance: heads, shadows,
+// crowd, ball shadow), at the sim's actual scoring line (court x = 0 / C.COURT_W). A simplified first
+// pass: the colour/cream/gold/hairline/wash bands and the cream stitch are drawn; the fringe ticks and
+// the pennant flags from §12.2 are not yet (follow-up -- the bands alone make the line legible, which is
+// the board's actual complaint).
+//
+// Bands are specified as [x0, x1] in court units measured from the court edge outward (x0 < x1 <= 0,
+// e.g. the stitch is [-4, 0]). For the left line that maps directly to canvas x = l + x*k; the right
+// line mirrors it, canvas x = r - x*k (so a more-negative x0 still lands further off-court).
+function goalBandRect(l, r, side, x0, x1, k) {
+  return side === 0 ? [l + x0 * k, (x1 - x0) * k] : [r - x1 * k, (x1 - x0) * k];
+}
+
+// THE-1157 r1 (non-blocking): colours come from the caller's theme.playerColors (COLORS.p1/p2 as the
+// fallback for callers that don't pass any, e.g. a themed re-skin shouldn't leave the goal line reading
+// the wrong side's colour), not hardcoded hex.
+function drawGoalLine(ctx, layout, playerColors) {
+  const { l, r, t, b, scale: k } = layout;
+  const y0 = t - 6 * k, y1 = b + 6 * k, h = y1 - y0;
+  for (const side of [0, 1]) {
+    const playerColor = playerColors[side];
+    let [x, w] = goalBandRect(l, r, side, -300, -46, k);
+    ctx.fillStyle = hexRgba("#FFF4E0", 0.16); ctx.fillRect(x, y0, w, h); // towel body wash
+    [x, w] = goalBandRect(l, r, side, -46, -44, k);
+    ctx.fillStyle = hexRgba("#2A1638", 0.45); ctx.fillRect(x, y0, w, h); // plum hairline
+    [x, w] = goalBandRect(l, r, side, -44, -32, k);
+    ctx.fillStyle = hexRgba("#FFC25A", 0.9); ctx.fillRect(x, y0, w, h); // gold stripe
+    [x, w] = goalBandRect(l, r, side, -32, -26, k);
+    ctx.fillStyle = hexRgba("#FFF4E0", 0.85); ctx.fillRect(x, y0, w, h); // towel cream
+    [x, w] = goalBandRect(l, r, side, -26, -4, k);
+    ctx.fillStyle = hexRgba(playerColor, 0.9); ctx.fillRect(x, y0, w, h); // player colour
+    [x, w] = goalBandRect(l, r, side, -4, 0, k);
+    ctx.save();
+    ctx.strokeStyle = hexRgba("#FFF6E2", 0.9);
+    ctx.lineWidth = w;
+    ctx.lineCap = "butt";
+    ctx.setLineDash([16 * k, 10 * k]); // the cream stitch
+    ctx.beginPath(); ctx.moveTo(x + w / 2, y0); ctx.lineTo(x + w / 2, y1); ctx.stroke();
+    ctx.restore();
+  }
+}
+
 // layout: computeLayout()'s return value (render/layout.js). Draws the full world into `ctx` at
 // layout.W x layout.H (the GL canvas's own backing resolution, so it reads crisp at any DPR).
 // opts.heelLine = false skips the half-court groove (M5 share-card photo, recipe.js CARD.photo.world).
@@ -152,6 +200,8 @@ export function paintBackdrop(ctx, layout, opts = {}) {
 
   // 11) heel line (half-court groove), court only
   if (opts.heelLine !== false) drawHeelLine(ctx, W / 2, t + 3 * k, b - 2 * k, k);
+  // 11b) goal lines (THE-1156 S4, board note 4, DESIGN.md §12.2), under every per-frame GL instance
+  if (opts.heelLine !== false) drawGoalLine(ctx, layout, opts.playerColors || [COLORS.p1, COLORS.p2]);
   // 12) foam, top wall, full width
   drawFoam(ctx, W, t, k);
   // 13) float rope, bottom band, full width

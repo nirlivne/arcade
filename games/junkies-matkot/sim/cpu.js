@@ -52,12 +52,41 @@ function sampleAt(history, t) {
   if (!history.length) return null;
   let best = history[0];
   for (const h of history) if (Math.abs(h.t - t) < Math.abs(best.t - t)) best = h;
-  return best.y;
+  return best;
+}
+
+// Reflects a raw (unfolded) straight-line y into [lo, hi] the way the ball itself bounces off the top
+// and bottom walls -- a triangle wave, so any number of reflections folds back in one shot.
+function fold(y, lo, hi) {
+  if (hi <= lo) return lo;
+  const range = hi - lo;
+  const period = 2 * range;
+  let t = (y - lo) % period;
+  if (t < 0) t += period;
+  if (t > range) t = period - t;
+  return lo + t;
+}
+
+// THE-1156 S1 (board note 1): where the ball will cross the paddle line (paddleX) if it travels in a
+// straight line from `ball` {x,y,vx,vy} and reflects off the top/bottom walls along the way, folded into
+// the court's y envelope [ballR, courtH - ballR]. Pure -- callers feed it the CPU's *lagged* ball sample,
+// so prediction doesn't erase the cost of reaction lag, only the cost of not reading bank shots.
+export function predictInterceptY(ball, paddleX, courtH, ballR) {
+  const lo = ballR, hi = courtH - ballR;
+  const t = ball.vx !== 0 ? (paddleX - ball.x) / ball.vx : 0;
+  const rawY = ball.y + ball.vy * Math.max(0, t);
+  // THE-1157 r1 (non-blocking): a corrupted/degenerate sample (e.g. vx underflowing toward 0 right at
+  // the paddle line) can produce a non-finite t/rawY -- fall back to the ball's own y rather than
+  // handing the CPU a NaN target that would propagate into clamp()/Math.max() downstream.
+  return Number.isFinite(rawY) ? fold(rawY, lo, hi) : fold(ball.y, lo, hi);
 }
 
 export function update(cpu, match, nowMs) {
   const side = cpu.side, opponent = 1 - side;
-  const history = [...cpu.history, { t: nowMs, y: match.ball.y }].filter((h) => nowMs - h.t <= 2000);
+  const history = [
+    ...cpu.history,
+    { t: nowMs, x: match.ball.x, y: match.ball.y, vx: match.ball.vx, vy: match.ball.vy },
+  ].filter((h) => nowMs - h.t <= 2000);
   const knobs = knobsFor([match.score[side], match.score[opponent]], cpu.level);
 
   const incomingToMe = side === 0 ? match.ball.vx < 0 : match.ball.vx > 0;
@@ -76,7 +105,16 @@ export function update(cpu, match, nowMs) {
       aimY = C.CPU.DRIFT_Y; // drifts to the resting spot instead of chasing a ball headed the other way
     } else {
       const lagged = sampleAt(history, nowMs - knobs.reactionLagMs);
-      aimY = (lagged ?? cpu.aimY) + aimError;
+      // THE-1156 S1 (board note 1): medium/hard predict the wall-folded intercept from the lagged
+      // sample instead of just chasing the lagged y, so a bank shot no longer walks straight past them.
+      // Easy keeps chasing (legacy behaviour) -- and so does the no-level/unknown-level path, byte-for-
+      // byte, since `predicts` is false whenever cpu.level isn't exactly "medium" or "hard".
+      const predicts = cpu.level === "medium" || cpu.level === "hard";
+      if (lagged && predicts) {
+        aimY = predictInterceptY(lagged, C.FRONT_FACE_X[side], C.COURT_H, C.BALL_R) + aimError;
+      } else {
+        aimY = (lagged ? lagged.y : cpu.aimY) + aimError;
+      }
     }
     aimY = Math.max(C.PADDLE_Y_MIN, Math.min(C.PADDLE_Y_MAX, aimY));
     lastRetargetMs = nowMs;

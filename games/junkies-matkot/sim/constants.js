@@ -80,13 +80,33 @@ export const C = Object.freeze({
   // above, which stays exactly as it was (every existing gate/test that calls Cpu.create/knobsFor
   // without a level argument keeps getting those unmodified numbers -- G16's solo gates in particular
   // were already tuned against them). Each level scales the CPU block's reaction lag (additive ms),
-  // aim-error multiplier and max paddle speed. Tuned (tools/junkies-matkot-gate.mjs's
+  // aim-error multiplier and max paddle speed. Originally tuned (tools/junkies-matkot-gate.mjs's
   // runLevelVsDecentHuman, 200 seeds/level) against a scripted "decent human" (250ms reaction, keyboard
   // paddle speed, human aim noise) to hit: easy 5-20%, medium 30-50%, hard 55-75% CPU win rate --
   // measured 8.0% / 39.5% / 63.0%.
+  //
+  // THE-1156 S1 (board note 1, "hard is still easy: a bank shot off the wall beats it every time"):
+  // medium/hard now predict the wall-folded intercept (sim/cpu.js predictInterceptY) instead of just
+  // chasing the lagged ball y, which removes most of reaction lag's old side effect of positional
+  // inaccuracy -- a straight-line prediction is correct whether or not the sample is stale, as long as
+  // the ball hasn't been hit again since. aimErrorMult had to grow a lot to reintroduce real miss
+  // chances, which pushed the decent-human win rate up too.
+  //
+  // THE-1157 r1 code review: the first retune (medium 66%/hard 71% vs decent human) was too strong. CTO's
+  // binding targets: medium <= 55% vs decent human, hard <= 85%; medium 40-50% vs bank shots, hard
+  // clearly >= 58%. Medium's two targets trade off against the same aimErrorMult knob (see
+  // junkies-matkot-gate.mjs's sweep notes) -- pushing its decent-human rate down below 55% also drags its
+  // bank-shot rate down with it, below the original 40% ask. Per the review, the decent-human ceiling
+  // wins; the shortfall is reported here rather than hidden. easy's aimErrorMult also had to move up (3.5
+  // -> 4.0) so it stays noisier than the retuned medium (cpu.test.mjs's level-ordering gate). Re-measured,
+  // 200 seeds/level:
+  // vs decent human: easy 5.0%, medium 51.5%, hard 78.5% (targets: 5-20%, <=55%, <=85%).
+  // vs the bank-shot player (straight/1-bounce/2-bounce aimed returns, tools/junkies-matkot-gate.mjs's
+  // runLevelVsBankShotPlayer): easy 3.5%, medium 36.0%, hard 65.0% (targets: low, 40-50%, >=58%).
+  // Medium's bank-shot number (36.0%) is below the 40-50% target -- the tradeoff above.
   CPU_LEVELS: Object.freeze({
-    easy: { reactionLagAddMs: 300, aimErrorMult: 3.5, maxPaddleSpeedMult: 0.35 },
-    medium: { reactionLagAddMs: 170, aimErrorMult: 2.0, maxPaddleSpeedMult: 0.5 },
-    hard: { reactionLagAddMs: 70, aimErrorMult: 1.5, maxPaddleSpeedMult: 0.75 },
+    easy: { reactionLagAddMs: 300, aimErrorMult: 4.0, maxPaddleSpeedMult: 0.35 },
+    medium: { reactionLagAddMs: 100, aimErrorMult: 3.75, maxPaddleSpeedMult: 0.5 },
+    hard: { reactionLagAddMs: 70, aimErrorMult: 3.0, maxPaddleSpeedMult: 0.75 },
   }),
 });

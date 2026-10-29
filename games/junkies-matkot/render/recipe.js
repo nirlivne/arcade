@@ -32,14 +32,14 @@ export const COLORS = {
 
 // THE-1141 DESIGN.md §11.5 / design/junkies-matkot/r1/recipe-r1.js. sizeOfD = the sprite's main size
 // (crab/gull: width, people: height) as a fraction of HEAD.discU. Pre-baked by render/crowd.js
-// (bakeCrowd), the same pattern as render/headSprite.js. The CTO's single "passerby" distraction type
-// (sim/distractions.js) renders as the designer's "walker" character (the closer match of the two
-// people the brief splits "ice-cream seller / passer-by" into).
+// (bakeCrowd), the same pattern as render/headSprite.js. THE-1162 (DESIGN.md §12.5): the "passerby"
+// distraction type (sim/distractions.js) renders as the ice-cream seller now, by name, as the board
+// asked -- the walker sprite stays in crowd.js, unused.
 export const CROWD = {
   outline: '#2A1638', outlineOfS: 0.028, rimLight: '#FFECBE',
   shadow: { dxOfS: 0.05, dyOfS: 0.04, rxOfS: 0.24, ryOfS: 0.06, alpha: 0.26 }, // a flat pool under the feet, toward the camera
   crab: {
-    name: 'סרטן', sizeOfD: 0.55, frames: 2, frameMs: 120,
+    name: 'סרטן', sizeOfD: 0.7, frames: 2, frameMs: 120,
     colors: { body: '#F2674A', bodyHi: '#FF9A72', eye: '#FFF6E2' },
   },
   seller: {
@@ -51,13 +51,13 @@ export const CROWD = {
     colors: { skin: '#F0C09A', hat: '#F2C489', hatBand: '#E8402F', shirt: '#FFE7A1', shorts: '#173A63', ring: '#FF8FB0', ringHi: '#FFF6E2', shades: '#2A1638' },
   },
   gull: {
-    name: 'שחף', sizeOfD: 0.85, frames: 2, frameMs: 125, flyHN: [0.4, 1.0],
+    name: 'שחף', sizeOfD: 1.0, frames: 2, frameMs: 125, flyHN: [0.4, 1.0],
     colors: { body: '#FFF6E2', wing: '#CDB9D9', tip: '#4A2E6B', beak: '#FFC25A', legs: '#FFC25A' },
   },
 };
 
 // sim/distractions.js type -> crowd.js kind (render-only; the sim knows nothing about this mapping).
-export const DISTRACTION_KIND = { crab: 'crab', seagull: 'gull', passerby: 'walker' };
+export const DISTRACTION_KIND = { crab: 'crab', seagull: 'gull', passerby: 'seller' };
 
 // Screen layout (spec §6, Δ7). Returns CSS px. The game sets --jm-court-l/-r/-t/-b on .jm-app from this.
 export function courtLayout(W, H, safe = { l: 0, r: 0, t: 0, b: 0 }) {
@@ -117,9 +117,9 @@ export const BALL = {
   // the designer's numbers (DESIGN.md §11.4) -- nothing to duplicate here.
   glow: { rOfR: 5, alpha: 0.6 },              // heat 2 only, additive
   serveRing: { ms: 800, rOfR: [6, 1.4], w: 2, color: '#FFF6E2', alpha: 0.8 }, // the 0.8 s count: a ring closing on the ball
-  // DESIGN.md §11.4: "The CTO owns the arc model" -- the designer's numbers interpolate linearly in hN,
-  // but the wall-clock period of one bounce cycle is this game's own call, not a design number to adopt.
-  bounce: { periodMs: 420 },
+  // DESIGN.md §11.4: "The CTO owns the arc model" -- the designer's numbers interpolate linearly in hN;
+  // the arc's timing (one per paddle-to-paddle flight, render/arc.js, THE-1156 S2) is this game's own
+  // call, not a design number to adopt.
 };
 
 export const TRAIL = { // G5. High = feedback buffer; Mid = half-res buffer; Low = drawn tail

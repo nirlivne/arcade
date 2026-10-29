@@ -126,6 +126,16 @@
   --jm-t-hit: 90ms;          /* tube squish, hit squash onset */
   --jm-t-ui: 220ms;          /* screens, sheets, toggles, comeback grow */
   --jm-t-moment: 600ms;      /* meme moments in/out, confetti fall step */
+  /* board tuning r2 (DESIGN.md §12). Hold times, not motion: reduce motion never shortens them. */
+  --jm-t-point: 1100ms;      /* the "נקודה!" sign, in + hold + out */
+  --jm-t-teach: 3200ms;      /* the first-serve teaching banner (+ a 300 ms fade) */
+  --jm-t-bubble: 1600ms;     /* a crowd speech bubble on entry (1000 ms for a hit line) */
+  /* the goal line = the court-side edge of each player's towel, drawn in GL (render/backdrop.js, §12.2):
+     cream stitch, the player colour (--jm-p1/--jm-p2), cream, gold, a plum hairline; the point flash lerps to cream */
+  --jm-goal-stitch: #FFF6E2;
+  --jm-goal-towel: #FFF4E0;
+  --jm-goal-stripe: #FFC25A;
+  --jm-goal-flash: #FFF6E2;
 }
 
 @media (prefers-reduced-motion: reduce) {
