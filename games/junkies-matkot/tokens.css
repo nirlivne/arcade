@@ -1,0 +1,133 @@
+/* Junkies Matkot (ג׳אנקיס מטקות) design tokens. THE-1107, from the art brief THE-1097 and the spec THE-1102.
+   "Gordon Beach at sunset, seen from behind the lifeguard tower": violet-to-gold sky, the sun on the sea, apricot
+   sand, long plum shadows toward the camera. Five hues at rest (sky family, sea, sand, the two players) + lifeguard
+   red for buttons; plum ink holds everything together. The WebGL recipe (DESIGN.md §4, design/junkies-matkot/recipe.js)
+   uses these same hex values, so a re-skin changes this file and the recipe's colour block only.
+   Readability pairs below are checked by tools/design/contrast.mjs. */
+/* contrast: --jm-plum on --jm-cream >= 4.5 */
+/* contrast: --jm-cream on --jm-plum >= 4.5 */
+/* contrast: --jm-plum on --jm-sand >= 4.5 */
+/* contrast: --jm-plum on --jm-sand-low >= 4.5 */
+/* contrast: --jm-plum on --jm-towel >= 4.5 */
+/* contrast: --jm-plum-2 on --jm-cream >= 4.5 */
+/* contrast: --jm-plum on --jm-gold >= 4.5 */
+/* contrast: --jm-plum on --jm-p1 >= 4.5 */
+/* contrast: --jm-plum on --jm-p1-hi >= 4.5 */
+/* contrast: --jm-cream on --jm-rescue >= 3 */
+/* contrast: --jm-cream on --jm-p2 >= 3 */
+/* contrast: --jm-cream on --jm-sky-top >= 4.5 */
+/* contrast: --jm-cream on --jm-sky-mid >= 3 */
+/* contrast: --jm-cream on --jm-sea >= 4.5 */
+/* contrast: --jm-plum on --jm-ball >= 4.5 */
+/* contrast: --jm-plum on --jm-sky-low >= 4.5 */
+/* contrast: --jm-rescue on --jm-cream >= 3 */
+/* contrast: --jm-p1-ink on --jm-cream >= 4.5 */
+/* contrast: --jm-p2-ink on --jm-cream >= 4.5 */
+
+/* Fonts (G18): Secular One (display: painted lifeguard-sign lettering) and Varela Round (body). Both OFL, licences
+   in fonts/. Each is split into a Hebrew and a Latin subset, 58 KB in all (budget ~125 KB). The Hebrew subsets
+   carry the geresh ׳ (U+05F3) and gershayim ״ (U+05F4); the Latin subsets carry digits, ! ? . , : – — · … “ ”.
+   ✓ ▶ ↑ ↓ are not in either font: they fall back to system-ui (checked on the mockups). */
+@font-face { font-family: "Secular JM"; src: url("fonts/secular-hebrew.woff2") format("woff2");
+  unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; font-display: swap; }
+@font-face { font-family: "Secular JM"; src: url("fonts/secular-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2011-206F, U+2212; font-display: swap; }
+@font-face { font-family: "Varela JM"; src: url("fonts/varela-hebrew.woff2") format("woff2");
+  unicode-range: U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F; font-display: swap; }
+@font-face { font-family: "Varela JM"; src: url("fonts/varela-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2011-206F, U+2212; font-display: swap; }
+
+:root {
+  /* ---- the world (the WebGL layer uses the same values; recipe.js) ---- */
+  --jm-sky-top: #3B1F5E;     /* violet zenith */
+  --jm-sky-mid: #C8436A;     /* rose */
+  --jm-sky-low: #FFAA4C;     /* gold at the horizon */
+  --jm-sun: #FFE7A1;         /* the sun disc's centre */
+  --jm-sun-rim: #FFC25A;     /* the sun disc's lower edge */
+  --jm-glint: #FFD27A;       /* the sun's path on the sea */
+  --jm-sea: #1F4C7A;
+  --jm-sea-deep: #173A63;
+  --jm-foam: #FFF4E0;        /* the waterline = top wall */
+  --jm-sand-wet: #C9876C;
+  --jm-sand: #F0B489;        /* lit apricot sand: the court */
+  --jm-sand-mid: #E7A584;
+  --jm-sand-low: #D3958A;    /* sand toward the camera (UI-safe tone; the GL gradient ends at --jm-sand-shade) */
+  --jm-sand-shade: #C47E7C;
+  --jm-shadow: #4A2E6B;      /* long sunset shadows, always used at 25-40 % alpha */
+  --jm-tower: #4A2147;       /* the back-lit lifeguard tower */
+  --jm-wood: #C98B4E;        /* the matka */
+  --jm-wood-hi: #F2C489;
+  --jm-wood-lo: #8F5A33;
+  --jm-grip: #8A5A2E;
+
+  /* ---- ink and paper ---- */
+  --jm-plum: #2A1638;        /* outlines, text stroke, small text */
+  --jm-plum-2: #5B3F66;      /* secondary text on cream */
+  --jm-cream: #FFF6E2;       /* type fill, panels */
+  --jm-cream-2: #EADBC0;     /* cream tube underside */
+  --jm-towel: #FFF1D6;       /* the towel panel's body */
+
+  /* ---- the players: each owns one colour everywhere (rim, grip, name, score outline, ready tube) ---- */
+  --jm-p1: #0FA3B1;          /* left: turquoise */
+  --jm-p1-hi: #5FD3DB;
+  --jm-p1-lo: #0B7480;
+  --jm-p1-ink: #086470;      /* turquoise as text on cream */
+  --jm-p2: #E8457C;          /* right: watermelon */
+  --jm-p2-hi: #FF86AA;
+  --jm-p2-lo: #A82657;
+  --jm-p2-ink: #B02860;      /* watermelon as text on cream */
+
+  /* ---- signals ---- */
+  --jm-rescue: #E8402F;      /* lifeguard red: tubes, buoy floats, megaphone stripes (a warm tomato, never strobe red, G12) */
+  --jm-rescue-hi: #FF6A55;
+  --jm-rescue-lo: #B32A22;
+  --jm-gold: #FFC25A;        /* sun-gold tube: vs computer, replay */
+  --jm-gold-hi: #FFE08A;
+  --jm-gold-lo: #D98A2B;
+  --jm-ball: #FFF6D6;
+  --jm-heat-0: #FFE7A8;      /* streak core at rest */
+  --jm-heat-1: #FF8A2E;      /* rally 8: hot */
+  --jm-heat-2: #FF5A1F;      /* rally 12: on fire (flame edge) */
+  --jm-heat-core: #FFF2C0;   /* rally 12: white-hot core */
+  --jm-fire-ink: #B3361C;    /* stroke of the "בוער!" rally tag */
+
+  /* ---- safe areas (0 where env() is unsupported) ---- */
+  --jm-inset-top: env(safe-area-inset-top, 0px);
+  --jm-inset-right: env(safe-area-inset-right, 0px);
+  --jm-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --jm-inset-left: env(safe-area-inset-left, 0px);
+
+  /* ---- type ---- */
+  --jm-font-display: "Secular JM", "Varela JM", system-ui, sans-serif;
+  --jm-font-body: "Varela JM", "Secular JM", system-ui, sans-serif;
+  --jm-font-symbol: system-ui, "Segoe UI Symbol", "Apple Symbols", sans-serif; /* ✓ ▶ ↑ ↓ */
+  /* Landscape-first scale: sizes follow the viewport height (the short side), with a floor for phones. */
+  --jm-fs-hero: clamp(52px, 16vh, 150px);   /* "מטקות" on the title */
+  --jm-fs-score: clamp(34px, 10.5vh, 104px); /* the painted score digits */
+  --jm-fs-xl: clamp(30px, 8.5vh, 76px);     /* winner headline, megaphone line */
+  --jm-fs-lg: clamp(22px, 6vh, 46px);       /* names, sheet titles, big tube labels */
+  --jm-fs-md: clamp(18px, 4.4vh, 30px);     /* tube labels (always >= 18 px = large text) */
+  --jm-fs-sm: clamp(15px, 3.6vh, 22px);     /* body lines, quotes */
+  --jm-fs-xs: clamp(12px, 2.8vh, 16px);     /* fine print (About credits, the URL); never during play */
+  --jm-stroke-sign: 0.16em;  /* plum outline of painted lettering (doubled: paint-order draws half outside) */
+  --jm-stroke-tube: 0.11em;  /* plum outline of tube labels */
+
+  /* ---- shape ---- */
+  --jm-hit-min: 44px;
+  --jm-line: 2.5px;          /* plum outline on DOM pieces */
+  --jm-r-towel: 6px;
+  --jm-shadow-long: 0.08em 0.22em 0 rgba(74, 46, 107, .35); /* a long shadow toward the camera (text) */
+  --jm-shadow-drop: 4px 10px 14px rgba(74, 46, 107, .38);   /* a long shadow toward the camera (boxes) */
+  --jm-scrim: rgba(59, 31, 94, .5);
+
+  /* ---- motion: springs (brief §8); three durations ---- */
+  --jm-ease-spring: cubic-bezier(.2, 1.4, .4, 1);
+  --jm-ease-out: cubic-bezier(.16, 1, .3, 1);
+  --jm-t-hit: 90ms;          /* tube squish, hit squash onset */
+  --jm-t-ui: 220ms;          /* screens, sheets, toggles, comeback grow */
+  --jm-t-moment: 600ms;      /* meme moments in/out, confetti fall step */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --jm-t-ui: 0ms; --jm-t-moment: 0ms; }
+}

@@ -1,0 +1,394 @@
+/* Junkies Matkot skin (THE-1107). Load after tokens.css and after the game's own stylesheet: a full override.
+   The UI is the beach itself: red rescue tubes are the buttons, striped beach towels are the panels, the lifeguard's
+   megaphone banner carries every shout, and all display type is painted sign lettering (cream, plum outline, a long
+   shadow toward the camera). No cards, chips, bezels or neon anywhere (G2).
+   Markup reference: design/junkies-matkot/screens.html uses every class here (DESIGN.md §6).
+   Layout: the game sets the court rect on .jm-app as CSS px (--jm-court-l/-r/-t/-b) on every resize; the HUD and the
+   meme layouts hang off those. Physical left/right always mean the players' sides, so layout boxes use
+   direction: ltr and only text runs RTL. */
+
+/* ------------------------------------------------------------ base */
+.jm-app, .jm-app * { box-sizing: border-box; }
+.jm-app {
+  --jm-court-l: 8vw; --jm-court-r: 92vw; --jm-court-t: 15vh; --jm-court-b: 95vh; /* fallbacks; the game overwrites */
+  position: fixed; inset: 0; overflow: hidden; direction: rtl;
+  background: var(--jm-sky-top); color: var(--jm-plum); /* shows only until the first GL frame */
+  font: 400 var(--jm-fs-sm)/1.3 var(--jm-font-body);
+  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none; touch-action: none;
+}
+:where(.jm-app button) { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; }
+.jm-app button:focus-visible { outline: 3px solid var(--jm-gold); outline-offset: 3px; }
+.jm-stage { position: absolute; inset: 0; }          /* the WebGL canvas, full bleed (spec §6 layout rule) */
+.jm-stage canvas { display: block; width: 100%; height: 100%; }
+.jm-screen { position: absolute; inset: 0; direction: ltr; }
+.jm-screen[hidden], .jm-app [hidden] { display: none !important; }
+.jm-rtl { direction: rtl; unicode-bidi: isolate; }
+.jm-num { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; } /* scores inside Hebrew lines */
+
+/* ------------------------------------------------------------ painted sign lettering */
+.jm-sign {
+  --stroke: var(--jm-plum);
+  font: 400 var(--jm-fs-lg)/1 var(--jm-font-display); color: var(--jm-cream);
+  -webkit-text-stroke: var(--jm-stroke-sign) var(--stroke); paint-order: stroke fill;
+  text-shadow: var(--jm-shadow-long), 0.04em 0.11em 0 rgba(74, 46, 107, .3);
+  letter-spacing: .01em; white-space: nowrap;
+}
+.jm-sign--p1 { --stroke: var(--jm-p1); }
+.jm-sign--p2 { --stroke: var(--jm-p2); }
+.jm-sign--fire { --stroke: var(--jm-fire-ink); color: var(--jm-gold-hi); }
+.jm-sign--flat { text-shadow: none; }
+/* Sun-gradient lettering (the title word, the winner's headline): needs data-text="<same text>" on the element.
+   The element's own text only holds the layout; ::before paints the stroke and the long shadow, ::after the
+   gradient fill on top. */
+.jm-sign--sun { position: relative; isolation: isolate; -webkit-text-stroke: 0; text-shadow: none; color: transparent; }
+.jm-sign--sun::before, .jm-sign--sun::after { content: attr(data-text); position: absolute; inset: 0; }
+.jm-sign--sun::before {
+  color: var(--jm-plum); -webkit-text-stroke: calc(var(--jm-stroke-sign) * .9) var(--jm-plum);
+  text-shadow: var(--jm-shadow-long), 0.05em 0.14em 0 rgba(74, 46, 107, .28);
+}
+.jm-sign--sun::after {
+  color: transparent; -webkit-text-stroke: 0; text-shadow: none;
+  background: linear-gradient(180deg, #FFF3C4 12%, var(--jm-sun-rim) 55%, #FF7A45 90%);
+  -webkit-background-clip: text; background-clip: text;
+}
+
+/* ------------------------------------------------------------ rescue-tube buttons */
+.jm-tube {
+  --c: var(--jm-rescue); --hi: var(--jm-rescue-hi); --lo: var(--jm-rescue-lo);
+  --ink: var(--jm-cream); --ink-stroke: var(--jm-plum); --ink-w: var(--jm-stroke-tube);
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: .35em;
+  min-height: max(var(--jm-hit-min), 2.3em); min-width: 4.4em; padding: .1em 1.15em 0;
+  border-radius: 999px; direction: rtl; white-space: nowrap;
+  font: 400 var(--jm-fs-md)/1 var(--jm-font-display) !important; color: var(--ink) !important;
+  -webkit-text-stroke: var(--ink-w) var(--ink-stroke); paint-order: stroke fill;
+  background: linear-gradient(180deg, var(--hi) 0%, var(--c) 52%, var(--lo) 100%) !important;
+  border: var(--jm-line) solid var(--jm-plum) !important;
+  box-shadow: .14em .32em 0 rgba(74, 46, 107, .35);
+  transform-origin: 50% 100%;
+  transition: transform var(--jm-t-hit) var(--jm-ease-spring), box-shadow var(--jm-t-hit), filter var(--jm-t-ui);
+}
+.jm-tube::before { /* the top highlight */
+  content: ""; position: absolute; top: 11%; inset-inline: 1.1em; height: 17%; border-radius: 999px;
+  background: rgba(255, 255, 255, .38); pointer-events: none;
+}
+.jm-tube::after { /* foam seams near both ends */
+  content: ""; position: absolute; top: 9%; bottom: 9%; inset-inline: .85em;
+  border-inline: 1.5px solid rgba(42, 22, 56, .25); pointer-events: none;
+}
+.jm-tube:active, .jm-tube.is-pressed { transform: scaleY(.92); box-shadow: .08em .14em 0 rgba(74, 46, 107, .35); }
+.jm-tube[disabled], .jm-tube[aria-disabled="true"] { filter: saturate(.35) brightness(.92); pointer-events: none; }
+.jm-tube--gold { --c: var(--jm-gold); --hi: var(--jm-gold-hi); --lo: var(--jm-gold-lo); --ink: var(--jm-plum); --ink-w: 0; }
+.jm-tube--cream { --c: var(--jm-cream); --hi: #FFFFFF; --lo: var(--jm-cream-2); --ink: var(--jm-plum); --ink-w: 0; }
+.jm-tube--p1 { --c: var(--jm-p1); --hi: var(--jm-p1-hi); --lo: var(--jm-p1-lo); --ink: var(--jm-plum); --ink-w: 0; }
+.jm-tube--p2 { --c: var(--jm-p2); --hi: var(--jm-p2-hi); --lo: var(--jm-p2-lo); }
+.jm-tube--big { font-size: var(--jm-fs-lg) !important; min-height: max(56px, 2.1em); padding-inline: 1.4em; }
+.jm-tube--small { font-size: var(--jm-fs-sm) !important; min-height: var(--jm-hit-min); min-width: 0; padding-inline: .95em; }
+.jm-tube--icon { min-width: var(--jm-hit-min); padding: 0; aspect-ratio: 1.25; font-family: var(--jm-font-symbol) !important; }
+.jm-tube--icon::before, .jm-tube--icon::after { inset-inline: .45em; }
+.jm-tube__sym { font-family: var(--jm-font-symbol); -webkit-text-stroke: 0; font-size: .8em; }
+
+/* small round buttons (pause, carousel arrows): a cream float with a plum ring */
+.jm-iconbtn {
+  position: relative; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 40% 32%, #FFFFFF 0 18%, var(--jm-cream) 40%, var(--jm-cream-2) 100%) !important;
+  border: var(--jm-line) solid var(--jm-plum) !important; color: var(--jm-plum) !important;
+  box-shadow: 3px 7px 0 rgba(74, 46, 107, .32);
+  font: 700 18px/1 var(--jm-font-symbol) !important;
+  transition: transform var(--jm-t-hit) var(--jm-ease-spring);
+}
+.jm-iconbtn::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; } /* 48 px hit area */
+.jm-iconbtn:active { transform: scale(.9); }
+.jm-iconbtn--big { width: 52px; height: 52px; font-size: 24px !important; }
+.jm-icon-pause { width: 34%; height: 38%; border-inline: 4px solid var(--jm-plum); }
+.jm-icon-prev, .jm-icon-next { width: 0; height: 0; border-block: 9px solid transparent; }
+.jm-icon-prev { border-right: 13px solid var(--jm-plum); margin-right: 3px; }   /* points left */
+.jm-icon-next { border-left: 13px solid var(--jm-plum); margin-left: 3px; }     /* points right */
+
+/* ------------------------------------------------------------ beach-towel panels */
+.jm-towel {
+  position: relative; border-radius: var(--jm-r-towel); color: var(--jm-plum); direction: rtl;
+  background:
+    linear-gradient(90deg,
+      var(--jm-p1) 0 3.2%, var(--jm-towel) 3.2% 4.6%, var(--jm-gold) 4.6% 7.4%, var(--jm-towel) 7.4% 8.8%,
+      var(--jm-rescue) 8.8% 9.8%, var(--jm-towel) 9.8% 90.2%, var(--jm-rescue) 90.2% 91.2%, var(--jm-towel) 91.2% 92.6%,
+      var(--jm-gold) 92.6% 95.4%, var(--jm-towel) 95.4% 96.8%, var(--jm-p2) 96.8% 100%);
+  box-shadow: inset 0 -.6em 1.2em rgba(201, 135, 108, .25), var(--jm-shadow-drop);
+  padding: 14px calc(9% + 10px);
+}
+.jm-towel::before, .jm-towel::after { /* fringe on the short (inline) ends */
+  content: ""; position: absolute; top: 3px; bottom: 3px; width: 9px;
+  background: repeating-linear-gradient(180deg, var(--jm-cream-2) 0 2px, transparent 2px 6px);
+}
+.jm-towel::before { left: -8px; transform: skewY(8deg); }
+.jm-towel::after { right: -8px; transform: skewY(-8deg); }
+
+.jm-scrim { position: absolute; inset: 0; background: var(--jm-scrim); display: grid; place-items: center; direction: ltr; }
+.jm-sheet {
+  width: min(560px, 66vw); max-height: calc(100% - 24px - var(--jm-inset-top) - var(--jm-inset-bottom)); overflow: auto;
+  display: flex; flex-direction: column; align-items: stretch; gap: clamp(4px, 1.6vh, 12px);
+  animation: jm-towel-in var(--jm-t-ui) var(--jm-ease-spring) both;
+}
+.jm-sheet__title { text-align: center; font-size: var(--jm-fs-lg); margin: 0 0 2px; }
+.jm-sheet__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: var(--jm-hit-min); font: 400 var(--jm-fs-sm)/1.2 var(--jm-font-body); }
+.jm-sheet__row small { display: block; color: var(--jm-plum-2); font-size: .78em; }
+.jm-sheet__actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 2px; }
+.jm-sheet__fine { font: 400 var(--jm-fs-xs)/1.35 var(--jm-font-body); color: var(--jm-plum-2); text-align: center; margin: 0; }
+.jm-sheet__row--focus { outline: 2px dashed var(--jm-rescue); outline-offset: 2px; border-radius: 6px; padding-inline: 6px; }
+
+/* toggle = a little float on a rope */
+.jm-toggle {
+  position: relative; flex: none; width: 56px; height: 30px; border-radius: 999px;
+  background: #D9C7A9 !important; border: var(--jm-line) solid var(--jm-plum) !important;
+  transition: background var(--jm-t-ui);
+}
+.jm-toggle::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--jm-cream); border: 2px solid var(--jm-plum); transition: transform var(--jm-t-ui) var(--jm-ease-spring);
+}
+.jm-toggle[aria-checked="true"] { background: var(--jm-p1) !important; }
+.jm-toggle[aria-checked="true"]::after { transform: translateX(26px); }
+.jm-toggle::before { content: ""; position: absolute; inset: -9px -4px; } /* 48 px hit area */
+
+/* ------------------------------------------------------------ title = pick screen (spec §5, Δ3) */
+.jm-pick {
+  display: grid; grid-template-columns: 1fr minmax(210px, 31%) 1fr; align-items: stretch;
+  padding: calc(6px + var(--jm-inset-top)) calc(8px + var(--jm-inset-right)) calc(6px + var(--jm-inset-bottom)) calc(8px + var(--jm-inset-left));
+}
+.jm-half {
+  --pc: var(--jm-p1); --pc-hi: var(--jm-p1-hi); --pc-lo: var(--jm-p1-lo); --pc-ink: var(--jm-plum); --pc-ink-w: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(2px, 1.2vh, 10px);
+  min-width: 0; direction: rtl;
+}
+.jm-half--r { --pc: var(--jm-p2); --pc-hi: var(--jm-p2-hi); --pc-lo: var(--jm-p2-lo); --pc-ink: var(--jm-cream); --pc-ink-w: var(--jm-stroke-tube); }
+.jm-half__name { --stroke: var(--pc); font-size: var(--jm-fs-lg); }
+.jm-carousel { display: flex; align-items: center; gap: clamp(4px, 1.5vw, 18px); direction: ltr; }
+.jm-carousel__head { /* the head on its matka; the game draws it (2D canvas or GL sprite) */
+  position: relative; width: clamp(120px, 34vh, 300px); aspect-ratio: 1; display: grid; place-items: center;
+}
+.jm-carousel__head > canvas, .jm-carousel__head > img { width: 100%; height: 100%; object-fit: contain; }
+.jm-carousel__head.is-swiping { transition: transform var(--jm-t-ui) var(--jm-ease-spring); }
+.jm-half__wins { /* the per-head win tally (return loop) */
+  position: absolute; bottom: 4%; inset-inline-start: 0; translate: 0 0;
+  font: 400 var(--jm-fs-xs)/1 var(--jm-font-display); color: var(--jm-plum); background: var(--jm-gold);
+  border: 2px solid var(--jm-plum); border-radius: 999px; padding: .3em .6em .2em; rotate: -6deg;
+}
+.jm-half__line { font: 400 var(--jm-fs-sm)/1.2 var(--jm-font-body); color: var(--jm-plum); text-align: center; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jm-half__line::before { content: "״"; } .jm-half__line::after { content: "״"; }
+.jm-strip { display: flex; gap: 2px; direction: ltr; } /* 11 faces; an indicator, not a target (aria-hidden) */
+.jm-strip__face {
+  width: clamp(18px, 5.4vh, 30px); aspect-ratio: 1; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+  background: rgba(255, 246, 226, .55);
+}
+.jm-strip__face img { width: 100%; height: 100%; object-fit: contain; opacity: .85; }
+.jm-strip__face[aria-current="true"] { background: var(--pc); box-shadow: 0 0 0 2px var(--jm-plum); }
+.jm-strip__face[aria-current="true"] img { opacity: 1; }
+.jm-half__actions { display: flex; align-items: center; gap: 10px; }
+.jm-ready { min-width: 6.4em; }
+.jm-ready.is-ready { --c: var(--pc); --hi: var(--pc-hi); --lo: var(--pc-lo); --ink: var(--pc-ink); --ink-w: var(--pc-ink-w); }
+.jm-ready.is-ready .jm-tube__sym { -webkit-text-stroke: 0; }
+.jm-half.is-cpu .jm-ready, .jm-half.is-cpu .jm-dice { visibility: hidden; }
+.jm-half.is-cpu .jm-carousel__head { animation: jm-spin-pick 600ms var(--jm-ease-out) both; } /* the CPU spins 🎲, 0.6 s */
+
+.jm-pick__center { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: clamp(4px, 1.4vh, 12px);
+  padding-top: calc(var(--jm-court-t) + 2px); direction: rtl; text-align: center; }
+.jm-title { display: flex; flex-direction: column; align-items: center; line-height: .9; margin: 0; }
+.jm-title__small { font-size: var(--jm-fs-lg); }
+.jm-title__big { font-size: var(--jm-fs-hero); margin-top: -.08em; }
+.jm-title__latin { font: 400 var(--jm-fs-xs)/1 var(--jm-font-body); letter-spacing: .5em; color: var(--jm-plum); opacity: .8; margin-top: .3em; direction: ltr; }
+.jm-pick__hint { font: 400 var(--jm-fs-xs)/1.25 var(--jm-font-body); color: var(--jm-plum); margin: 0; }
+.jm-pick__utils { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.jm-app[data-installed] .jm-install { display: none; }
+.jm-countdown { /* "מתחילים בעוד 7", from the first ready tap (spec §2 Pick) */
+  font-size: var(--jm-fs-md); --stroke: var(--jm-plum);
+}
+.jm-countdown .jm-num { display: inline-block; min-width: 1ch; }
+
+/* ------------------------------------------------------------ match HUD (spec §6) */
+.jm-hud { pointer-events: none; }
+.jm-hud > button { pointer-events: auto; }
+.jm-score { /* painted digits flanking the tower in the sky band */
+  position: absolute; top: calc(var(--jm-court-t) * .48); translate: -50% -50%;
+  font-size: min(var(--jm-fs-score), calc(var(--jm-court-t) * .9));
+}
+.jm-score--l { --stroke: var(--jm-p1); left: calc(50% - max(var(--jm-court-t) * .82, 52px)); }
+.jm-score--r { --stroke: var(--jm-p2); left: calc(50% + max(var(--jm-court-t) * .82, 52px)); }
+.jm-score.is-bump { animation: jm-bump 320ms var(--jm-ease-spring); }
+.jm-name {
+  position: absolute; top: calc(6px + var(--jm-inset-top)); font-size: clamp(18px, 5.6vh, 40px); direction: rtl;
+}
+.jm-name--l { --stroke: var(--jm-p1); left: calc(14px + var(--jm-inset-left)); }
+.jm-name--r { --stroke: var(--jm-p2); right: calc(66px + var(--jm-inset-right)); }   /* clear of the pause float */
+.jm-pause { position: absolute; top: calc(6px + var(--jm-inset-top)); right: calc(12px + var(--jm-inset-right)); }
+.jm-rally { /* "ראלי N" above the buoy rope; "ראלי 12 · בוער!" when on fire */
+  position: absolute; left: 50%; top: var(--jm-court-b); translate: -50% -118%;
+  font-size: clamp(16px, 4.6vh, 34px); direction: rtl;
+}
+.jm-rally.is-hot { --stroke: var(--jm-heat-1); }
+.jm-rally.is-fire { --stroke: var(--jm-fire-ink); color: var(--jm-gold-hi); animation: jm-flicker 380ms steps(2) infinite; }
+
+/* first-match guides (spec §5): ghost thumb + dotted arrow (touch), keycaps (keys) */
+.jm-guide { position: absolute; top: calc((var(--jm-court-t) + var(--jm-court-b)) / 2); translate: -50% -50%;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; opacity: .95; transition: opacity var(--jm-t-moment); }
+/* centred in the free sand outside the head's reach: the matka overhangs the goal line by 94 u = 0.1044 court height */
+.jm-guide--l { left: max(28px, calc((var(--jm-court-l) - (var(--jm-court-b) - var(--jm-court-t)) * .1044) / 2)); --pc: var(--jm-p1); }
+.jm-guide--r { left: min(calc(100% - 28px), calc(100% - (var(--jm-court-l) - (var(--jm-court-b) - var(--jm-court-t)) * .1044) / 2)); --pc: var(--jm-p2); }
+.jm-guide.is-gone { opacity: 0; }
+.jm-guide__arrow { width: 14px; height: min(46vh, 220px); position: relative;
+  background: repeating-linear-gradient(180deg, var(--pc) 0 7px, transparent 7px 13px) center / 4px 100% no-repeat; }
+.jm-guide__arrow::before, .jm-guide__arrow::after { content: ""; position: absolute; left: 50%; translate: -50% 0;
+  border-inline: 9px solid transparent; }
+.jm-guide__arrow::before { top: -4px; border-bottom: 13px solid var(--pc); }
+.jm-guide__arrow::after { bottom: -4px; border-top: 13px solid var(--pc); }
+.jm-guide__thumb { position: absolute; top: 58%; width: clamp(34px, 12vh, 60px); aspect-ratio: .42; border-radius: 999px;
+  background: rgba(255, 240, 224, .5); border: 2px solid rgba(255, 255, 255, .6);
+  animation: jm-drag 1.6s var(--jm-ease-out) infinite alternate; }
+.jm-guide--l .jm-guide__thumb { rotate: -28deg; } .jm-guide--r .jm-guide__thumb { rotate: 28deg; }
+.jm-keycap {
+  display: grid; place-items: center; width: clamp(30px, 7.5vh, 48px); aspect-ratio: 1; border-radius: 22%;
+  background: var(--jm-cream); border: 3px solid var(--pc); color: var(--jm-plum);
+  font: 400 calc(clamp(30px, 7.5vh, 48px) * .5)/1 var(--jm-font-display); box-shadow: 3px 6px 0 rgba(74, 46, 107, .35);
+}
+.jm-keycap--sym { font-family: var(--jm-font-symbol); font-weight: 700; }
+
+/* ------------------------------------------------------------ meme moments (G13, spec §3) */
+.jm-meme { position: absolute; inset: 0; pointer-events: none; overflow: hidden; direction: ltr; }
+.jm-meme--smash { animation: jm-moment-in 160ms var(--jm-ease-out) both; }
+.jm-meme--smash.is-out { animation: jm-moment-out 160ms ease-in both; }
+.jm-meme__veil { position: absolute; inset: 0; background: rgba(255, 170, 76, .22); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+.jm-sunburst { /* beach-poster rays behind the scorer's face; counts as a full-field flash (G12) */
+  position: absolute; left: var(--fx, 34%); top: var(--fy, 58%); width: 240vmax; aspect-ratio: 1; translate: -50% -50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 214, 140, .45) 0 10deg, rgba(255, 140, 90, .3) 10deg 20deg);
+  -webkit-mask: radial-gradient(circle, #000 0 18%, rgba(0, 0, 0, .55) 45%, transparent 70%);
+  mask: radial-gradient(circle, #000 0 18%, rgba(0, 0, 0, .55) 45%, transparent 70%);
+  animation: jm-rays 2.4s linear infinite;
+}
+.jm-meme__face { /* the scorer on their matka: <= 70 % of the height and <= 1.6x the cut-out's native size (set by the game) */
+  position: absolute; left: var(--fx, 34%); top: var(--fy, 58%); height: min(70%, var(--face-max, 560px)); aspect-ratio: 1;
+  translate: -50% -50%; animation: jm-face-pop 300ms var(--jm-ease-spring) both;
+}
+.jm-meme__face > canvas, .jm-meme__face > img { width: 100%; height: 100%; object-fit: contain; }
+.jm-meme--smash .jm-megaphone { position: absolute; left: 70%; top: 20%; translate: -50% -50%; rotate: -4deg; font-size: var(--jm-fs-xl); }
+.jm-meme__caption { position: absolute; left: 72%; top: 34%; translate: -50% -50%; rotate: -4deg; font-size: var(--jm-fs-md); direction: rtl; }
+.jm-meme__score { position: absolute; left: 80%; top: 85%; translate: -50% -50%; font-size: var(--jm-fs-xl); }
+/* the right player scored: mirror the layout */
+.jm-meme--smash[data-side="r"] { --fx: 66%; }
+.jm-meme--smash[data-side="r"] .jm-megaphone { left: 30%; rotate: 4deg; }
+.jm-meme--smash[data-side="r"] .jm-meme__caption { left: 28%; rotate: 4deg; }
+.jm-meme--smash[data-side="r"] .jm-meme__score { left: 20%; }
+/* comeback: 1.2 s banner under the tower, play continues, never over the court centre */
+.jm-meme--comeback .jm-megaphone { position: absolute; left: 50%; top: calc(var(--jm-court-t) + 6px); translate: -50% 0; font-size: var(--jm-fs-lg);
+  animation: jm-shout 1.2s var(--jm-ease-spring) both; }
+/* match point: 0.5 s at 0.4x; the GL camera zooms 1.08x on the court centre, the banner sits under the tower */
+.jm-meme--matchpoint .jm-megaphone { position: absolute; left: 50%; top: calc(var(--jm-court-t) + (var(--jm-court-b) - var(--jm-court-t)) * .2);
+  translate: -50% -50%; font-size: var(--jm-fs-xl); animation: jm-shout .9s var(--jm-ease-spring) both; }
+.jm-matchpoint-tag { /* stays under the right/left score while the match-point serve is live */
+  position: absolute; top: calc(var(--jm-court-t) * .9); font-size: clamp(13px, 3.4vh, 22px); translate: -50% 0; }
+
+/* the megaphone banner: red-white lifeguard stripes, a cream plate, plum text, the cone at the RTL start (right) */
+.jm-megaphone {
+  position: relative; display: inline-block; padding: .14em; border-radius: .2em; direction: rtl; white-space: nowrap;
+  background: repeating-linear-gradient(-60deg, var(--jm-rescue) 0 .32em, var(--jm-cream) .32em .64em);
+  border: .06em solid var(--jm-plum); box-shadow: .12em .3em 0 rgba(74, 46, 107, .35);
+  font: 400 var(--jm-fs-xl)/1 var(--jm-font-display); color: var(--jm-plum); margin-right: .9em;
+}
+.jm-megaphone__text { display: block; background: var(--jm-cream); border-radius: .12em; padding: .22em .5em .14em; }
+.jm-megaphone::after { /* the cone */
+  content: ""; position: absolute; right: -1.02em; top: 50%; width: 1em; height: 1.3em; translate: 0 -50%;
+  background: linear-gradient(90deg, var(--jm-cream) 0 78%, var(--jm-rescue) 78% 92%, var(--jm-cream) 92%);
+  clip-path: polygon(0 34%, 100% 0, 100% 100%, 0 66%);
+  filter: drop-shadow(0 0 0 var(--jm-plum));
+}
+.jm-megaphone::before { /* sound rings */
+  content: ""; position: absolute; right: -1.75em; top: 50%; width: 1em; height: 1.5em; translate: 0 -50%;
+  border-radius: 50%; border-right: .07em solid var(--jm-cream); box-shadow: .22em 0 0 -.02em rgba(255, 246, 226, .6);
+}
+
+/* ------------------------------------------------------------ replay (G14) */
+.jm-replaytag { position: absolute; top: calc(var(--jm-court-t) + 8px); left: 50%; translate: -50% 0; direction: rtl;
+  display: flex; align-items: center; gap: .4em; font-size: var(--jm-fs-md); }
+.jm-replaytag__dot { width: .55em; height: .55em; border-radius: 50%; background: var(--jm-rescue); border: 2px solid var(--jm-plum);
+  animation: jm-blink 1s steps(2) infinite; }
+.jm-replay-skip { position: absolute; bottom: calc(10px + var(--jm-inset-bottom)); left: 50%; translate: -50% 0;
+  font: 400 var(--jm-fs-xs)/1 var(--jm-font-body); color: var(--jm-cream); background: rgba(42, 22, 56, .55);
+  padding: .5em .9em; border-radius: 999px; direction: rtl; }
+.jm-letterbox::before, .jm-letterbox::after { /* film bars while the replay runs (5 % each) */
+  content: ""; position: absolute; left: 0; right: 0; height: 5%; background: rgba(42, 22, 56, .82); }
+.jm-letterbox::before { top: 0; } .jm-letterbox::after { bottom: 0; }
+
+/* ------------------------------------------------------------ result (G14, spec §6) */
+.jm-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 36%); grid-template-rows: minmax(0, 1fr);
+  align-items: center; gap: 2.5vw;
+  padding: calc(10px + var(--jm-inset-top)) calc(14px + var(--jm-inset-right)) calc(10px + var(--jm-inset-bottom)) calc(14px + var(--jm-inset-left));
+  background: rgba(59, 31, 94, .32); }
+.jm-print { /* the share card as a tilted film print */
+  justify-self: center; height: min(86vh, 100%); max-width: 100%; aspect-ratio: 1; rotate: -2.6deg;
+  box-shadow: 1.2vh 2.6vh 3vh rgba(42, 22, 56, .55); animation: jm-print-in 600ms var(--jm-ease-spring) both;
+}
+.jm-print > canvas, .jm-print > img { display: block; width: 100%; height: 100%; }
+.jm-result__panel { display: flex; flex-direction: column; align-items: center; gap: clamp(4px, 1.6vh, 12px); max-height: 100%;
+  justify-content: center; animation: jm-towel-in var(--jm-t-ui) var(--jm-ease-spring) 120ms both; }
+.jm-result__head { font-size: var(--jm-fs-xl); text-align: center; }
+.jm-result__score { font-size: var(--jm-fs-xl); --stroke: var(--jm-plum); }
+.jm-result__score .jm-num { display: inline-flex; gap: .25em; }
+.jm-result__hint { font: 400 var(--jm-fs-xs)/1.2 var(--jm-font-body); color: var(--jm-plum-2); margin: -.2em 0 0; text-align: center; }
+.jm-result__panel .jm-tube { width: 100%; }
+.jm-result__panel .jm-tube--small { width: auto; }
+.jm-rematch { font-size: var(--jm-fs-xl) !important; min-height: max(64px, 1.75em); }
+
+/* ------------------------------------------------------------ rotate screen (G21, spec §6) */
+.jm-rotate {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4vh; direction: rtl; text-align: center;
+  background: linear-gradient(180deg, var(--jm-sky-top) 0%, var(--jm-sky-mid) 45%, var(--jm-sky-low) 75%, var(--jm-sand) 100%);
+  padding: 8vw;
+}
+.jm-rotate__phone { position: relative; width: 34vw; max-width: 160px; aspect-ratio: .54; border-radius: 16%/9%;
+  background: var(--jm-cream); border: 5px solid var(--jm-plum); rotate: -28deg; animation: jm-turn 2.4s var(--jm-ease-spring) infinite;
+  display: grid; place-items: center; box-shadow: 10px 22px 0 rgba(74, 46, 107, .3); }
+.jm-rotate__phone > canvas, .jm-rotate__phone > img { width: 82%; rotate: 28deg; }
+.jm-rotate__title { font-size: clamp(34px, 10vw, 60px); white-space: normal; }
+.jm-rotate__sub { font: 400 clamp(16px, 4.4vw, 22px)/1.35 var(--jm-font-body); color: var(--jm-plum); margin: 0; }
+
+/* ------------------------------------------------------------ toast (copy-link fallback) */
+.jm-toast { position: absolute; left: 50%; bottom: calc(14px + var(--jm-inset-bottom)); translate: -50% 0; direction: rtl;
+  background: var(--jm-plum); color: var(--jm-cream); border-radius: 999px; padding: .55em 1.1em .45em;
+  font: 400 var(--jm-fs-sm)/1 var(--jm-font-body); box-shadow: var(--jm-shadow-drop);
+  animation: jm-toast 2.2s var(--jm-ease-out) both; }
+
+/* ------------------------------------------------------------ short screens (phone landscape, <= 430 px tall) */
+@media (max-height: 430px) {
+  .jm-pick__utils .jm-tube--small { font-size: 16px !important; padding-inline: .75em; }
+  .jm-sheet { width: min(560px, 74vw); padding-block: 8px; }
+  .jm-result__panel { padding-block: 8px; gap: 5px; }
+  .jm-result__head, .jm-result__score { font-size: 30px; }
+  .jm-rematch { min-height: 54px; }
+  .jm-iconbtn { width: 38px; height: 38px; }
+  .jm-iconbtn::after { inset: -5px; }
+}
+
+/* ------------------------------------------------------------ motion */
+@keyframes jm-towel-in { from { opacity: 0; transform: translateY(8%) scaleY(.94); } to { opacity: 1; transform: none; } }
+@keyframes jm-print-in { from { opacity: 0; transform: translateY(-6%) rotate(-9deg) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes jm-bump { 0% { scale: 1; } 35% { scale: 1.35; } 100% { scale: 1; } }
+@keyframes jm-flicker { to { color: var(--jm-heat-core); } }
+@keyframes jm-drag { from { translate: 0 -70%; } to { translate: 0 30%; } }
+@keyframes jm-moment-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes jm-moment-out { to { opacity: 0; } }
+@keyframes jm-rays { to { rotate: 20deg; } }
+@keyframes jm-face-pop { from { scale: .55; } to { scale: 1; } }
+@keyframes jm-shout { 0% { opacity: 0; scale: .6; } 18% { opacity: 1; scale: 1.08; } 30% { scale: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes jm-spin-pick { 0% { rotate: 0deg; scale: .9; } 70% { rotate: 360deg; } 100% { rotate: 360deg; scale: 1; } }
+@keyframes jm-blink { 50% { opacity: .2; } }
+@keyframes jm-turn { 0%, 30% { rotate: -28deg; } 60%, 100% { rotate: -90deg; } }
+@keyframes jm-toast { 0% { opacity: 0; translate: -50% 40%; } 12%, 85% { opacity: 1; translate: -50% 0; } 100% { opacity: 0; } }
+
+/* Reduce motion (G12): the in-game toggle sets data-reduce-motion on .jm-app; the OS setting turns it on by default.
+   Kept: the takeovers themselves (shown still), slow-mo, score. Gone: the face pop, the turning rays, the tube
+   squish spring, flicker, the rotating phone. Every element shows its resting state, so the game must remove meme
+   banners and toasts on its own timer (never on animationend, which doesn't fire here). */
+.jm-app[data-reduce-motion] *, .jm-app[data-reduce-motion] *::before, .jm-app[data-reduce-motion] *::after {
+  animation: none !important; transition: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .jm-app *, .jm-app *::before, .jm-app *::after { animation: none !important; transition: none !important; }
+}
