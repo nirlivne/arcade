@@ -49,24 +49,29 @@ export function createScreens(root, theme, callbacks = {}) {
       </section>`;
   }
 
-  const pick = h(`<div class="jm-screen jm-pick">
+  // THE-1184 S6/THE-1185 B3 (CTO review r3, DESIGN.md §13.6, board note 4): the calm main screen.
+  // jm-pick--calm is scoped CSS (skin.css) that hides .jm-strip/.jm-half__line/.jm-half__actions/
+  // .jm-pick__utils and resizes the carousel/primary -- the markup below just adds the class, the new
+  // icon row, and reorders title -> primary -> hint per the designer's spacing note; the old r2
+  // elements stay in the DOM (now hidden by that CSS) rather than being deleted, so nothing else that
+  // queries them needs to change.
+  const pick = h(`<div class="jm-screen jm-pick jm-pick--calm">
     ${halfMarkup(0)}
     <div class="jm-pick__center">
       <h1 class="jm-title">
         <span class="jm-sign jm-title__small">${theme.title.split(" ")[0] || ""}</span>
         <span class="jm-sign jm-sign--sun jm-title__big" data-text="${theme.title.split(" ").slice(1).join(" ") || theme.title}">${theme.title.split(" ").slice(1).join(" ") || theme.title}</span>
       </h1>
-      <p class="jm-pick__hint">מתחילים כששניכם מוכנים · הראשון ל-7 לוקח</p>
+      <button class="jm-tube jm-tube--gold jm-solo jm-play" tabindex="0">${theme.text.play}</button>
+      <p class="jm-pick__hint">הראשון ל-7 לוקח</p>
       <div class="jm-sign jm-countdown"></div>
-      <button class="jm-tube jm-tube--gold jm-solo" tabindex="0">נגד המחשב</button>
-      <div class="jm-pick__utils">
-        <button class="jm-tube jm-tube--cream jm-tube--small jm-about" tabindex="0">אודות</button>
-        <button class="jm-tube jm-tube--cream jm-tube--small jm-install" tabindex="0" hidden>התקנה</button>
-        <button class="jm-tube jm-tube--cream jm-tube--small jm-sound" tabindex="0" aria-pressed="true">צליל</button>
-        <button class="jm-tube jm-tube--cream jm-tube--small jm-pick-fullscreen" tabindex="0" aria-pressed="false">מסך מלא</button>
-      </div>
     </div>
     ${halfMarkup(1)}
+    <div class="jm-pick__icons">
+      <button class="jm-iconbtn jm-about" tabindex="0" aria-label="אודות והגדרות"><span class="jm-icon-menu"></span></button>
+      <button class="jm-iconbtn jm-sound" tabindex="0" aria-pressed="true" aria-label="צליל"><span class="jm-icon-sound"></span></button>
+      <button class="jm-iconbtn jm-pick-fullscreen" tabindex="0" aria-pressed="false" aria-label="מסך מלא"><span class="jm-icon-fullscreen"></span></button>
+    </div>
   </div>`);
 
   const sides = [0, 1];
@@ -80,7 +85,6 @@ export function createScreens(root, theme, callbacks = {}) {
   const soloBtn = pick.querySelector(".jm-solo");
   const aboutBtn = pick.querySelector(".jm-about");
   const soundBtn = pick.querySelector(".jm-sound");
-  const installBtn = pick.querySelector(".jm-install");
   const pickFullscreenBtn = pick.querySelector(".jm-pick-fullscreen");
 
   for (const btn of pick.querySelectorAll(".jm-prev")) btn.addEventListener("click", () => cb("cycle", Number(btn.dataset.side), -1));
@@ -90,7 +94,6 @@ export function createScreens(root, theme, callbacks = {}) {
   soloBtn.addEventListener("click", () => cb("openSoloSheet"));
   aboutBtn.addEventListener("click", () => cb("about"));
   soundBtn.addEventListener("click", () => cb("toggleSound"));
-  installBtn.addEventListener("click", () => cb("install"));
   pickFullscreenBtn.addEventListener("click", () => cb("toggleFullscreen"));
 
   // THE-1142 S5b (board note 7): both toggle buttons (pick screen + HUD) share one state, kept in sync
@@ -101,7 +104,6 @@ export function createScreens(root, theme, callbacks = {}) {
     hudFullscreenBtn.hidden = !supported;
     pickFullscreenBtn.setAttribute("aria-pressed", String(active));
     hudFullscreenBtn.setAttribute("aria-pressed", String(active));
-    pickFullscreenBtn.textContent = active ? "יציאה ממסך מלא" : "מסך מלא";
   }
 
   function paintPortrait(side, head) {
@@ -130,7 +132,8 @@ export function createScreens(root, theme, callbacks = {}) {
       readyBtns[side].classList.toggle("is-ready", ready[side]);
       for (const face of strips[side].children) face.setAttribute("aria-current", String(face.dataset.id === ids[side]));
     }
-    soundBtn.textContent = muted ? "🔇" : "צליל";
+    // THE-1185 B3: the sound button is icon-only now (.jm-icon-sound's ::after draws the muted slash
+    // off aria-pressed, skin.css), no text content to swap.
     soundBtn.setAttribute("aria-pressed", String(!muted));
   }
 
@@ -138,7 +141,9 @@ export function createScreens(root, theme, callbacks = {}) {
     countdownEl.innerHTML = secondsLeft != null ? `מתחילים בעוד <span class="jm-num">${Math.ceil(secondsLeft)}</span>` : "";
   }
 
-  function setInstallVisible(on) { installBtn.hidden = !on; }
+  // THE-1185 B3 (DESIGN.md §13.6): the pick screen's own install button moved out under the calm
+  // layout -- the About sheet's .jm-install2 (already wired below) is the only entry point now.
+  function setInstallVisible(on) { aboutInstallBtn.hidden = !on; }
   function setCpuHalf(side, on) { halves[side]?.classList.toggle("is-cpu", on); }
 
   // ---- solo setup sheet (THE-1141 DESIGN.md §11.2, design/junkies-matkot/r1/solo-sheet.html) --------
@@ -147,35 +152,58 @@ export function createScreens(root, theme, callbacks = {}) {
   // whatever the text direction" rule. Each side tube's head image is repainted from whichever head is
   // currently on that physical half of the pick screen (renderSoloSheet), so the choice reads as
   // "I play as <head> on the left/right", not a static placeholder.
-  const soloSheet = h(`<div class="jm-scrim" hidden><div class="jm-towel jm-sheet jm-solo-sheet" role="dialog" aria-label="נגד המחשב">
-    <div class="jm-sign jm-sign--p2 jm-sheet__title">נגד המחשב</div>
-    <div class="jm-sheet__row"><span>באיזה צד אתם?</span>
+  // THE-1185 B3 (DESIGN.md §13.6): the old solo-only sheet becomes the play sheet, one tap deeper from
+  // the calm main screen's single primary. A new "נגד מי?" mode row picks CPU vs. a friend on this
+  // screen; friend mode hides the side/level rows (skin.css, keyed off [data-mode="friend"]) since
+  // neither applies to a local 2-player match. The element/class names (soloSheet, jm-soloGo, etc.)
+  // stay as-is so QA/test scripts that already look for them keep working.
+  const soloSheet = h(`<div class="jm-scrim" hidden><div class="jm-towel jm-sheet jm-solo-sheet" role="dialog" aria-label="משחק חדש" data-mode="cpu">
+    <div class="jm-sign jm-sign--p2 jm-sheet__title">משחק חדש</div>
+    <div class="jm-sheet__row"><span>נגד מי?</span>
+      <div class="jm-seg jm-seg--mode" role="group" aria-label="נגד מי">
+        <button class="jm-tube" data-mode="cpu" aria-pressed="true">המחשב</button>
+        <button class="jm-tube" data-mode="friend" aria-pressed="false">חבר על המסך</button>
+      </div>
+    </div>
+    <div class="jm-sheet__row jm-sheet__row--side"><span>באיזה צד אתם?</span>
       <div class="jm-seg jm-seg--side" role="group" aria-label="צד">
         <button class="jm-tube" data-side="0" aria-pressed="false"><span class="jm-seg__head"><img alt=""></span>שמאל</button>
         <button class="jm-tube" data-side="1" aria-pressed="false"><span class="jm-seg__head"><img alt=""></span>ימין</button>
       </div>
     </div>
-    <div class="jm-sheet__row"><span>רמה</span>
+    <div class="jm-sheet__row jm-sheet__row--level"><span>רמה</span>
       <div class="jm-seg jm-seg--level" role="group" aria-label="רמה">
         <button class="jm-tube" data-level="easy" aria-pressed="false">תייר<span class="jm-seg__plain">קל</span></button>
         <button class="jm-tube" data-level="medium" aria-pressed="false">מקומי<span class="jm-seg__plain">בינוני</span></button>
         <button class="jm-tube" data-level="hard" aria-pressed="false">אלוף החוף<span class="jm-seg__plain">קשה</span></button>
       </div>
     </div>
-    <p class="jm-sheet__fine">כדור שעובר את הקו שלכם = נקודה למחשב · הראשון ל-7 לוקח</p>
+    <p class="jm-sheet__fine jm-sheet__fine--point"></p>
+    <p class="jm-sheet__fine">הכו חזק = כדור מהיר · ליטוף = כדור איטי</p>
+    <p class="jm-sheet__fine jm-sheet__fine--keys" hidden></p>
     <div class="jm-sheet__actions"><button class="jm-tube jm-tube--big jm-soloGo">יאללה!</button><button class="jm-tube jm-tube--cream jm-tube--small jm-soloBack">חזרה</button></div>
   </div></div>`);
   const soloSheetScrim = soloSheet; // the scrim itself is the outer element
+  const soloSheetDialog = soloSheet.querySelector(".jm-solo-sheet");
+  const soloModeTubes = [...soloSheet.querySelectorAll(".jm-seg--mode > .jm-tube")];
   const soloSideTubes = [...soloSheet.querySelectorAll(".jm-seg--side > .jm-tube")];
   const soloLevelTubes = [...soloSheet.querySelectorAll(".jm-seg--level > .jm-tube")];
+  const soloFinePoint = soloSheet.querySelector(".jm-sheet__fine--point");
+  const soloFineKeys = soloSheet.querySelector(".jm-sheet__fine--keys");
   const soloGoBtn = soloSheet.querySelector(".jm-soloGo");
   const soloBackBtn = soloSheet.querySelector(".jm-soloBack");
+  for (const btn of soloModeTubes) btn.addEventListener("click", () => cb("setPlayMode", btn.dataset.mode));
   for (const btn of soloSideTubes) btn.addEventListener("click", () => cb("setSoloSide", Number(btn.dataset.side)));
   for (const btn of soloLevelTubes) btn.addEventListener("click", () => cb("setCpuLevel", btn.dataset.level));
   soloGoBtn.addEventListener("click", () => cb("soloGo"));
   soloBackBtn.addEventListener("click", () => cb("soloBack"));
 
-  function renderSoloSheet(ids, side, level) {
+  // THE-1185 B3 (DESIGN.md §13.3/§13.4): mode is "cpu" | "friend"; isKeyboard is a coarse-pointer check
+  // (the caller already computes this for the first-match guides, so it's passed in rather than
+  // re-detected here).
+  function renderSoloSheet(ids, side, level, mode = "cpu", isKeyboard = false) {
+    soloSheetDialog.dataset.mode = mode;
+    for (const btn of soloModeTubes) btn.setAttribute("aria-pressed", String(btn.dataset.mode === mode));
     for (const btn of soloSideTubes) {
       const s = Number(btn.dataset.side);
       const on = s === side;
@@ -184,6 +212,11 @@ export function createScreens(root, theme, callbacks = {}) {
       if (head) btn.querySelector(".jm-seg__head > img").src = head.image;
     }
     for (const btn of soloLevelTubes) btn.setAttribute("aria-pressed", String(btn.dataset.level === level));
+    soloFinePoint.textContent = mode === "friend"
+      ? "כדור שעובר את הקו שלכם = נקודה לצד השני · הראשון ל-7 לוקח"
+      : "כדור שעובר את הקו שלכם = נקודה למחשב · הראשון ל-7 לוקח";
+    soloFineKeys.hidden = !isKeyboard;
+    soloFineKeys.textContent = mode === "friend" ? "שמאל: W A S D · ימין: החיצים" : "W A S D או החיצים";
   }
   function showSoloSheet() { soloSheetScrim.hidden = false; soloGoBtn.focus(); } // designer: focus starts on "יאללה!"
   function hideSoloSheet() { soloSheetScrim.hidden = true; }
@@ -211,13 +244,21 @@ export function createScreens(root, theme, callbacks = {}) {
   // THE-1119 M4: first-match guides (design/junkies-matkot/screens.html's two markup variants --
   // touch gets a dotted drag arrow + ghost thumb, keyboard gets two keycaps). Shown once per side on
   // the very first match, faded on that side's first touch or key (fadeGuide). Solo: left side only.
+  // THE-1184 S6 (DESIGN.md §13.3): the zone adds a 2nd axis, so touch gets a 4-way cross (two arrows,
+  // the second rotated 90deg) instead of one, and keyboard gets 4 keycaps in an inverted T
+  // (.jm-guide__keys, skin.css) -- W/A/S/D on the left, the arrow cluster on the right -- plus one
+  // .jm-guide__words line under each, per side.
   function showGuides(isTouch, solo = false, humanSide = 0) {
-    guides[0].innerHTML = isTouch
-      ? `<div class="jm-guide__arrow"></div><div class="jm-guide__thumb"></div>`
-      : `<span class="jm-keycap">W</span><span class="jm-keycap">S</span>`;
-    guides[1].innerHTML = isTouch
-      ? `<div class="jm-guide__arrow"></div><div class="jm-guide__thumb"></div>`
-      : `<span class="jm-keycap jm-keycap--sym">↑</span><span class="jm-keycap jm-keycap--sym">↓</span>`;
+    if (isTouch) {
+      // THE-1185 N3 (CTO review r3): the x arrow uses the designer's own class (skin.css
+      // .jm-guide__arrow--x, THE-1187 B4 follow-up), not an inline rotate style.
+      const cross = `<div class="jm-guide__arrow"></div><div class="jm-guide__arrow jm-guide__arrow--x"></div><div class="jm-guide__thumb"></div>`;
+      guides[0].innerHTML = `${cross}<div class="jm-guide__words">גוררים לכל כיוון</div>`;
+      guides[1].innerHTML = `${cross}<div class="jm-guide__words">גוררים לכל כיוון</div>`;
+    } else {
+      guides[0].innerHTML = `<div class="jm-guide__keys"><span class="jm-keycap">W</span><span class="jm-keycap">A</span><span class="jm-keycap">S</span><span class="jm-keycap">D</span></div><div class="jm-guide__words">W A S D: לכל הכיוונים</div>`;
+      guides[1].innerHTML = `<div class="jm-guide__keys"><span class="jm-keycap jm-keycap--sym">↑</span><span class="jm-keycap jm-keycap--sym">←</span><span class="jm-keycap jm-keycap--sym">↓</span><span class="jm-keycap jm-keycap--sym">→</span></div><div class="jm-guide__words">החיצים: לכל הכיוונים</div>`;
+    }
     for (const g of guides) { g.hidden = false; g.classList.remove("is-gone"); }
     if (solo) guides[1 - humanSide].hidden = true; // THE-1142 S3: hide the CPU side's guide, whichever side that is
   }
@@ -302,6 +343,22 @@ export function createScreens(root, theme, callbacks = {}) {
   }
   function clearTeachBanner() { for (const el of hud.querySelectorAll(".jm-teach")) el.remove(); }
 
+  // THE-1184 S6 (DESIGN.md §13.4): the impact-physics teaching banner, once per device
+  // (save.impactTipSeen) -- never on the same serve as showTeachBanner() above, so game.js queues this
+  // for the serve after this match's first point instead when the r2 banner also showed. Same markup
+  // class and clear path (clearTeachBanner) as the r2 banner, just different copy.
+  // THE-1189: returns whether it actually rendered, so game.js only spends the one-shot
+  // impactTipSeen flag on a serve where the banner wasn't blocked by an older .jm-teach.
+  function showImpactTeachBanner() {
+    if (hud.querySelector(".jm-teach")) return false;
+    const el = h(`<div class="jm-teach"><div class="jm-megaphone"><span class="jm-megaphone__text">
+      <span class="jm-teach__big">הכו חזק = כדור מהיר!</span>
+      <span class="jm-teach__small">ליטוף = כדור איטי · אפשר לרוץ קדימה עד הקו בחול</span>
+    </span></div></div>`);
+    hud.appendChild(el);
+    return true;
+  }
+
   // THE-1141 DESIGN.md §11.3: a "נגיעה מדלגת" pill fades in once a moment becomes skippable (keyboard-
   // only devices read "כל מקש מדלג" instead).
   const skipHint = h(`<div class="jm-skip-hint" hidden>נגיעה מדלגת</div>`);
@@ -369,7 +426,8 @@ export function createScreens(root, theme, callbacks = {}) {
   aboutSheet.querySelector(".jm-aboutSound").addEventListener("click", () => cb("toggleSound"));
   const aboutReduceMotionToggle = aboutSheet.querySelector(".jm-aboutReduceMotion");
   aboutReduceMotionToggle.addEventListener("click", () => cb("toggleReduceMotion"));
-  aboutSheet.querySelector(".jm-install2").addEventListener("click", () => cb("install"));
+  const aboutInstallBtn = aboutSheet.querySelector(".jm-install2");
+  aboutInstallBtn.addEventListener("click", () => cb("install"));
 
   root.appendChild(pick);
   root.appendChild(hud);
@@ -425,13 +483,13 @@ export function createScreens(root, theme, callbacks = {}) {
   return {
     el: {
       pick, hud, result, replay, rotate, pauseSheet, aboutSheet,
-      soloSheet: soloSheetScrim, soloGoBtn, soloBackBtn, soloSideTubes, soloLevelTubes,
+      soloSheet: soloSheetScrim, soloGoBtn, soloBackBtn, soloModeTubes, soloSideTubes, soloLevelTubes,
       rotateTitle: rotate.querySelector(".jm-rotateTitle"),
       startBtn: null,
       rematchBtn: result.querySelector(".jm-rematch"),
       changeHeadsBtn: result.querySelector(".jm-changeHeads"),
       replayAgainBtn: result.querySelector(".jm-replayAgain"),
-      soloBtn, aboutBtn, soundBtn, installBtn,
+      soloBtn, aboutBtn, soundBtn, installBtn: aboutInstallBtn,
       shareBtn: result.querySelector(".jm-share"),
       cardSlot,
     },
@@ -457,6 +515,7 @@ export function createScreens(root, theme, callbacks = {}) {
     setBubbleOut,
     clearBubble,
     showTeachBanner,
+    showImpactTeachBanner,
     clearTeachBanner,
     setVersion,
     setPauseState,

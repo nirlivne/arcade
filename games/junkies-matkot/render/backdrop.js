@@ -84,37 +84,82 @@ function hexRgba(hex, alpha) {
 // the board's actual complaint).
 //
 // Bands are specified as [x0, x1] in court units measured from the court edge outward (x0 < x1 <= 0,
-// e.g. the stitch is [-4, 0]). For the left line that maps directly to canvas x = l + x*k; the right
-// line mirrors it, canvas x = r - x*k (so a more-negative x0 still lands further off-court).
-function goalBandRect(l, r, side, x0, x1, k) {
-  return side === 0 ? [l + x0 * k, (x1 - x0) * k] : [r - x1 * k, (x1 - x0) * k];
+// e.g. the stitch is [-4, 0]). THE-1184 S6 (DESIGN.md §13.1): x positions/widths use scaleX (kx) now,
+// not the old shared scale -- for the left line that maps to canvas x = l + x*kx; the right line
+// mirrors it, canvas x = r - x*kx (so a more-negative x0 still lands further off-court).
+function goalBandRect(l, r, side, x0, x1, kx) {
+  return side === 0 ? [l + x0 * kx, (x1 - x0) * kx] : [r - x1 * kx, (x1 - x0) * kx];
 }
 
 // THE-1157 r1 (non-blocking): colours come from the caller's theme.playerColors (COLORS.p1/p2 as the
 // fallback for callers that don't pass any, e.g. a themed re-skin shouldn't leave the goal line reading
 // the wrong side's colour), not hardcoded hex.
+//
+// THE-1184 S6 (DESIGN.md §13.1): the vertical extent (y0/y1/h) and the stitch dash length still use k
+// (scaleY) -- only the x placement/width of every band switched to kx (scaleX). The towel body wash
+// (first band) now reaches the screen edge (the inset), not a fixed 300u, via a canvas gradient instead
+// of a flat fill so it fades out rather than hard-stopping at the old boundary.
 function drawGoalLine(ctx, layout, playerColors) {
-  const { l, r, t, b, scale: k } = layout;
+  const { l, r, t, b, scale: k, scaleX: kx, courtX } = layout;
   const y0 = t - 6 * k, y1 = b + 6 * k, h = y1 - y0;
   for (const side of [0, 1]) {
     const playerColor = playerColors[side];
-    let [x, w] = goalBandRect(l, r, side, -300, -46, k);
-    ctx.fillStyle = hexRgba("#FFF4E0", 0.16); ctx.fillRect(x, y0, w, h); // towel body wash
-    [x, w] = goalBandRect(l, r, side, -46, -44, k);
+    const washInnerX0 = -46; // the gold stripe's outer edge (court units from the goal line)
+    const washOuterPx = Math.min(300 * k, courtX - 46 * k); // run from the band to the screen edge
+    const [washInnerX] = goalBandRect(l, r, side, washInnerX0, washInnerX0 + 1, kx);
+    const edgeX = side === 0 ? 0 : layout.W;
+    let g;
+    if (side === 0) g = ctx.createLinearGradient(washInnerX - washOuterPx, 0, washInnerX, 0);
+    else g = ctx.createLinearGradient(washInnerX + 1, 0, washInnerX + 1 + washOuterPx, 0);
+    g.addColorStop(side === 0 ? 0 : 1, hexRgba("#FFF4E0", 0));
+    g.addColorStop(side === 0 ? 1 : 0, hexRgba("#FFF4E0", 0.16));
+    ctx.fillStyle = g;
+    const washX = side === 0 ? Math.max(0, washInnerX - washOuterPx) : washInnerX + 1;
+    ctx.fillRect(washX, y0, washOuterPx, h); // towel body wash, fading to the screen edge
+    let [x, w] = goalBandRect(l, r, side, -46, -44, kx);
     ctx.fillStyle = hexRgba("#2A1638", 0.45); ctx.fillRect(x, y0, w, h); // plum hairline
-    [x, w] = goalBandRect(l, r, side, -44, -32, k);
+    [x, w] = goalBandRect(l, r, side, -44, -32, kx);
     ctx.fillStyle = hexRgba("#FFC25A", 0.9); ctx.fillRect(x, y0, w, h); // gold stripe
-    [x, w] = goalBandRect(l, r, side, -32, -26, k);
+    [x, w] = goalBandRect(l, r, side, -32, -26, kx);
     ctx.fillStyle = hexRgba("#FFF4E0", 0.85); ctx.fillRect(x, y0, w, h); // towel cream
-    [x, w] = goalBandRect(l, r, side, -26, -4, k);
+    [x, w] = goalBandRect(l, r, side, -26, -4, kx);
     ctx.fillStyle = hexRgba(playerColor, 0.9); ctx.fillRect(x, y0, w, h); // player colour
-    [x, w] = goalBandRect(l, r, side, -4, 0, k);
+    [x, w] = goalBandRect(l, r, side, -4, 0, kx);
     ctx.save();
     ctx.strokeStyle = hexRgba("#FFF6E2", 0.9);
     ctx.lineWidth = w;
     ctx.lineCap = "butt";
     ctx.setLineDash([16 * k, 10 * k]); // the cream stitch
     ctx.beginPath(); ctx.moveTo(x + w / 2, y0); ctx.lineTo(x + w / 2, y1); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// THE-1184 S6 (DESIGN.md §13.2, board note 1): the movement zone's no-cross line, a line drawn in the
+// sand at the zone's front face (court x 436 / 1164 -- the sim's own PADDLE_X_ZONE max + half the
+// capsule thickness). Quiet: a dashed groove plus a 1px lit edge on the court side, well under the goal
+// line's own weight. Drawn here (ground layer, baked into the backdrop) so it's under every per-frame
+// GL instance, same reasoning as the goal line.
+function drawZoneGroove(ctx, layout) {
+  const { t, b, scale: k, scaleX: kx, courtX } = layout;
+  const lineWidth = Math.max(1.5, 6 * k);
+  const dashOn = 24 * k, dashOff = 18 * k, dashStartY = 12 * k;
+  for (const zoneX of [436, 1164]) {
+    const x = courtX + zoneX * kx;
+    ctx.save();
+    ctx.strokeStyle = hexRgba("#2A1638", 0.2);
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = "round";
+    ctx.setLineDash([dashOn, dashOff]);
+    ctx.beginPath(); ctx.moveTo(x, t + dashStartY); ctx.lineTo(x, b); ctx.stroke();
+    ctx.restore();
+    // the lit edge sits 1px toward the net (the court side, away from the towel) from the groove
+    const litDir = zoneX < 800 ? 1 : -1;
+    ctx.save();
+    ctx.strokeStyle = hexRgba("#FFF6E2", 0.3);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([dashOn, dashOff]);
+    ctx.beginPath(); ctx.moveTo(x + litDir, t + dashStartY); ctx.lineTo(x + litDir, b); ctx.stroke();
     ctx.restore();
   }
 }
@@ -202,6 +247,8 @@ export function paintBackdrop(ctx, layout, opts = {}) {
   if (opts.heelLine !== false) drawHeelLine(ctx, W / 2, t + 3 * k, b - 2 * k, k);
   // 11b) goal lines (THE-1156 S4, board note 4, DESIGN.md §12.2), under every per-frame GL instance
   if (opts.heelLine !== false) drawGoalLine(ctx, layout, opts.playerColors || [COLORS.p1, COLORS.p2]);
+  // 11c) the movement zone's no-cross line (THE-1184 S6, DESIGN.md §13.2), same ground layer
+  if (opts.heelLine !== false) drawZoneGroove(ctx, layout);
   // 12) foam, top wall, full width
   drawFoam(ctx, W, t, k);
   // 13) float rope, bottom band, full width

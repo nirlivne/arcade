@@ -73,6 +73,7 @@ let pickReady = [false, false];
 let pickReadyAt = null; // performance.now() of the first ready tap; 10s auto-start counts from here
 let solo = false;
 let humanSide = save.get().soloSide; // THE-1142 S3 (board note 3): 0 = left, 1 = right; the CPU takes the other side
+let playMode = save.get().playMode; // THE-1185 B3 (DESIGN.md §13.6): the play sheet's "נגד מי?" row
 let diceSpinning = false; // THE-1141: true while the CPU's head is spinning on the pick screen, between "יאללה!" and the match
 let diceSpinShownAt = -Infinity;
 const DICE_SPIN_MIN_SKIP_MS = 400; // designer's number, DESIGN.md §11.2
@@ -80,6 +81,12 @@ let cpuController = null;
 let cpuNowMs = 0;
 let headColor = {}; // head id -> hex colour, D2-3: colour follows the head, not the side, across a swap
 let isFirstMatchOfSession = true; // spec §5/D2-6: only the very first match waits for paddle movement
+// THE-1184 S6 (DESIGN.md §13.4): the impact teaching banner never shares a serve with the r2 banner
+// (showTeachBanner). impactTipArmedForFirstPoint queues it for the serve right after this match's
+// first point when the r2 banner took serve 1 instead; pendingImpactTip is the actual "show on the
+// next serve" flag, consumed once.
+let impactTipArmedForFirstPoint = false;
+let pendingImpactTip = false;
 
 function colorForSide(side) {
   if (pickIdsForMatch[0] === pickIdsForMatch[1]) {
@@ -101,17 +108,35 @@ const screens = createScreens(appRoot, theme, {
     renderPickScreen();
   },
   toggleReady(side) { requestFullscreenOnFirstPlayTap(); toggleReadyKey(side); },
-  // THE-1141 DESIGN.md §11.2: "נגד המחשב" opens the solo setup sheet (side + level) instead of starting
-  // the dice spin immediately; "יאללה!"/Enter confirms, "חזרה"/Esc cancels with nothing started.
+  // THE-1141 DESIGN.md §11.2, extended THE-1185 B3 (§13.6): "שחקו!" opens the play sheet (mode + side +
+  // level) instead of starting a match immediately; "יאללה!"/Enter confirms, "חזרה"/Esc cancels with
+  // nothing started.
   openSoloSheet() {
     requestFullscreenOnFirstPlayTap(); // THE-1142 S5b: the first Play tap of the session, straight from this click's own gesture
-    screens.renderSoloSheet(pickIds, humanSide, save.get().cpuLevel);
+    screens.renderSoloSheet(pickIds, humanSide, save.get().cpuLevel, playMode, !isCoarsePointer());
     screens.showSoloSheet();
   },
-  setCpuLevel(level) { save.setCpuLevel(level); screens.renderSoloSheet(pickIds, humanSide, level); }, // THE-1142 S2: takes effect on the next solo match (cpuController is only (re)built there)
-  setSoloSide(side) { humanSide = side; save.setSoloSide(side); screens.renderSoloSheet(pickIds, humanSide, save.get().cpuLevel); }, // THE-1142 S3
+  setCpuLevel(level) { save.setCpuLevel(level); screens.renderSoloSheet(pickIds, humanSide, level, playMode, !isCoarsePointer()); }, // THE-1142 S2: takes effect on the next solo match (cpuController is only (re)built there)
+  setSoloSide(side) { humanSide = side; save.setSoloSide(side); screens.renderSoloSheet(pickIds, humanSide, save.get().cpuLevel, playMode, !isCoarsePointer()); }, // THE-1142 S3
+  // THE-1185 B3: which side of the "נגד מי?" row is pressed; remembered like every other setting.
+  setPlayMode(mode) {
+    playMode = mode;
+    save.setPlayMode(mode);
+    screens.renderSoloSheet(pickIds, humanSide, save.get().cpuLevel, playMode, !isCoarsePointer());
+  },
   soloGo() {
     screens.hideSoloSheet();
+    if (playMode === "friend") {
+      // THE-1185 B3: friend mode has no CPU/dice spin -- it's the same "both players ready" start the
+      // old per-side מוכן? buttons used (toggleReadyKey's own both-ready branch), just triggered from
+      // the play sheet's "יאללה!" instead of two separate taps.
+      solo = false;
+      pickReady = [true, true];
+      pickReadyAt = null;
+      renderPickScreen();
+      beginMatchFromPick();
+      return;
+    }
     solo = true;
     const human = pickIds[humanSide];
     const others = HEADS.filter((h) => h.id !== human);
@@ -375,7 +400,11 @@ let activeBubbleDistraction = null; // the distraction instance the on-screen bu
 function startFlight(nowMs) {
   flightStartAt = nowMs;
   const vx = match.ball.vx;
-  const targetX = vx >= 0 ? C.FRONT_FACE_X[1] : C.FRONT_FACE_X[0];
+  const targetSide = vx >= 0 ? 1 : 0;
+  // THE-1189 D2: once the receiving paddle can stand forward in its zone (same pattern as sim/cpu.js),
+  // time the arc to its real front face instead of the legacy fixed one, or the ball lands/shadows wrong.
+  const dir = targetSide === 0 ? 1 : -1;
+  const targetX = match.zoneEnabled ? match.paddles[targetSide].x + dir * (C.CAPSULE_THICK / 2) : C.FRONT_FACE_X[targetSide];
   flightMs = Arc.flightDurationMs(match.ball.x, targetX, vx);
 }
 let guideFaded = [true, true]; // M4: both already "faded" until the first match arms them
@@ -459,8 +488,14 @@ function setScreen(name) {
   screens.show(name === "swap" ? "match" : name); // swap reuses the match DOM, canvas-only transition
   if (name !== "match" && name !== "swap") { isPaused = false; screens.el.pauseSheet.hidden = true; }
   if (name === "pick") { pickReady = [false, false]; pickReadyAt = null; solo = false; renderPickScreen(); }
-  touchState = Touch.createTouchState(match ? [match.paddles[0].y, match.paddles[1].y] : undefined);
-  keysState = Keys.createKeysState(match ? [match.paddles[0].y, match.paddles[1].y] : undefined);
+  touchState = Touch.createTouchState(
+    match ? [match.paddles[0].y, match.paddles[1].y] : undefined,
+    match ? [match.paddles[0].x, match.paddles[1].x] : undefined,
+  );
+  keysState = Keys.createKeysState(
+    match ? [match.paddles[0].y, match.paddles[1].y] : undefined,
+    match ? [match.paddles[0].x, match.paddles[1].x] : undefined,
+  );
   arbiterState = Arbiter.createArbiterState();
 }
 
@@ -470,7 +505,7 @@ function beginMatchFromPick() {
   headColor = {};
   headColor[headIds[0]] = theme.playerColors[0];
   headColor[headIds[1]] = theme.playerColors[1];
-  match = Sim.createMatch((seedParam || Date.now()) >>> 0, { distractions: true }); // THE-1142 S5: real matches only, not the ?seed= / __pong.seed() test-hook path
+  match = Sim.createMatch((seedParam || Date.now()) >>> 0, { distractions: true, zone: true, impact: true }); // THE-1142 S5 / THE-1184 S1-S2: real matches only, not the ?seed= / __pong.seed() test-hook path
   const armWait = isFirstMatchOfSession;
   if (armWait) { Sim.armFirstServeWait(match); isFirstMatchOfSession = false; }
   replayRec = Replay.attachRecorder(match, { firstServeWaitArmed: armWait });
@@ -478,14 +513,25 @@ function beginMatchFromPick() {
   // M4: first match only. Solo has no guide on the CPU's side (it would never fade).
   if (armWait) {
     guideFaded = solo ? (humanSide === 0 ? [false, true] : [true, false]) : [false, false];
+    // THE-1184 S6: can't also show the impact tip on this same serve -- queue it for the serve right
+    // after this match's first point instead.
+    impactTipArmedForFirstPoint = !save.get().impactTipSeen;
+    pendingImpactTip = false;
+  } else {
+    impactTipArmedForFirstPoint = false;
+    pendingImpactTip = !save.get().impactTipSeen; // no r2 banner this match: show on its first serve
+  }
+  if (solo) { cpuController = Cpu.create(1 - humanSide, createRng((match.seed ^ 0x9e3779b9) >>> 0), save.get().cpuLevel); cpuNowMs = 0; }
+  else cpuController = null;
+  setScreen("match"); // THE-1189: setScreen's own clearAllTimers runs first -- the teach banner's clear
+  // timer below has to be scheduled after it, or setScreen wipes the timer the instant it's set (the
+  // banner then never clears and blocks the impact tip from ever showing).
+  if (armWait) {
     screens.showGuides(isCoarsePointer(), solo, humanSide);
     // THE-1156 S4 (board note 4, DESIGN.md §12.4): the first-serve teaching banner, same one-time flag.
     screens.showTeachBanner();
     scheduleTimer("teach-banner-clear", 3500, () => screens.clearTeachBanner());
   }
-  if (solo) { cpuController = Cpu.create(1 - humanSide, createRng((match.seed ^ 0x9e3779b9) >>> 0), save.get().cpuLevel); cpuNowMs = 0; }
-  else cpuController = null;
-  setScreen("match");
 }
 
 function startMatch(seed) { // test-hook entry (window.__pong.seed)
@@ -509,9 +555,13 @@ function doRematch() {
     if (!solo) headIds = [headIds[1], headIds[0]];
     pickIdsForMatch = headIds.slice(); // headColor map is untouched: colour follows the head across the swap
     save.setLastPicks(headIds);
-    match = Sim.createMatch((match.seed + 1) >>> 0, { distractions: true }); // THE-1142 S5
+    match = Sim.createMatch((match.seed + 1) >>> 0, { distractions: true, zone: true, impact: true }); // THE-1142 S5 / THE-1184 S1-S2
     replayRec = Replay.attachRecorder(match);
     resetMoments();
+    // THE-1184 S6: a rematch never shows the r2 banner, so show the impact tip on its first serve if
+    // it's still unseen (covers a player who somehow never saw a point in their very first match).
+    impactTipArmedForFirstPoint = false;
+    pendingImpactTip = !save.get().impactTipSeen;
     if (solo) { cpuController = Cpu.create(1 - humanSide, createRng((match.seed ^ 0x9e3779b9) >>> 0), save.get().cpuLevel); cpuNowMs = 0; }
     setScreen("match");
   }); // 0.4s swap tween (A4/D2-3); rematch-to-serve stays well under 1s
@@ -630,7 +680,7 @@ function canvasRectToWorld(clientX, clientY) {
   const r = canvas.getBoundingClientRect();
   const layout = computeLayout(r.width, r.height);
   return {
-    x: ((clientX - r.left) - layout.courtX) / layout.scale,
+    x: ((clientX - r.left) - layout.courtX) / layout.scaleX, // THE-1184 S6: x uses scaleX now
     y: ((clientY - r.top) - layout.courtY) / layout.scale,
   };
 }
@@ -685,14 +735,29 @@ window.addEventListener("pointerdown", () => {
   else if (screen === "pick" && diceSpinning) skipDiceSpinIfDue(); // THE-1141 DESIGN.md §11.2
 }, { capture: true });
 
-const LEFT_KEYS = new Set(["KeyW", "KeyS"]);
-const RIGHT_KEYS = new Set(["ArrowUp", "ArrowDown"]);
+// THE-1184 S3 (board note 1): x axis keys fold into the same two sets -- the match-screen keydown/keyup
+// handlers below forward anything in either set to Keys.onKey, which already knows (by code) which axis
+// a key belongs to.
+const LEFT_KEYS = new Set(["KeyW", "KeyS", "KeyA", "KeyD"]);
+const RIGHT_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 // THE-1143 N1 (CTO review r2): in solo either pair drives the human, so both pairs are folded onto the
 // human's own pair right at the event -- keys.js, the arbiter and the guide then see one player only.
-const SOLO_KEY_CODES = [{ up: "KeyW", down: "KeyS" }, { up: "ArrowUp", down: "ArrowDown" }];
+// THE-1184 S3/THE-1185 B2 (CTO review r3): the x axis folds by *screen* direction, not by fwd/back role
+// -- "fwd"/"back" are side-relative (fwd is +x for the left player, -x for the right one), so folding by
+// that role flips the screen direction whenever the chosen side differs from the key pair's natural
+// side (DESIGN.md §13.3: "every key moves the paddle the way its arrow points on the screen"). Folding
+// by screenLeft/screenRight instead is side-symmetric by construction.
+const SOLO_KEY_CODES = [
+  { up: "KeyW", down: "KeyS", screenLeft: "KeyA", screenRight: "KeyD" },
+  { up: "ArrowUp", down: "ArrowDown", screenLeft: "ArrowLeft", screenRight: "ArrowRight" },
+];
+const KEY_ROLE = {
+  KeyW: "up", KeyS: "down", KeyA: "screenLeft", KeyD: "screenRight",
+  ArrowUp: "up", ArrowDown: "down", ArrowLeft: "screenLeft", ArrowRight: "screenRight",
+};
 function paddleKeyCode(code) {
   if (!solo || !(LEFT_KEYS.has(code) || RIGHT_KEYS.has(code))) return code;
-  return SOLO_KEY_CODES[humanSide][code === "KeyW" || code === "ArrowUp" ? "up" : "down"];
+  return SOLO_KEY_CODES[humanSide][KEY_ROLE[code]];
 }
 // Keys auto-repeat while held (and a key can already be held when `replay` starts), so replay skip and
 // rematch only count a fresh press (`!e.repeat`) -- unlike pointerdown, a held keydown is not a one-shot.
@@ -726,17 +791,18 @@ window.addEventListener("keydown", (e) => {
   }
   if (screen === "pick") {
     if (diceSpinning) { if (!e.repeat) skipDiceSpinIfDue(); return; } // THE-1141 DESIGN.md §11.2
-    // A1: the carousel keys (W/S/D, Up/Down/Left) keep working even while a centre tube has focus.
-    // Enter is the one key a focused tube already handles itself (native button activation), so only
-    // treat it as "both ready now" when nothing is focused, to avoid double-handling a tube's own Enter.
+    // A1: the carousel keys (W/S, Up/Down) keep working even while a centre tube has focus.
+    // THE-1185 B3 (DESIGN.md §13.6): the calm screen's own keyboard contract -- Enter/Space opens the
+    // play sheet (the old per-side quick-ready KeyD/ArrowLeft shortcuts and "Enter = both ready" are
+    // gone along with the per-side ready buttons they drove; 2-player now starts from the play sheet's
+    // own friend mode). Enter/Space is the one key a focused tube already handles itself (native button
+    // activation), so only treat it as "open the sheet" when nothing is focused.
     const tubeFocused = document.activeElement && document.activeElement.classList?.contains("jm-tube");
     if (e.code === "KeyW") { cyclePick(0, -1); }
     else if (e.code === "KeyS") { cyclePick(0, 1); }
     else if (e.code === "ArrowUp") { cyclePick(1, -1); }
     else if (e.code === "ArrowDown") { cyclePick(1, 1); }
-    else if (e.code === "KeyD") { toggleReadyKey(0); }
-    else if (e.code === "ArrowLeft") { toggleReadyKey(1); }
-    else if (e.code === "Enter" && !tubeFocused) { pickReady = [true, true]; renderPickScreen(); beginMatchFromPick(); }
+    else if ((e.code === "Enter" || e.code === "Space") && !tubeFocused) { screens.el.soloBtn.click(); }
     else if (e.code === "KeyC") { screens.el.soloBtn.click(); }
     return;
   }
@@ -790,6 +856,12 @@ function resizeCanvas() {
   appRoot.style.setProperty("--jm-court-r", `${cssLayout.r}px`);
   appRoot.style.setProperty("--jm-court-t", `${cssLayout.t}px`);
   appRoot.style.setProperty("--jm-court-b", `${cssLayout.b}px`);
+  // THE-1184 S6 (DESIGN.md §13.1): the first-match guides now centre inside each zone (world x 230/1370
+  // u), not in the old side margin (which shrank to a few dozen px). skin.css's .jm-guide--l/r left:
+  // formula still computes the pre-r3 margin-based position -- it needs switching to these vars
+  // (follow-up for the designer/CTO; out of dev's skin.css lane).
+  appRoot.style.setProperty("--jm-guide-l", `${cssLayout.guideLeftX}px`);
+  appRoot.style.setProperty("--jm-guide-r", `${cssLayout.guideRightX}px`);
 }
 window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
@@ -810,21 +882,37 @@ function tick() {
   if (match && screen === "match" && !isPaused) {
     keysState = Keys.step(keysState, DT);
     const targets = Arbiter.resolve(arbiterState, touchState.targetY, keysState.y);
+    const targetsX = Arbiter.resolveX(arbiterState, touchState.targetX, keysState.x); // THE-1184 S3
     const inputs = [targets[0], targets[1]];
+    const inputsX = [targetsX[0], targetsX[1]];
     if (solo && cpuController) { // THE-1142 S3: the human drives humanSide; the CPU takes the other index
       const cpuSide = 1 - humanSide;
       const r = Cpu.update(cpuController, match, cpuNowMs);
       cpuController = r.cpu;
       cpuNowMs += DT * 1000;
       inputs[cpuSide] = cpuController.targetY;
+      inputsX[cpuSide] = cpuController.targetX; // THE-1184 S4: undefined until the CPU gains the x axis
     }
-    Sim.setInput(match, 0, inputs[0]);
-    Sim.setInput(match, 1, inputs[1]);
-    if (replayRec) Replay.recordTick(replayRec, inputs);
+    Sim.setInput(match, 0, inputs[0], inputsX[0]);
+    Sim.setInput(match, 1, inputs[1], inputsX[1]);
+    if (replayRec) Replay.recordTick(replayRec, inputs, inputsX); // THE-1185 B1: x travels in the log too now
     Sim.step(match, DT);
     if (match.state !== lastMatchState) {
       tiersCtrl = Tiers.notifyStateChange(tiersCtrl, performance.now());
       if (match.state === "rally" && lastMatchState !== "rally") startFlight(performance.now()); // serve launch: the ball takes off
+      // THE-1184 S6 (DESIGN.md §13.4): the impact tip shows right as the serve count for its target
+      // serve begins -- 3200ms visible, then clearTeachBanner's existing 300ms fade (reusing the r2
+      // banner's own 3500ms total timer).
+      if (match.state === "serve" && lastMatchState !== "serve" && pendingImpactTip) {
+        // THE-1189: an older .jm-teach (the r2 banner) can still be up here -- showImpactTeachBanner()
+        // then no-ops. Only spend the one-shot impactTipSeen flag, and only start its own clear timer,
+        // on a serve where it actually rendered; otherwise keep retrying on the next serve.
+        if (screens.showImpactTeachBanner()) {
+          pendingImpactTip = false;
+          scheduleTimer("impact-tip-clear", 3500, () => screens.clearTeachBanner());
+          save.setImpactTipSeen(true);
+        }
+      }
       lastMatchState = match.state;
     }
     // THE-1156 S4 (DESIGN.md §12.1 restarts): a seagull release hands the ball a new velocity mid-air --
@@ -852,6 +940,12 @@ function tick() {
         startFlight(performance.now()); // THE-1156 S2: a new flight starts at every hit, not a wall bounce
         audio.tok(match.rally);
       } else if (ev.type === "point") {
+        // THE-1184 S6: this match's first point arms the impact tip for the very next serve; only the
+        // first point does anything here (the flag is one-shot per match).
+        if (impactTipArmedForFirstPoint) {
+          impactTipArmedForFirstPoint = false;
+          pendingImpactTip = true;
+        }
         audio.whistle();
         const scorer = ev.scorer;
         // THE-1156 S4 (board note 4, DESIGN.md §12.3): the "point!" moment. No sign on a smash point --
@@ -919,9 +1013,6 @@ function shakeOffset() {
 
 const startTimeS = performance.now() / 1000;
 
-// THE-1119 M6: the matka disc sits behind the capsule, not at the capsule's own centre (recipe.js
-// HEAD.discCenterXU = 16 u; its court-side rim lands on the capsule front face at x 126 u).
-const HEAD_DISC_X = [HEAD.discCenterXU, C.COURT_W - HEAD.discCenterXU];
 
 function rgba(hex, a) {
   const c = hexToRgb(hex);
@@ -1057,7 +1148,7 @@ function pushDistraction(instances, d, scale, toPx) {
 function distractionAnchorCss(d) {
   const rect = canvas.getBoundingClientRect();
   const layout = computeLayout(rect.width, rect.height);
-  const [cx, cy] = [layout.courtX + d.x * layout.scale, layout.courtY + d.y * layout.scale];
+  const [cx, cy] = [layout.courtX + d.x * layout.scaleX, layout.courtY + d.y * layout.scale]; // THE-1184 S6: x uses scaleX
   const kind = DISTRACTION_KIND[d.type] || "crab";
   const recipe = CROWD[kind];
   const aspect = headAtlas ? headAtlas.crowdAspectOf(kind, 0) : 1;
@@ -1097,7 +1188,16 @@ function draw(dt = 1 / 60) {
   const layout = computeLayout(canvas.width, canvas.height);
   const scale = layout.scale;
   const [shakeX, shakeY] = screen === "match" ? shakeOffset() : [0, 0];
-  const toPx = (wx, wy) => [layout.courtX + wx * scale + shakeX, layout.courtY + wy * scale + shakeY];
+  const toPx = (wx, wy) => [layout.courtX + wx * layout.scaleX + shakeX, layout.courtY + wy * scale + shakeY]; // THE-1184 S6: x uses scaleX
+  // THE-1184 S1/THE-1185 (CTO review r3): the head disc's x now tracks the paddle's real zone position
+  // instead of a fixed court-unit constant -- DESIGN.md §13.1's formula, in px (not world units, so the
+  // disc's own size isn't stretched by scaleX): discCentrePx = frontFacePx - dir*R.
+  const headDiscX = (side, paddleX) => {
+    const dir = side === 0 ? 1 : -1;
+    const frontFaceWorldX = paddleX + dir * (C.CAPSULE_THICK / 2);
+    const frontFacePx = layout.courtX + frontFaceWorldX * layout.scaleX + shakeX;
+    return frontFacePx - dir * layout.R;
+  };
   const instances = [];
   let heat = 0;
   if (match && screen === "match") {
@@ -1106,7 +1206,8 @@ function draw(dt = 1 / 60) {
       const p = match.paddles[side];
       const capsuleScale = p.capsuleScale || 1;
       const sq = squashScale(side);
-      const [hx, hy] = toPx(HEAD_DISC_X[side], p.y);
+      const hx = headDiscX(side, p.x);
+      const [, hy] = toPx(0, p.y);
       const uv = headAtlas ? headAtlas.uvOf(headIds[side]) : null;
       pushHead(instances, side, hx, hy, scale * capsuleScale, colorForSide(side), uv, { sqx: sq.x, sqy: sq.y });
     }
@@ -1128,7 +1229,8 @@ function draw(dt = 1 / 60) {
     // tracked in the trace; a minor fidelity simplification for the replay only).
     const sample = replaySample(replayPlayback);
     for (let side = 0; side < 2; side++) {
-      const [hx, hy] = toPx(HEAD_DISC_X[side], sample.paddles[side]);
+      const hx = headDiscX(side, sample.paddles[side].x);
+      const [, hy] = toPx(0, sample.paddles[side].y);
       const uv = headAtlas ? headAtlas.uvOf(headIds[side]) : null;
       pushHead(instances, side, hx, hy, scale, colorForSide(side), uv, {});
     }
@@ -1240,7 +1342,7 @@ window.__pong = {
       state: match.state,
       score: match.score.slice(),
       ball: { x: match.ball.x, y: match.ball.y, vx: match.ball.vx, vy: match.ball.vy, speed: match.ball.speed },
-      paddles: match.paddles.map((p) => ({ y: p.y, len: p.len, capsuleScale: p.capsuleScale })),
+      paddles: match.paddles.map((p) => ({ y: p.y, x: p.x, len: p.len, capsuleScale: p.capsuleScale })), // THE-1184 S1: x for the 2D-zone Playwright checks
       rally: match.rally,
       heat: match.heat,
       timeScale: match.timeScale,

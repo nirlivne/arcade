@@ -7,6 +7,7 @@
 import { C } from "./constants.js";
 import { createRng, range } from "./rng.js";
 import * as Distractions from "./distractions.js";
+import * as Impact from "./impact.js";
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
@@ -20,12 +21,18 @@ export function createMatch(seed, opts = {}) {
   const match = {
     seed, rng,
     distractionsEnabled: !!opts.distractions,
+    zoneEnabled: !!opts.zone, // THE-1184 S1: opt-in 2D movement; omitted = legacy, paddle.x never moves
+    impactEnabled: !!opts.impact, // THE-1184 S2: opt-in paddle-velocity impact physics
     state: "pointPause",
     stateTimer: 0,
     score: [0, 0],
     receiver: rng() < 0.5 ? 0 : 1, // first serve of the match: seeded random side
     ball: { x: C.COURT_W / 2, y: C.COURT_H / 2, vx: 0, vy: 0, speed: 0 },
-    paddles: [0, 1].map(() => ({ y: C.COURT_H / 2, vy: 0, targetY: C.COURT_H / 2, len: C.CAPSULE_LEN, capsuleScale: 1 })),
+    paddles: [0, 1].map((side) => ({
+      y: C.COURT_H / 2, vy: 0, targetY: C.COURT_H / 2,
+      x: C.PADDLE_CENTER_X[side], vx: 0, targetX: C.PADDLE_CENTER_X[side],
+      len: C.CAPSULE_LEN, capsuleScale: 1,
+    })),
     rally: 0,
     heat: 0,
     winner: null,
@@ -45,15 +52,27 @@ export function createMatch(seed, opts = {}) {
   return match;
 }
 
-export function setInput(match, side, y) {
-  match.paddles[side].targetY = clamp(y, C.PADDLE_Y_MIN, C.PADDLE_Y_MAX);
+// THE-1184 S1: x is opt-in. Omitted, or match.zoneEnabled false (legacy), leaves targetX untouched --
+// the paddle's x stays exactly at its legacy PADDLE_CENTER_X forever, byte-identical to pre-r3.
+export function setInput(match, side, y, x) {
+  const p = match.paddles[side];
+  p.targetY = clamp(y, C.PADDLE_Y_MIN, C.PADDLE_Y_MAX);
+  if (match.zoneEnabled && x !== undefined) {
+    const [a, b] = C.PADDLE_X_ZONE[side];
+    p.targetX = clamp(x, Math.min(a, b), Math.max(a, b));
+  }
 }
 
 // Spec §5 / D2-6: the first serve of a session waits until each human paddle has moved >= 30 u from
 // where it started, or 4 s pass, before the normal 0.8 s count begins. game.js calls this once, right
 // after the first match of a session is created, before the first step().
 export function armFirstServeWait(match) {
-  match.firstServeWait = { active: true, startY: [match.paddles[0].y, match.paddles[1].y], elapsed: 0 };
+  match.firstServeWait = {
+    active: true,
+    startY: [match.paddles[0].y, match.paddles[1].y],
+    startX: [match.paddles[0].x, match.paddles[1].x],
+    elapsed: 0,
+  };
 }
 
 export function step(match, dt = 1 / C.STEP_HZ) {
@@ -67,7 +86,12 @@ export function step(match, dt = 1 / C.STEP_HZ) {
     if (match.firstServeWait && match.firstServeWait.active) {
       const w = match.firstServeWait;
       w.elapsed += dt;
-      const moved = [0, 1].some((side) => Math.abs(match.paddles[side].y - w.startY[side]) >= 30);
+      // THE-1184 S1: 2D distance once the zone is on; legacy startX === the paddle's frozen x, so
+      // Math.hypot(.., 0) collapses to the old y-only check byte-for-byte.
+      const moved = [0, 1].some((side) => {
+        const p = match.paddles[side];
+        return Math.hypot(p.y - w.startY[side], p.x - w.startX[side]) >= 30;
+      });
       if (moved || w.elapsed >= 4) {
         w.active = false;
         match.stateTimer = C.SERVE_COUNT_S; // the normal count starts fresh once the wait clears
@@ -83,11 +107,22 @@ export function step(match, dt = 1 / C.STEP_HZ) {
 }
 
 function movePaddles(match, dt) {
-  const maxDelta = C.TOUCH_SPEED_CAP * dt;
+  const maxDeltaY = C.TOUCH_SPEED_CAP * dt;
+  const maxDeltaX = C.X_TOUCH_SPEED_CAP * dt;
   for (const p of match.paddles) {
-    const dy = clamp(p.targetY - p.y, -maxDelta, maxDelta);
+    const dy = clamp(p.targetY - p.y, -maxDeltaY, maxDeltaY);
     p.vy = dy / dt;
     p.y = clamp(p.y + dy, C.PADDLE_Y_MIN, C.PADDLE_Y_MAX);
+    // THE-1184 S1: legacy (zoneEnabled false) never touches x -- p.targetX stays pinned at
+    // PADDLE_CENTER_X (setInput never updates it), so this is a no-op dx=0, vx=0 either way, but the
+    // branch keeps the legacy path from doing any x arithmetic at all.
+    if (match.zoneEnabled) {
+      const dx = clamp(p.targetX - p.x, -maxDeltaX, maxDeltaX);
+      p.vx = dx / dt;
+      p.x = p.x + dx; // targetX is already zone-clamped in setInput, so x stays in-zone too
+    } else {
+      p.vx = 0;
+    }
   }
 }
 
@@ -223,7 +258,7 @@ function finishPoint(match, scorer) {
 // while actually approaching, so a ball already moving away doesn't re-trigger while still overlapping
 // the spot it just bounced from.
 function paddleContact(ball, paddle, side) {
-  const cx = C.PADDLE_CENTER_X[side];
+  const cx = paddle.x; // THE-1184 S1: legacy (zoneEnabled false) paddle.x is pinned at PADDLE_CENTER_X
   const scale = paddle.capsuleScale || 1;
   const halfLen = (C.CAPSULE_LEN / 2) * scale;
   const capsuleR = (C.CAPSULE_THICK / 2) * scale;
@@ -243,32 +278,42 @@ function paddleContact(ball, paddle, side) {
 
 function resolveHit(match, ball, paddle, side, contact) {
   match.rally++;
-  const newSpeed = match.rally === 1 ? C.FIRST_TOUCH_SPEED : Math.min(C.SPEED_CAP, ball.speed * C.RAMP_MULT);
+  const rampBase = match.rally === 1 ? C.FIRST_TOUCH_SPEED : Math.min(C.SPEED_CAP, ball.speed * C.RAMP_MULT);
   const offset = clamp(ball.y - paddle.y, -contact.halfLen, contact.halfLen);
   const offsetRatio = offset / contact.halfLen;
   const dir = side === 0 ? 1 : -1;
-  const maxRad = (C.CONTACT_ANGLE_MAX_DEG * Math.PI) / 180;
 
-  const baseAngle = C.CONTACT_ANGLE_MAX_DEG * offsetRatio * (Math.PI / 180);
-  let vx = newSpeed * Math.cos(baseAngle) * dir;
-  let vy = newSpeed * Math.sin(baseAngle) + C.SPIN_FACTOR * paddle.vy;
-  const mag = Math.hypot(vx, vy) || newSpeed;
-  vx = (vx / mag) * newSpeed;
-  vy = (vy / mag) * newSpeed;
-
-  let finalAngle = clamp(Math.atan2(vy, Math.abs(vx)), -maxRad, maxRad);
-  vx = newSpeed * Math.cos(finalAngle) * dir;
-  vy = newSpeed * Math.sin(finalAngle);
+  let vx, vy, newSpeed, smash;
+  if (match.impactEnabled) {
+    const r = Impact.computeImpact({
+      rampBase, offsetRatio, dir, nx: contact.nx, ny: contact.ny, paddleVx: paddle.vx, paddleVy: paddle.vy,
+    });
+    vx = r.vx; vy = r.vy; newSpeed = r.speed; smash = r.smash;
+  } else {
+    // Legacy path, untouched: sideways paddle.vy adds angle via the old single-axis SPIN_FACTOR, no
+    // paddle-velocity speed contribution at all (newSpeed === rampBase).
+    newSpeed = rampBase;
+    const maxRad = (C.CONTACT_ANGLE_MAX_DEG * Math.PI) / 180;
+    const baseAngle = C.CONTACT_ANGLE_MAX_DEG * offsetRatio * (Math.PI / 180);
+    vx = newSpeed * Math.cos(baseAngle) * dir;
+    vy = newSpeed * Math.sin(baseAngle) + C.SPIN_FACTOR * paddle.vy;
+    const mag = Math.hypot(vx, vy) || newSpeed;
+    vx = (vx / mag) * newSpeed;
+    vy = (vy / mag) * newSpeed;
+    const finalAngle = clamp(Math.atan2(vy, Math.abs(vx)), -maxRad, maxRad);
+    vx = newSpeed * Math.cos(finalAngle) * dir;
+    vy = newSpeed * Math.sin(finalAngle);
+    smash = newSpeed >= C.SMASH_BALL_SPEED || Math.abs(paddle.vy) >= C.SMASH_FLICK_PADDLE_SPEED;
+  }
 
   ball.vx = vx;
   ball.vy = vy;
   ball.speed = newSpeed;
-  ball.x = C.PADDLE_CENTER_X[side] + contact.nx * contact.minDist;
+  ball.x = paddle.x + contact.nx * contact.minDist; // THE-1184 S1: paddle's current x, not a fixed centre
   ball.y = contact.closestY + contact.ny * contact.minDist;
 
   enforceWallClearance(ball);
 
-  const smash = newSpeed >= C.SMASH_BALL_SPEED || Math.abs(paddle.vy) >= C.SMASH_FLICK_PADDLE_SPEED;
   match.lastHitSmash = smash;
   match.lastHitSpeed = newSpeed;
   const prevHeat = match.heat;

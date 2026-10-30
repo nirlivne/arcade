@@ -306,9 +306,10 @@
 /* first-match guides (spec §5): ghost thumb + dotted arrow (touch), keycaps (keys) */
 .jm-guide { position: absolute; top: calc((var(--jm-court-t) + var(--jm-court-b)) / 2); translate: -50% -50%;
   display: flex; flex-direction: column; align-items: center; gap: 6px; opacity: .95; transition: opacity var(--jm-t-moment); }
-/* centred in the free sand outside the head's reach: the matka overhangs the goal line by 94 u = 0.1044 court height */
-.jm-guide--l { left: max(28px, calc((var(--jm-court-l) - (var(--jm-court-b) - var(--jm-court-t)) * .1044) / 2)); --pc: var(--jm-p1); }
-.jm-guide--r { left: min(calc(100% - 28px), calc(100% - (var(--jm-court-l) - (var(--jm-court-b) - var(--jm-court-t)) * .1044) / 2)); --pc: var(--jm-p2); }
+/* r3 (§13.1): centred in each movement zone, world x 230 / 1370 (--jm-guide-l/-r set by game.js).
+   Fallback = the r2 spot in the free sand outside the head's reach (overhang 94 u = 0.1044 court height). */
+.jm-guide--l { left: var(--jm-guide-l, max(28px, calc((var(--jm-court-l) - (var(--jm-court-b) - var(--jm-court-t)) * .1044) / 2))); --pc: var(--jm-p1); }
+.jm-guide--r { left: var(--jm-guide-r, min(calc(100% - 28px), calc(100% - (var(--jm-court-l) - (var(--jm-court-b) - var(--jm-court-t)) * .1044) / 2))); --pc: var(--jm-p2); }
 .jm-guide.is-gone { opacity: 0; }
 .jm-guide__arrow { width: 14px; height: min(46vh, 220px); position: relative;
   background: repeating-linear-gradient(180deg, var(--pc) 0 7px, transparent 7px 13px) center / 4px 100% no-repeat; }
@@ -316,6 +317,10 @@
   border-inline: 9px solid transparent; }
 .jm-guide__arrow::before { top: -4px; border-bottom: 13px solid var(--pc); }
 .jm-guide__arrow::after { bottom: -4px; border-top: 13px solid var(--pc); }
+/* r3 (§13.3): the touch cross's x arrow lies over the y arrow, as long as the zone is wide (340 of the 1140 u
+   between the two zone centres) */
+.jm-guide__arrow--x { position: absolute; top: 50%; left: 50%; translate: -50% -50%; rotate: 90deg;
+  height: calc((var(--jm-guide-r, 0px) - var(--jm-guide-l, 0px)) * .2982); min-height: 96px; }
 .jm-guide__thumb { position: absolute; top: 58%; width: clamp(34px, 12vh, 60px); aspect-ratio: .42; border-radius: 999px;
   background: rgba(255, 240, 224, .5); border: 2px solid rgba(255, 255, 255, .6);
   animation: jm-drag 1.6s var(--jm-ease-out) infinite alternate; }
@@ -467,6 +472,49 @@
   background: var(--jm-plum); color: var(--jm-cream); border-radius: 999px; padding: .55em 1.1em .45em;
   font: 400 var(--jm-fs-sm)/1 var(--jm-font-body); box-shadow: var(--jm-shadow-drop);
   animation: jm-toast 2.2s var(--jm-ease-out) both; }
+
+/* ------------------------------------------------------------ r3 calm main screen (DESIGN.md §13.6, THE-1183)
+   Scoped under .jm-pick--calm so the r2 markup keeps working until screens.js adds the class. One gold primary,
+   two heads with small arrows, three small icons on the sky; everything else is one tap deeper (the play sheet). */
+.jm-pick--calm { grid-template-columns: 1fr minmax(240px, 34%) 1fr; }
+.jm-pick--calm .jm-strip, .jm-pick--calm .jm-half__line, .jm-pick--calm .jm-half__actions,
+.jm-pick--calm .jm-pick__utils, .jm-pick--calm .jm-install { display: none !important; }
+.jm-pick--calm .jm-half { justify-content: center; gap: clamp(2px, 1vh, 8px); padding-top: calc(var(--jm-court-t) * .5); }
+.jm-pick--calm .jm-carousel__head { width: clamp(140px, 44vh, 330px); }
+.jm-pick--calm .jm-carousel { gap: 0; align-items: flex-end; isolation: isolate; } /* keeps the arrows' z-index under sheets */
+.jm-pick--calm .jm-carousel .jm-iconbtn { width: 36px; height: 36px; z-index: 1; margin-inline: -14px; margin-bottom: 8%; }
+/* arrows tucked against the disc's lower sides, clear of the screen edge and the towel line */
+.jm-pick--calm .jm-carousel .jm-iconbtn::after { inset: -4px; } /* 44 px hit area */
+.jm-pick--calm .jm-pick__center { justify-content: center; gap: 0; padding-top: 0; }
+.jm-pick--calm .jm-title { margin-bottom: 12px; }
+.jm-pick--calm .jm-play { font-size: var(--jm-fs-lg); min-width: max(200px, 6.2em); min-height: max(64px, 1.9em);
+  padding-inline: 1.3em; } /* no idle pulse: an infinite scale fails Playwright's click stability check (QA scripts click .jm-solo) */
+.jm-pick--calm .jm-pick__hint { margin-top: 8px; color: var(--jm-plum-2); }
+.jm-pick--calm .jm-countdown:empty { display: none; }
+.jm-pick__icons { position: absolute; top: calc(8px + var(--jm-inset-top)); left: calc(10px + var(--jm-inset-left));
+  display: flex; gap: 10px; direction: ltr; z-index: 2; }
+.jm-pick__icons [hidden] { display: none !important; }
+/* menu: three plum bars */
+.jm-icon-menu { width: 18px; height: 14px; background:
+  linear-gradient(var(--jm-plum) 0 0) 0 0 / 100% 3px no-repeat, linear-gradient(var(--jm-plum) 0 0) 0 50% / 100% 3px no-repeat,
+  linear-gradient(var(--jm-plum) 0 0) 0 100% / 100% 3px no-repeat; border-radius: 1px; }
+/* sound: a speaker + one wave; muted (aria-pressed="false") drops the wave and adds a slash */
+.jm-icon-sound { position: relative; width: 20px; height: 16px; }
+.jm-icon-sound::before { content: ""; position: absolute; left: 0; top: 0; width: 11px; height: 16px; background: var(--jm-plum);
+  clip-path: polygon(0 31%, 40% 31%, 100% 0, 100% 100%, 40% 69%, 0 69%); }
+.jm-icon-sound::after { content: ""; position: absolute; right: 0; top: 2px; width: 7px; height: 12px; box-sizing: border-box;
+  border: 3px solid var(--jm-plum); border-left: 0; border-radius: 0 12px 12px 0; }
+.jm-sound[aria-pressed="false"] .jm-icon-sound::after { top: 7px; width: 9px; height: 3px; border: 0; border-radius: 2px;
+  background: var(--jm-plum); rotate: -45deg; box-shadow: 0 0 0 0 transparent; }
+/* the play sheet's mode row (המחשב / חבר על המסך): the same segmented tubes as side/level */
+.jm-seg--mode { direction: rtl; }
+.jm-solo-sheet[data-mode="friend"] .jm-sheet__row--side, .jm-solo-sheet[data-mode="friend"] .jm-sheet__row--level { display: none; }
+.jm-sheet__fine + .jm-sheet__fine { margin-top: -.35em; }
+/* the keyboard first-match guide: 4 keycaps in an inverted T, with one line under it (§13.3) */
+.jm-guide__keys { display: grid; grid-template-columns: repeat(3, auto); gap: 4px; justify-items: center; direction: ltr; }
+.jm-guide__keys > :first-child { grid-column: 2; }
+.jm-guide__words { font: 400 var(--jm-fs-xs)/1.2 var(--jm-font-body); color: var(--jm-plum); margin-top: 6px; white-space: nowrap;
+  text-align: center; position: relative; z-index: 1; } /* above the ghost thumb */
 
 /* ------------------------------------------------------------ short screens (phone landscape, <= 430 px tall) */
 @media (max-height: 430px) {

@@ -24,11 +24,24 @@ export function attachRecorder(match, { firstServeWaitArmed = false } = {}) {
   // used, or the rng draw sequence desyncs from this log the moment distraction logic would have
   // consumed an extra draw (its own createMatch-time "next spawn target" pick) that a distractions-off
   // re-sim never asks for -- read straight off the live match so this can never drift from reality.
-  return { rngLog, inputLog: [], firstServeWaitArmed, distractionsEnabled: !!match.distractionsEnabled };
+  // THE-1185 B1 (CTO review r3): same reasoning for zone/impact -- read straight off the live match so
+  // re-sim's CPU/physics branches (which both read match.zoneEnabled/impactEnabled) can't diverge.
+  return {
+    rngLog, inputLog: [], firstServeWaitArmed,
+    distractionsEnabled: !!match.distractionsEnabled,
+    zoneEnabled: !!match.zoneEnabled,
+    impactEnabled: !!match.impactEnabled,
+  };
 }
 
-export function recordTick(rec, targets) {
-  rec.inputLog.push([targets[0], targets[1]]);
+// THE-1185 B1: inputsX is optional (the legacy/non-zone path never produces one, same as what
+// Sim.setInput already tolerates) -- logging only y, as before S1, silently dropped every x input that
+// happened live, so a re-sim of a zone match diverged the instant either paddle actually moved in x.
+export function recordTick(rec, inputsY, inputsX) {
+  rec.inputLog.push([
+    { y: inputsY[0], x: inputsX ? inputsX[0] : undefined },
+    { y: inputsY[1], x: inputsX ? inputsX[1] : undefined },
+  ]);
 }
 
 // Re-sims the whole match from the recording and returns { finalScore, finalWinner, trace }, where
@@ -36,7 +49,9 @@ export function recordTick(rec, targets) {
 // C.REPLAY_MAX_SIM_S of sim time (the design's "last 4.0s" rule; THE-774's skip logic and the
 // 1x-then-0.4x playback speed are game.js/screens.js display concerns, not stored here).
 export function resimulate(seed, rec) {
-  const m = Sim.createMatch(seed, { distractions: rec.distractionsEnabled });
+  // THE-1185 B1: re-create the live match's zone/impact opt-in, or its CPU-targeting/physics branches
+  // (both of which read match.zoneEnabled/impactEnabled) silently diverge from the recorded rng log.
+  const m = Sim.createMatch(seed, { distractions: rec.distractionsEnabled, zone: rec.zoneEnabled, impact: rec.impactEnabled });
   if (rec.firstServeWaitArmed) Sim.armFirstServeWait(m);
   let i = 0;
   m.rng = () => rec.rngLog[i++];
@@ -45,15 +60,17 @@ export function resimulate(seed, rec) {
   let wasRally = false;
   const fullTrace = [];
   for (let tick = 0; tick < rec.inputLog.length && m.state !== "matchEnd"; tick++) {
-    const [y0, y1] = rec.inputLog[tick];
-    Sim.setInput(m, 0, y0);
-    Sim.setInput(m, 1, y1);
+    const [in0, in1] = rec.inputLog[tick];
+    Sim.setInput(m, 0, in0.y, in0.x);
+    Sim.setInput(m, 1, in1.y, in1.x);
     Sim.step(m, 1 / C.STEP_HZ);
     if (m.state === "rally" && !wasRally) lastServeLaunchTick = tick;
     wasRally = m.state === "rally";
     // THE-1143 B1: carry the active distraction into the trace so replay playback can draw it too.
+    // THE-1185 B1: paddle x travels in the trace too, so replay rendering can draw the zone movement.
     fullTrace.push({
-      tick, x: m.ball.x, y: m.ball.y, paddles: [m.paddles[0].y, m.paddles[1].y],
+      tick, x: m.ball.x, y: m.ball.y,
+      paddles: [{ y: m.paddles[0].y, x: m.paddles[0].x }, { y: m.paddles[1].y, x: m.paddles[1].x }],
       distraction: m.distraction ? { type: m.distraction.type, x: m.distraction.x, y: m.distraction.y, vx: m.distraction.vx, r: m.distraction.r } : null,
     });
   }

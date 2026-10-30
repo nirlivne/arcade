@@ -90,6 +90,8 @@
   --jm-heat-2: #FF5A1F;      /* rally 12: on fire (flame edge) */
   --jm-heat-core: #FFF2C0;   /* rally 12: white-hot core */
   --jm-fire-ink: #B3361C;    /* stroke of the "בוער!" rally tag */
+  --jm-zone-line: #2A1638;   /* r3 no-cross line, a finger groove in the sand: alpha .20, .45 while pressed against (DESIGN §13.2) */
+  --jm-zone-lit: #FFF6E2;    /* the groove's lit court-side edge: alpha .30, .6 while pressed against */
 
   /* ---- safe areas (0 where env() is unsupported) ---- */
   --jm-inset-top: env(safe-area-inset-top, 0px);

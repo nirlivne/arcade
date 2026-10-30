@@ -6,16 +6,23 @@
 // on every game state change: ids already down are marked stale until they lift and land again.
 import { C } from "../sim/constants.js";
 
-export function createTouchState(initialY = [C.COURT_H / 2, C.COURT_H / 2]) {
+// THE-1184 S3 (board note 1): initialX defaults to each half's legacy centre x, so a caller that never
+// passes zone-aware x (or a match with the zone off) still gets a sane, in-zone starting targetX.
+export function createTouchState(initialY = [C.COURT_H / 2, C.COURT_H / 2], initialX = C.PADDLE_CENTER_X) {
   return {
     targetY: [initialY[0], initialY[1]],
-    stacks: [[], []], // per half: [{id, lastY}], newest last
+    targetX: [initialX[0], initialX[1]],
+    stacks: [[], []], // per half: [{id, lastY, lastX}], newest last
     ownerHalf: new Map(), // id -> 0 | 1
     stale: new Set(),
   };
 }
 
-function clamp(v) { return Math.max(C.PADDLE_Y_MIN, Math.min(C.PADDLE_Y_MAX, v)); }
+function clampY(v) { return Math.max(C.PADDLE_Y_MIN, Math.min(C.PADDLE_Y_MAX, v)); }
+function clampX(half, v) {
+  const [a, b] = C.PADDLE_X_ZONE[half];
+  return Math.max(Math.min(a, b), Math.min(Math.max(a, b), v));
+}
 
 export function reduce(state, event, ctx = {}) {
   const { type, id, x, y } = event;
@@ -30,7 +37,7 @@ export function reduce(state, event, ctx = {}) {
     if (state.stale.has(id)) return state;
     const half = ctx.solo ? (ctx.humanSide ?? 0) : x < ctx.midlineX ? 0 : 1;
     const stacks = state.stacks.map((s) => s.slice());
-    stacks[half].push({ id, lastY: y });
+    stacks[half].push({ id, lastY: y, lastX: x });
     const ownerHalf = new Map(state.ownerHalf);
     ownerHalf.set(id, half);
     return { ...state, stacks, ownerHalf };
@@ -46,12 +53,17 @@ export function reduce(state, event, ctx = {}) {
     if (idx < 0) return state;
     const isActive = idx === stack.length - 1;
     const dy = y - stack[idx].lastY;
-    stack[idx] = { id, lastY: y };
+    const dx = x - stack[idx].lastX;
+    stack[idx] = { id, lastY: y, lastX: x };
     if (!isActive) return { ...state, stacks };
     const gain = (ctx.viewportH || 0) <= C.SHORT_VIEWPORT_H ? C.DRAG_GAIN_SHORT : C.DRAG_GAIN_NORMAL;
     const targetY = state.targetY.slice();
-    targetY[half] = clamp(targetY[half] + dy * gain);
-    return { ...state, stacks, targetY };
+    targetY[half] = clampY(targetY[half] + dy * gain);
+    // THE-1184 S1/S3 (board notes 0/1): the finger also drives x now, same relative-drag gain, clamped
+    // to this half's zone -- the paddle follows the finger in 2D instead of only up/down.
+    const targetX = state.targetX.slice();
+    targetX[half] = clampX(half, targetX[half] + dx * gain);
+    return { ...state, stacks, targetY, targetX };
   }
 
   if (type === "up" || type === "cancel") {

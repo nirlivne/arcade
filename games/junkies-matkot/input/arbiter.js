@@ -20,3 +20,10 @@ export function noteKeys(state, player) {
 export function resolve(state, touchY, keysY) {
   return [0, 1].map((p) => (state.lastSource[p] === "keys" ? keysY[p] : touchY[p]));
 }
+
+// THE-1184 S3 (board note 1): the x axis uses the exact same per-player lastSource -- whichever device
+// most recently drove a player drives both of their axes together, not an independently-tracked x
+// source. Byte-identical arbitration logic to resolve(), just reading the x arrays.
+export function resolveX(state, touchX, keysX) {
+  return [0, 1].map((p) => (state.lastSource[p] === "keys" ? keysX[p] : touchX[p]));
+}

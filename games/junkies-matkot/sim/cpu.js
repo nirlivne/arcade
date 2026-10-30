@@ -6,6 +6,7 @@
 // "guess" per incoming ball, re-rolled again on the next one). `autopilot()` is used by the CPU-vs-CPU
 // gate and any side a caller wants CPU-driven outside solo play.
 import { C } from "./constants.js";
+import * as Aim from "./aim.js";
 
 export function create(side, rng, level) {
   return {
@@ -13,12 +14,14 @@ export function create(side, rng, level) {
     rng,
     level, // THE-1142 S2: undefined = legacy/unleveled (today's exact numbers); see knobsFor
     targetY: C.COURT_H / 2, // fed to Sim.setInput -- rate-limited toward aimY by this mode's max speed
+    targetX: C.PADDLE_CENTER_X[side], // THE-1184 S4: fed to Sim.setInput's x; legacy (no level) never moves this
     aimY: C.COURT_H / 2, // the desired point (lagged ball position +- error), updated every re-target
     lastRetargetMs: -Infinity,
     lastCallMs: null,
     aimError: 0,
     lastAimRollRally: -1,
     history: [], // ring of {t, y} ball.y samples, for the lagged "what the CPU last saw" lookup
+    offence: null, // THE-1184 S4: { wantedLandingY, bounces, bankDir, willSwing }, re-rolled per incoming shot
   };
 }
 
@@ -45,6 +48,14 @@ export function knobsFor(scorePerspective, level) {
     reactionLagMs: Math.max(40, C.CPU.REACTION_LAG_MS[mode] + lvl.reactionLagAddMs),
     aimErrorMult: baseAimErrorMult * lvl.aimErrorMult,
     maxPaddleSpeed: C.CPU.MAX_PADDLE_SPEED[mode] * lvl.maxPaddleSpeedMult,
+    // THE-1184 S4 (board note 0): only present once a level is given, so the legacy/unleveled path never
+    // sees these and offence stays off for every pre-r3 caller.
+    aimProb: lvl.aimProb,
+    bankProb: lvl.bankProb,
+    swingProb: lvl.swingProb,
+    xSpeedMult: lvl.xSpeedMult,
+    offenceErrorMult: lvl.offenceErrorMult,
+    zoneDefenceMult: lvl.zoneDefenceMult,
   };
 }
 
@@ -92,10 +103,31 @@ export function update(cpu, match, nowMs) {
   const incomingToMe = side === 0 ? match.ball.vx < 0 : match.ball.vx > 0;
   let aimError = cpu.aimError;
   let lastAimRollRally = cpu.lastAimRollRally;
+  let offence = cpu.offence;
   if (incomingToMe && match.rally !== lastAimRollRally) {
     lastAimRollRally = match.rally;
     const mag = (C.CPU.AIM_ERROR_U_BASE + C.CPU.AIM_ERROR_SPEED_FACTOR * match.ball.speed) * knobs.aimErrorMult;
     aimError = (cpu.rng() * 2 - 1) * mag;
+    // THE-1184 S4 (board note 0): one offence decision per incoming shot, same cadence as aimError's own
+    // re-roll. Gated on the match's own zone+impact opt-in, not just cpu.level -- a leveled CPU playing
+    // a legacy (no zone/impact) match must draw the exact same rng sequence as before S4, or every
+    // r1/r2-era continuity gate (tuned against those exact draws) desyncs and fails.
+    if (knobs.aimProb !== undefined && match.zoneEnabled && match.impactEnabled) {
+      const willAim = cpu.rng() < knobs.aimProb;
+      if (willAim) {
+        const opponentY = match.paddles[opponent].y; // "predicted" position: no human reaction yet
+        const farY = Math.abs(C.PADDLE_Y_MIN - opponentY) > Math.abs(C.PADDLE_Y_MAX - opponentY) ? C.PADDLE_Y_MIN : C.PADDLE_Y_MAX;
+        const willBank = cpu.rng() < knobs.bankProb;
+        offence = {
+          wantedLandingY: farY,
+          bounces: willBank ? (cpu.rng() < 0.5 ? 1 : 2) : 0,
+          bankDir: cpu.rng() < 0.5 ? 1 : -1,
+          willSwing: cpu.rng() < knobs.swingProb,
+        };
+      } else {
+        offence = null;
+      }
+    }
   }
 
   let aimY = cpu.aimY, lastRetargetMs = cpu.lastRetargetMs;
@@ -110,10 +142,45 @@ export function update(cpu, match, nowMs) {
       // Easy keeps chasing (legacy behaviour) -- and so does the no-level/unknown-level path, byte-for-
       // byte, since `predicts` is false whenever cpu.level isn't exactly "medium" or "hard".
       const predicts = cpu.level === "medium" || cpu.level === "hard";
+      let predictedY;
       if (lagged && predicts) {
-        aimY = predictInterceptY(lagged, C.FRONT_FACE_X[side], C.COURT_H, C.BALL_R) + aimError;
+        // THE-1184 S4 fix (the defensive mirror of the solver's own contactX bug above): once this
+        // paddle has actually moved in its zone, the real paddle line it'll meet the ball at can be far
+        // from the legacy fixed front face -- for a steep/banked shot, even a couple hundred units of x
+        // error folds into a wildly wrong predicted y (caught the same way, via the adaptive-player
+        // gate: hard was drifting to the wrong y entirely on bank-ish returns).
+        const dir = side === 0 ? 1 : -1;
+        const paddleLineX = match.zoneEnabled ? match.paddles[side].x + dir * (C.CAPSULE_THICK / 2) : C.FRONT_FACE_X[side];
+        predictedY = predictInterceptY(lagged, paddleLineX, C.COURT_H, C.BALL_R);
       } else {
-        aimY = (lagged ? lagged.y : cpu.aimY) + aimError;
+        predictedY = lagged ? lagged.y : cpu.aimY;
+      }
+      // THE-1184 S4/S5: a zone+impact match gets its own defensive sharpening (zoneDefenceMult), kept
+      // separate from the shared aimErrorMult so the r1/r2-era non-zone continuity gates never move.
+      const zoneMult = match.zoneEnabled && knobs.zoneDefenceMult !== undefined ? knobs.zoneDefenceMult : 1;
+      aimY = predictedY + aimError * zoneMult;
+      // THE-1184 S4: once it knows where it'll meet the ball, aim the return by positioning to the
+      // contact OFFSET the solver says sends it to offence.wantedLandingY -- the sim's own offset-to-
+      // angle physics (legacy formula or impact.js, both use the same CONTACT_ANGLE_MAX_DEG*offsetRatio
+      // shape) does the rest at the moment of the real hit.
+      // Every level that rolls an offence attempt applies it -- easy's own interceptY input is only the
+      // raw lagged y (no wall-fold prediction), so an easy aim attempt can be based on a stale read and
+      // misfire, which is exactly the "occasionally aims, sometimes gets it wrong" flavour easy wants.
+      if (offence) {
+        const opponentGoalX = side === 0 ? C.COURT_W : 0;
+        // THE-1184 S4 fix: the solver's geometry has to use where this paddle will *actually* contact
+        // the ball, not the legacy fixed front face -- once it starts swinging forward in the zone, its
+        // real x moves well past that, which was silently handing the solver the wrong distance and
+        // producing a believably-angled but wrongly-aimed shot (more swinging made hard *worse*, not
+        // better, until this was caught against the adaptive-player gate).
+        const dir = side === 0 ? 1 : -1;
+        const contactXNow = match.paddles[side].x + dir * (C.CAPSULE_THICK / 2);
+        const { offsetRatio } = Aim.solveAimOffset({
+          interceptY: predictedY, contactX: contactXNow, opponentGoalX,
+          wantedLandingY: offence.wantedLandingY, bounces: offence.bounces, bankDir: offence.bankDir,
+          courtH: C.COURT_H, ballR: C.BALL_R,
+        });
+        aimY = predictedY - offsetRatio * C.CONTACT_OFFSET_U + aimError * knobs.offenceErrorMult;
       }
     }
     aimY = Math.max(C.PADDLE_Y_MIN, Math.min(C.PADDLE_Y_MAX, aimY));
@@ -129,5 +196,22 @@ export function update(cpu, match, nowMs) {
   const delta = Math.max(-maxStep, Math.min(maxStep, aimY - currentY));
   const targetY = currentY + delta;
 
-  return { cpu: { ...cpu, history, aimError, lastAimRollRally, aimY, lastRetargetMs, targetY, lastCallMs: nowMs } };
+  // THE-1184 S4 (board note 0): zone positioning. A leveled CPU in a zone+impact match hovers mid-zone
+  // by default and steps to the forward edge (nearest the net) when it has decided to swing for pace --
+  // "arrives early" falls out naturally from this running every tick the ball is incoming, not from a
+  // separate timing threshold: a faster xSpeedMult (hard) simply covers the zone sooner.
+  let targetX = cpu.targetX;
+  if (knobs.xSpeedMult !== undefined && match.zoneEnabled) {
+    const [zA, zB] = C.PADDLE_X_ZONE[side];
+    const zLo = Math.min(zA, zB), zHi = Math.max(zA, zB);
+    const mid = (zLo + zHi) / 2;
+    const fwd = side === 0 ? zHi : zLo; // the edge nearer the net
+    const wantX = offence && offence.willSwing ? fwd : mid;
+    const maxStepX = knobs.maxPaddleSpeed * knobs.xSpeedMult * dtS;
+    const currentX = match.paddles[side].x;
+    const deltaX = Math.max(-maxStepX, Math.min(maxStepX, wantX - currentX));
+    targetX = currentX + deltaX;
+  }
+
+  return { cpu: { ...cpu, history, aimError, lastAimRollRally, offence, aimY, lastRetargetMs, targetY, targetX, lastCallMs: nowMs } };
 }

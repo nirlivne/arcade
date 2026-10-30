@@ -69,7 +69,7 @@ export async function buildCard({ theme, winnerName, winnerLine2, loserName, sco
     ctx.lineCap = "round"; ctx.lineJoin = "round";
     ctx.beginPath();
     trail.forEach(([wx, wy], i) => {
-      const x = photoLayout.l + wx * photoLayout.scale, y = photoLayout.t + wy * photoLayout.scale;
+      const x = photoLayout.l + wx * photoLayout.scaleX, y = photoLayout.t + wy * photoLayout.scale; // THE-1184 S6: x uses scaleX
       if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
     ctx.globalAlpha = 0.6;

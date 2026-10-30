@@ -11,6 +11,7 @@ window.THEME = {
     rally: "ראלי",
     rotate: "סובבו את הטלפון",
     shareText: "{winner} ניצח את {loser} {score}",
+    play: "שחקו!", // THE-1185 N2 (CTO review r3): the calm main screen's one primary CTA (DESIGN.md §13.6)
   },
   colors: {},
   images: {},
