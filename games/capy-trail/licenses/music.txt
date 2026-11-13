@@ -1,0 +1,19 @@
+Capy Trail music (A14, THE-1351/THE-1354)
+
+File(s):   music-happy-beat.opus.ogg (Opus 96 kbps VBR, 48 kHz stereo)
+           music-happy-beat.m4a      (AAC-LC 128 kbps, 44.1 kHz stereo; fallback for browsers whose
+                                      decodeAudioData can't decode Ogg/Opus, e.g. older Safari/iOS)
+Title:     Happy Beat
+Author:    burabotti
+Source:    https://opengameart.org/content/happy-beat
+           original file https://opengameart.org/sites/default/files/happybeat.ogg (32.000 s, Vorbis 48 kHz)
+Licence:   CC0 1.0 Universal (Public Domain Dedication)
+           https://creativecommons.org/publicdomain/zero/1.0/
+           The OpenGameArt entry lists CC0 as its only licence; the author's note: "Feel free to use, no need
+           to credit."
+
+Changes by The Game Company: lowpass at 11 kHz, -1 dB gain, re-encoded to Opus and AAC. No edits to the
+music itself. Attribution is not required under CC0; we credit the author anyway.
+
+The SFX in Capy Trail stay our own runtime synthesis (render/synth.js, render/sfx.js): no third-party sound
+files, nothing to license. See licenses/sounds.txt.

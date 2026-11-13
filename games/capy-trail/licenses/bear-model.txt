@@ -1,0 +1,181 @@
+The bear (assets/bear.glb)
+
+CREDIT (CC BY 4.0 attribution; copy this line into About exactly):
+    Bear by Polyfork (https://polyfork.dev/asset/bear-base), CC BY 4.0
+    Short form where space is tight: "Bear by Polyfork". Link https://polyfork.dev/asset/bear-base where you can.
+Changes made (CC BY 4.0 asks us to say so): the 3 animation clips removed, the 6 colour zones re-coloured to
+this game's clay palette, normals smoothed, scaled to 0.70 and moved 0.12 m forward. Mesh topology, joint names
+and joint pivots are unchanged. Polyfork does not endorse this game.
+Optional "HD bear" (Settings, off by default; THE-1582, 2026-11-13): when a player turns it on, the game
+modifies this same CC BY 4.0 mesh in the browser at load time -- one Loop subdivision pass (2,542 -> 10,168
+triangles, colours and skin weights blended onto the new vertices, render/bear-subdivide.js), smooth normals
+welded across colour seams, the paws re-seated on the ground, and a physical material with a soft sheen in
+place of the clay material. Made in-house; no other file is used. Polyfork's paid HD edition is NOT used,
+downloaded or referenced. With the setting off (the default) the mesh is drawn exactly as shipped above.
+
+Source:     https://polyfork.dev/asset/bear-base  (downloaded from https://polyfork.dev/dl/bear-base.glb)
+Edition:    the FREE low-poly ("flat") edition, under CC BY 4.0 (Polyfork offers its free mesh files under
+            CC BY 4.0 or its own licence, our choice; we chose CC BY 4.0 so the file may ship inside a public
+            web game and be served from our own host).
+            NOT the HD edition: HD needs a paid Polyfork Pro plan (/dl/bear-base-hd.glb answered 401 and
+            /cdn/bear-base-hd.glb 403 without one, 2026-11-07). Polyfork's own API says HD for this asset is
+            "pbr materials on this same mesh", so the same pipeline (design/capy-trail/bear/RIG.md) takes it
+            if the board ever buys it; its licence would then be the Polyfork licence only (not CC BY).
+Raw file:   bear-base.glb, 1,562,816 bytes, 2,542 triangles, 1 skin of 26 joints, clips Idle/Walk/Run
+            sha256 64e88e4c98b7ae36cc8903de1e7baba06e86c79a96c4d55b7e1ec6d881ef0b53
+Shipped:    assets/bear.glb, built by design/capy-trail/bear/make-bear.mjs (THE-1370); its sha256 is in RIG.md.
+Downloaded: 2026-11-07 by the Game Designer agent (THE-1370), anonymously; no account, no payment.
+
+Decision:   Nir's call, 2026-11-07. The board first chose the HD edition and accepted the licence risk
+            (THE-1368); when HD turned out to need Pro, the board kept the capybara as a switchable hero and
+            ships this free CC BY 4.0 edition for now (THE-1369, 11:35Z). The HD question stays open there.
+
+The bees (assets/bee.glb) are NOT Polyfork's: see bee-model.txt.
+
+------------------------------------------------------------------------------------------------------------
+Polyfork licensing terms, full text as published at https://polyfork.dev/licensing ("Last updated November
+2026"), copied 2026-11-07. CC BY 4.0 itself: https://creativecommons.org/licenses/by/4.0/legalcode
+------------------------------------------------------------------------------------------------------------
+
+Licensing
+
+Two licences. The mesh files of the free low poly models are yours under CC BY 4.0 or under the Polyfork
+licence, whichever suits you. Everything else here, the source modules and the HD editions above all, is under
+the Polyfork licence. Anything you download stays yours, including after a subscription ends. Last updated
+November 2026.
+
+Free models: CC BY 4.0, or ours
+
+Every free low poly model's mesh files, the GLB, FBX, USD and OBJ, baked variants and whole-kit scenes
+included, come under two licences. Use whichever suits you; you never have to tell us which.
+
+- CC BY 4.0: use, share, modify, re-upload and sell them, commercially too, as long as you credit Polyfork and
+  say if you changed them. A pack, another store, your own product's library: all fine, with the credit.
+
+- The Polyfork licence, the rest of this page: no credit at all, but no redistributing the files themselves.
+
+The credit is one line, and every model's page has it ready to copy, for example Fox by Polyfork
+(https://polyfork.dev/asset/fox-base), CC BY 4.0. Link the model's page where you can. CC BY gives you the
+files, not the brand: do not use our name or logo in a way that suggests we made or endorse what you built.
+
+What CC BY does not cover: the ES modules (the .mjs programs the models are built from, with their sliders),
+the HD editions, renders and thumbnails, the text and data published beside the models, and the models in
+private kits. Those are under the Polyfork licence only. Once a file is under CC BY it stays under it for
+good: we may stop offering CC BY for models published later, but never take it back from a file that has it.
+
+Everything below is the Polyfork licence. It covers every asset on this site, the free mesh files too for
+anyone who would rather not credit us.
+
+What you can do
+
+Use any asset you download here in personal and commercial projects: games, apps, websites, prototypes,
+videos, client work and products you sell. Modify anything: recolor, remix, decimate, combine, animate. Use
+them in as many projects as you like, forever. No attribution required, ever.
+
+What you cannot do
+
+Resell or redistribute the assets themselves. That means no re-uploading the files (GLB or ES module, original
+or modified) to other marketplaces, asset packs, template libraries or file-sharing sites, whether free or
+paid, and no handing out copies of them through a tool or service of your own. Linking to the free models on
+our CDN is not that, see below, and the free mesh files are yours to share under CC BY 4.0 instead, with the
+credit. Your game can ship the models inside it; the files as standalone assets stay here.
+
+Products where other people build with them
+
+Linking to the free models is not redistribution. Any product, free or paid, can load the free low poly models
+straight from polyfork.dev: an engine or Blender add-on, a world builder, a platform where people write their
+own scenes, an agent that hands somebody a scene. Each user's app or browser fetches the file from our CDN and
+gets it under this licence, and you can let them search and pick through our API. No platform licence and no
+fee.
+
+Keep to our URLs: fetch a model when someone uses it rather than the catalogue in bulk, send a User-Agent that
+names your product, and back off when we answer 429. Your users never need to credit anything they build, but
+where people pick models inside your product, say they come from Polyfork. This covers the free low poly
+models: HD editions are for the projects of the account that downloads them, and serving them to your users is
+part of the platform licence.
+
+Hosting the free mesh files yourself is fine too, under CC BY 4.0: keep them on your own servers or CDN, put
+them in your product's library, let your users download them, as long as the credit travels with each one.
+
+Keeping your own copies of the rest is what the platform licence is for. If your product stores the ES modules
+or the HD editions on its own servers or CDN, mirrors or proxies them, or lets your users download them from
+you, or does that with the free meshes without the credit, that is redistribution and the licence above does
+not cover it, whichever plan you are on. It has its own licence: you choose a set of assets or whole kits to
+host, HD editions included, no credit line needed, and everything your users build with them stays theirs
+permanently. See platform licensing.
+
+The same line applies to the factory itself. Commissioning here, steering a kit or ordering a custom skin, is
+priced per order on every plan (steering needs a paid plan; asking for a kit or a model and letting people
+vote on it is free to any account and is not a commission), platform licences included, and offering Polyfork
+generation to your own users as a feature of your product needs its own agreement. No plan on this page
+bundles the factory.
+
+Building a competing generator
+
+Do not use anything you get here to build or train a commercial asset generator: a model, service, tool or
+pipeline that produces 3D assets and that you sell, license or offer to other people. That covers using the
+files as training, fine-tuning, evaluation or benchmark data, and it covers using them as the raw material a
+generator learns its output from. It applies to the ES modules, the HD editions, the renders and the text that
+ships beside them, and to the free mesh files for anyone using them under this licence, used directly or after
+modification. CC BY 4.0 sets no such limit on the free mesh files, and we will not pretend it does.
+
+This is a limit on selling a generator, not on learning. The modules are published as readable source because
+that is what makes them worth having: an asset here is a program you can call, tune and read. Studying how one
+is built, training something on your own machine, running experiments, publishing research, writing your own
+generator for your own projects: all fine, and the source is open to you precisely so you can. What is not
+allowed is turning this catalog into a product that competes with it.
+
+Free assets
+
+Every low poly model is free, and so is every kit. Hotlink the GLB or the ES module straight from the CDN with
+no account, or download the files: the GLB and the other mesh formats need no account, and the source module,
+the zips and whole kits ask for a free one. The mesh files are CC BY 4.0 or the Polyfork licence, your choice,
+as above; the source module is under the Polyfork licence.
+
+What you keep if your subscription ends
+
+Everything you downloaded while subscribed is yours permanently, under this same license, with no attribution
+and no expiry. That is not a courtesy we can withdraw: it is the license the files were delivered under, and
+it applies whether you cancel, let a card lapse, or we stop selling subscriptions entirely. The single
+exception is breaking the terms above, which is covered below.
+
+What stops is the part that was always a live service: your per-account CDN for the HD files, the uncapped
+remix budget, and HD editions published after your subscription ends. Access to those continues for 30 days
+past the end of your paid period, for a cancellation and a failed payment alike, so a declined card never
+takes a live site down without warning. The low poly models stay free either way.
+
+You can take what you use with you at any time: every low poly model and every kit downloads as files on a
+free account, and the HD editions download one by one while you are on Pro. Lifetime and Founders accounts can
+also take the whole catalog as a single download from their account. We would rather you stayed because it is
+convenient than because leaving is hard.
+
+If you break these terms
+
+If you resell or redistribute files you hold under this licence as assets, or use them to build or train a
+commercial asset generator, we may end your license and your access to this site, and we do not refund what
+you paid. That is the only circumstance in which a license granted here is withdrawn, and it is why the
+promise above can be as generous as it is: it costs us nothing to be unconditional with everyone who keeps to
+the terms.
+
+We will tell you what we think happened and give you a chance to answer before we do it, unless the breach is
+deliberate and still going on. Nothing here limits what either of us may do in court, and nothing here affects
+rights you have under the consumer law where you live.
+
+CC BY 4.0 has its own rule for this: it ends on its own for anyone who breaks it, for example by leaving the
+credit off, and comes back if they put it right within 30 days of finding out.
+
+Pro, Lifetime and kits
+
+Polyfork Pro covers every HD edition for as long as it is active, plus everything above. Lifetime is a
+one-time payment that covers everything Pro does, for life. The Founders Club was the first run of that
+one-time plan; it is sold out, and its members keep everything it covered. Kits are not sold: every kit is
+free. A kit or an asset somebody bought before that stays theirs permanently. Licenses are per person or per
+team seat, and are not transferable by resale.
+
+Formats
+
+Every asset ships as a GLB (works in three.js, Unity, Godot, Unreal, Blender and anything that reads glTF)
+plus an ES module for three.js. A free model's GLB, and its FBX, USD and OBJ, are CC BY 4.0 or the Polyfork
+licence, your choice; the ES module is under the Polyfork licence.
+
+Questions about an edge case? Ask us before you ship: see the contact note on the privacy page.

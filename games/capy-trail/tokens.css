@@ -1,0 +1,81 @@
+/* Developer placeholder, sourced from the approved art brief's own palette (THE-1246 UI colors) so S1's
+   screens aren't an arbitrary reskin away from the final look. The designer owns this file from here;
+   flagged in the S1 hand-off (THE-1258) pending the real tokens.css. Token names match
+   tools/design/tokens.example.css -- don't rename them. */
+:root {
+  /* color: surfaces */
+  --color-bg: #FFF3E0;
+  --color-bg-2: #F3DFC0;
+  --color-surface: #FFFFFF;
+  --color-outline: #3A2418;
+
+  /* color: text */
+  --color-text: #3A2418;
+  --color-text-muted: #7A5038;
+
+  /* color: actions and signals */
+  --color-primary: #FF8A2A;
+  --color-primary-text: #3A2418;
+  --color-accent: #6DB35C;
+  --color-danger: #E5484D;
+
+  /* type */
+  --font-display: ui-rounded, "Nunito", system-ui, sans-serif;
+  --font-body: ui-rounded, "Nunito", system-ui, sans-serif;
+  --text-sm: 14px;
+  --text-md: 18px;
+  --text-lg: 24px;
+  --text-xl: 36px;
+  --text-2xl: 56px;
+  --weight-body: 500;
+  --weight-strong: 800;
+  --text-min: 16px;
+
+  /* space (4 px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* shape */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+  --outline-w: 3px;
+  --hit-min: 44px;
+
+  /* light */
+  --shadow-1: 0 2px 0 rgba(58, 36, 24, 0.25);
+  --shadow-2: 0 8px 24px rgba(58, 36, 24, 0.35);
+  --glow: 0 0 24px color-mix(in srgb, var(--color-primary) 45%, transparent);
+  --scrim: rgba(58, 36, 24, 0.5);
+
+  /* motion */
+  --ease-out: cubic-bezier(0.2, 0.9, 0.3, 1.25);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur-med: 240ms;
+  --dur-slow: 480ms;
+
+  /* power-ups (THE-1388): one colour per power-up for its pickup, timer ring and aura. Five hues apart
+     (amber 37, aqua 191, blue 225, violet 260, pink 343 deg), none of them coin gold #FFD84A or the
+     capy's orange #FF8A2A. The ring track is --color-outline at 35 %; the ring centre is --color-bg. */
+  --pu-honey: #F2A93B;
+  --pu-shield: #5CC8E0;
+  --pu-balloon: #F2789B;
+  --pu-spring: #A98BF0;
+  --pu-mystery: #4C6FD8; /* no ring (instant); the box itself and the prize flash */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-med: 0ms; --dur-slow: 0ms; }
+}
+
+/* contrast: --color-text on --color-bg >= 4.5 */
+/* contrast: --color-text-muted on --color-bg >= 4.5 */
+/* contrast: --color-text on --color-surface >= 4.5 */
+/* contrast: --color-primary-text on --color-primary >= 4.5 */
+/* contrast: --color-danger on --color-bg >= 3 */

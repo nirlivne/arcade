@@ -1,0 +1,5 @@
+The P1 obstacles (assets/snag.glb, assets/duck.glb) and the raised fillers (assets/trunk.glb,
+assets/boulders.glb), THE-1316 / THE-1320.
+
+In-house, built by design/capy-trail/a13/make_a13.py (Blender 5.2, headless Python) on top of the A12 and
+R3 build scripts. Not derived from any third-party asset, CC0 library or reference model.

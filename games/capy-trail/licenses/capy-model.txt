@@ -1,0 +1,14 @@
+The capybara model (assets/capy.glb)
+
+In-house, built by build/make_capy.py (Blender, headless Python). Not derived
+from any third-party asset, CC0 library, or reference model. Proportions,
+palette and pose timing are ported from this game's own S1 procedural stand-in
+(render/capy.js, itself ported from the art-direction brief's
+design/capy-trail/scene.js, THE-1246) -- the model sheet it matches is a
+render of that same original code, not external reference art.
+
+R3 (THE-1282, 2026-11-06): the body, head and legs were rebuilt in the same
+script as lofted superellipse shapes with vertex-colour shading (darker back,
+nose pad, dark feet). Still in-house, with no third-party asset. No licence-clear
+rigged capybara was found that fits the clay look: the free one is a PSX-style
+model under CC BY 4.0, and the rest are paid marketplace models.

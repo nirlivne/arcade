@@ -1,0 +1,229 @@
+/* Capy Trail's own screens and HUD (html5-game-standards: "author your own screens, never copy the last
+   game's index.html/style.css"). Loaded after tokens.css and ui-kit.css; skin.css (game #6 onward) will
+   load after this once the designer delivers it. Control sizes are CSS px, not scaled with the viewport
+   (spec §5). */
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--color-bg); font-family: var(--font-body); touch-action: none; }
+/* Board mobile feedback (2026-11-07): a long press on a button selected its text and opened the
+   copy / paste / select-all bar. Nothing in the game is selectable, and the iOS long-press callout is off. */
+html, body, button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+#app { position: fixed; inset: 0; }
+#scene { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+
+/* THE-1375: the secret `0`-key debug map -- not part of the game's visual identity (never skinned, no
+   tokens), so it's fine hard-coded here. Pinned to the left edge, over the scenery, never covering the
+   bear or the lane ahead; pointer-events: none since it's a read-only overlay with no controls. */
+.ct-map-canvas { position: fixed; left: 0; top: 10%; width: 28vw; height: 78vh; z-index: 25; border-radius: 0 10px 10px 0; pointer-events: none; }
+
+/* Brand placement, title screen (spec: "a small lockup at the bottom, under the capy" -- inside the
+   bottom 15% of the screen, never above or larger than the title, never over the capy's silhouette).
+   24 px badge by default, 30 px from the desktop breakpoint up, per spec. Sits outside .uk-panel (which
+   is place-items: center) so it reads against the diorama below the panel, not inside the panel's own
+   card. */
+.ct-brand-footer {
+  position: absolute; left: 0; right: 0; bottom: 4%; display: flex; justify-content: center;
+  opacity: 0.92; pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- HUD */
+.ct-hud { position: absolute; inset: 0; pointer-events: none; }
+.ct-pebble {
+  position: absolute; display: flex; align-items: center; justify-content: center;
+  min-width: 44px; height: 44px; padding: 0 var(--space-3); border-radius: var(--radius-pill);
+  background: var(--color-surface); color: var(--color-text); font-weight: var(--weight-strong);
+  box-shadow: var(--shadow-1); border: var(--outline-w) solid var(--color-outline);
+}
+.ct-coin { top: var(--space-4); left: var(--space-4); }
+.ct-distance {
+  position: absolute; top: var(--space-4); left: 50%; transform: translateX(-50%);
+  text-align: center; color: var(--color-text); font-weight: var(--weight-strong); font-size: var(--text-lg);
+}
+.ct-pause { top: var(--space-4); right: var(--space-4); pointer-events: auto; cursor: pointer; width: 44px; padding: 0; }
+.ct-coin-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #FFD84A; border: 2px solid #C98A00; vertical-align: -1px; }
+/* P4 (THE-1326), split into two by THE-1353: separate saved Music/Sound toggles, left of the pause pebble
+   (M/N do the same). A struck-through pebble (either one) means that toggle is off. */
+.ct-music, .ct-sound { pointer-events: auto; cursor: pointer; width: 44px; padding: 0; font: 700 22px/1 var(--font-display); color: var(--color-text); }
+.ct-sound { top: var(--space-4); right: calc(var(--space-4) + 44px + var(--space-2)); }
+.ct-music { top: var(--space-4); right: calc(var(--space-4) + 2 * (44px + var(--space-2))); }
+.ct-pebble.is-off > span { opacity: 0.4; }
+.ct-pebble.is-off::after { content: ""; position: absolute; width: 26px; height: 3px; border-radius: 2px; background: var(--color-text); transform: rotate(-45deg); }
+.ct-music-icon { display: inline-block; }
+/* a flat speaker silhouette (box + flared cone in one clipped shape, no waves -- the is-off strike-through
+   already reads as "off" the same way the note icon does) */
+.ct-sound-icon { display: inline-block; width: 15px; height: 14px; position: relative; }
+.ct-sound-icon::before { content: ""; position: absolute; inset: 0; background: var(--color-text); clip-path: polygon(46% 21%, 25% 38%, 8% 38%, 8% 62%, 25% 62%, 46% 79%); }
+.ct-pause-icon { display: inline-block; width: 12px; height: 14px; position: relative; }
+.ct-pause-icon::before, .ct-pause-icon::after { content: ""; position: absolute; top: 0; width: 4px; height: 14px; background: var(--color-text); }
+.ct-pause-icon::before { left: 0; }
+.ct-pause-icon::after { right: 0; }
+/* the pause card's own twin toggles (the pause screen covers the HUD, so it needs its own pair). `relative`
+   (not `static`) keeps it a valid anchor for its own ::after strike-through while leaving the flex row's flow. */
+.ct-pebble--static { position: relative; top: auto; right: auto; }
+
+/* A12.4 (THE-1301): the goose-chaser pip, next to the coin pebble -- shown only while a strike is active
+   (not during the run-start opening's own no-strike close period). The orange ring drains over the
+   5.0 s strike window (hud.js sets stroke-dashoffset each frame off state.chaser.strikeT). */
+.ct-chaser { top: calc(var(--space-4) + 44px + var(--space-2)); left: var(--space-4); width: 44px; padding: 0; }
+.ct-chaser[hidden] { display: none; } /* .ct-pebble's display:flex would otherwise beat [hidden] */
+/* THE-1412: level results swaps Home for Map (+ Retry) via the same `hidden` attribute -- same fix.
+   The level HUD/score HUD swap (game.js newRun()) hits the same beat-by-display issue: skin.css's
+   .ct-score is display:inline-block and .ct-level-hud is display:grid, both outranking [hidden]. */
+#homeBtn[hidden], #retryBtn[hidden], #mapBtn[hidden], #hudScoreWrap[hidden], #levelHud[hidden], #titleStars[hidden], #levelStars[hidden] { display: none; }
+.ct-chaser-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.ct-chaser-ring-track, .ct-chaser-ring-fill { fill: none; stroke-width: 3; }
+.ct-chaser-ring-track { stroke: var(--color-bg-2); }
+.ct-chaser-ring-fill { stroke: var(--color-primary); stroke-dasharray: 94.2; stroke-dashoffset: 0; stroke-linecap: round; transition: stroke-dashoffset var(--dur-fast) linear; }
+.ct-chaser-dot { display: inline-block; width: 16px; height: 16px; border-radius: 50%; background: #FFFFFF; border: 2px solid var(--color-outline); }
+
+/* THE-1372 (board 2026-11-07: "I can't read the green toast mid-run"): a short coaching label anchored to
+   the hero's head (game.js positions it every frame from render/scene.js's heroHeadScreen()), replacing
+   the UIKit toast during a run. Dark ink on a light pill -- the already-declared, already-passing
+   --color-text on --color-surface pair (tokens.css), >= 4.5:1. */
+.ct-in-run-label {
+  position: fixed; left: 0; top: 0; z-index: 30; transform: translate(-50%, -100%);
+  padding: var(--space-2) var(--space-4); border: var(--outline-w) solid var(--color-outline);
+  border-radius: var(--radius-pill); background: var(--color-surface); color: var(--color-text);
+  font: var(--weight-strong) var(--text-md) / 1.2 var(--font-display);
+  box-shadow: var(--shadow-2); pointer-events: none; opacity: 1;
+  transition: opacity var(--dur-slow) var(--ease-out);
+  white-space: nowrap;
+}
+.ct-in-run-label.is-fading { opacity: 0; }
+/* CTO review (THE-1374): the kit's uk-pop keyframes animate `transform` to `none`, which would drop the
+   centring translate above for the length of the pop (the pill jumps right/down, then snaps back) -- so the
+   label pops with its own keyframes that keep the translate. */
+.ct-in-run-label.uk-pop { animation: ct-label-pop var(--dur-med) var(--ease-spring); }
+@keyframes ct-label-pop {
+  from { transform: translate(-50%, -100%) scale(0.85); opacity: 0; }
+  to { transform: translate(-50%, -100%); opacity: 1; }
+}
+
+/* Spec Part 1: the active timed power-up's ring, next to the hero's head (ui/powerup-ring.js positions it
+   every frame from heroHeadScreen(), same technique as .ct-in-run-label above). Doubles as the "short
+   glow/aura" the spec asks for -- var(--glow) on the ring reads as a halo at the hero's head. */
+.ct-powerup-ring {
+  position: fixed; left: 0; top: 0; z-index: 29; width: 34px; height: 34px;
+  transform: translate(6px, -44px); pointer-events: none; filter: drop-shadow(var(--glow));
+}
+.ct-powerup-ring[hidden] { display: none; }
+.ct-powerup-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ct-powerup-ring-track, .ct-powerup-ring-fill { fill: none; stroke-width: 3; }
+.ct-powerup-ring-track { stroke: color-mix(in srgb, var(--color-surface) 70%, transparent); }
+.ct-powerup-ring-fill { stroke: var(--color-primary); stroke-linecap: round; transition: stroke-dashoffset var(--dur-fast) linear; }
+
+/* ---------------------------------------------------------------- touch controls */
+.ct-stick-zone { position: fixed; left: 0; top: 0; width: 50%; height: 100%; touch-action: none; }
+.ct-stick-base, .ct-stick-knob {
+  position: fixed; top: 0; left: 0; border-radius: 50%; transform: translate(-50%, -50%);
+  pointer-events: none; background: color-mix(in srgb, var(--color-outline) 30%, transparent);
+}
+.ct-stick-base { width: 120px; height: 120px; border: 3px solid color-mix(in srgb, var(--color-outline) 45%, transparent); }
+.ct-stick-knob { width: 58px; height: 58px; background: color-mix(in srgb, var(--color-primary) 85%, transparent); }
+
+.ct-btn {
+  position: fixed; border-radius: 50%; border: var(--outline-w) solid var(--color-outline);
+  color: var(--color-primary-text); font-weight: var(--weight-strong); font-size: var(--text-sm);
+  touch-action: none; box-shadow: var(--shadow-1);
+}
+.ct-jump {
+  width: 96px; height: 96px; right: max(24px, env(safe-area-inset-right)); bottom: max(24px, env(safe-area-inset-bottom));
+  background: var(--color-primary);
+}
+.ct-duck {
+  width: 72px; height: 72px; right: max(120px, calc(env(safe-area-inset-right) + 96px)); bottom: max(100px, calc(env(safe-area-inset-bottom) + 76px));
+  background: var(--color-lilac, #B9A6E6);
+}
+
+/* ---------------------------------------------------------------- game screens */
+.ct-cause { color: var(--color-text-muted); }
+.ct-deadpan { font-style: italic; color: var(--color-text-muted); }
+.ct-new-best { color: var(--color-accent); font-weight: var(--weight-strong); }
+
+/* ---------------------------------------------------------------- P5 menus (THE-1328) */
+/* One compact card for title, pause and results: sized for 844x390 first (nothing scrolls there). */
+.ct-card { display: grid; gap: var(--space-4); justify-items: center; padding: var(--space-5); max-height: calc(100dvh - 2 * var(--space-4)); overflow: auto; }
+.ct-card .uk-actions { margin: 0; }
+.ct-card-title { margin: 0; font-size: var(--text-xl); line-height: 1.05; }
+
+/* title: the card sits left, the live world (capy chewing, geese behind) shows to its right */
+.ct-title-screen { place-items: center start; padding-left: max(var(--space-6), 6vw, env(safe-area-inset-left)); }
+.ct-title-card { width: min(100%, 300px); gap: var(--space-3); }
+.ct-logo { font-size: clamp(2.2rem, 6vh + 1.2rem, 4rem); line-height: 0.95; }
+.ct-tagline { margin: 0; font-size: var(--text-sm); }
+
+/* results: stats left, buttons right */
+.ct-results { width: min(100%, 600px); grid-template-columns: minmax(0, 1fr) auto; align-items: center; justify-items: stretch; text-align: left; gap: var(--space-5); }
+.ct-results__stats { display: grid; gap: var(--space-2); }
+.ct-results__stats p { margin: 0; }
+.ct-results__line { font-variant-numeric: tabular-nums; }
+.ct-results__actions { width: 11rem; }
+.ct-dot-sep { color: var(--color-text-muted); }
+
+.ct-pause-card { width: min(100%, 340px); }
+
+@media (max-height: 430px) {
+  .ct-card { padding: var(--space-4); gap: var(--space-3); }
+  .ct-card .uk-btn--lg { min-height: 52px; padding-block: var(--space-3); }
+}
+/* board leftover (b): heights below 390 px (THE-1303). The pause card's own content (title, Resume, 2
+   toggle pills, 2 ghost buttons) doesn't fit the 430 px breakpoint's padding trim alone at these heights. */
+@media (max-height: 340px) {
+  .ct-card { gap: var(--space-2); }
+  .ct-card .uk-btn--lg { min-height: 44px; padding-block: var(--space-2); }
+  .ct-pause-toggles .ct-pebble { min-height: 44px; }
+  /* Home/About would each claim 100% width (ui-kit.css) and wrap to their own row; sharing one row here
+     is the difference between the pause card fitting 320 px tall and scrolling. min-height stays >= 44 px
+     (A13.2/A13.4.C4) even at this most compact size. */
+  .ct-pause-card .uk-row:last-child { flex-wrap: nowrap; }
+  .ct-pause-card .uk-row:last-child .uk-btn { width: auto; flex: 1 1 0; min-height: 44px; padding-block: var(--space-2); }
+}
+@media (max-width: 560px) {
+  .ct-title-screen { place-items: center; padding-left: max(var(--space-4), env(safe-area-inset-left)); }
+  .ct-results { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; }
+  .ct-results__actions { width: min(100%, 18rem); }
+}
+
+/* About sheet */
+.ct-about[open] { display: flex; flex-direction: column; }
+.ct-close { min-width: 44px; min-height: 44px; padding: 0; font-size: 1.6rem; line-height: 1; }
+.ct-setting { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--hit-min); cursor: pointer; }
+.ct-setting[hidden] { display: none; } /* THE-1582: the HD bear row, hidden for the capy hero */
+.ct-setting__label { font-weight: var(--weight-strong); }
+.ct-about-brand { display: flex; align-items: center; gap: var(--space-2); }
+.ct-about-by { color: var(--color-text-muted); font-size: var(--text-sm); }
+.ct-about-h { margin: var(--space-4) 0 var(--space-2); font: var(--weight-strong) var(--text-md) / 1.1 var(--font-display); }
+.ct-controls { display: grid; grid-template-columns: auto 1fr; gap: var(--space-1) var(--space-3); margin: 0; }
+.ct-controls dt { font-weight: var(--weight-strong); }
+.ct-controls dd { margin: 0; color: var(--color-text-muted); }
+.ct-about-credit { margin: var(--space-4) 0 0; font-size: var(--text-sm); color: var(--color-text-muted); }
+/* THE-1372: the extra per-hero credit line (bear only -- CC BY 4.0 asks for it; the capy set is in-house) */
+#aboutCredit:empty { margin: 0; display: none; }
+@media (max-height: 430px) {
+  .ct-about .uk-sheet__head { padding-top: var(--space-3); }
+  .ct-about .uk-sheet__body { padding: var(--space-2) var(--space-5) var(--space-4); }
+  .ct-about-h { margin: var(--space-2) 0 4px; }
+  .ct-about-credit { margin-top: var(--space-2); line-height: 1.2; font-size: 12px; }
+  .ct-setting { min-height: 44px; }
+  /* THE-1332 review: the how-to is the always-reachable onboarding (standards v2), so it is never clipped.
+     Landscape phones have width to spare: Controls on the left, Settings + credits on the right. */
+  .ct-about { width: min(96vw, 760px); }
+  .ct-about .uk-sheet__body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0 var(--space-5); }
+  .ct-about-brand { grid-column: 1 / -1; }
+  .ct-controls { font-size: var(--text-sm); gap: 2px var(--space-3); }
+  /* THE-1582: Settings (3 toggles with the HD bear row) takes the right column; credits go under Controls. */
+  .ct-about-settings { grid-column: 2; grid-row: 2 / span 2; }
+  .ct-about-credits { grid-column: 1; grid-row: 3; }
+}
+/* board leftover (b): heights below 390 px, so the body doesn't scroll at 740x320. */
+@media (max-height: 340px) {
+  .ct-about .uk-sheet__head { padding-top: var(--space-2); }
+  .ct-about .uk-sheet__body { padding: 0 var(--space-5) var(--space-3); }
+  .ct-about-h { margin: 4px 0 2px; }
+  .ct-controls { line-height: 1.25; }
+  .ct-about-credit { margin-top: 0; font-size: 11px; line-height: 1.15; }
+}
+.ct-about-credit a { color: inherit; }
+/* THE-1377 slice 8 review: a level past LEVELS_LIVE reads "soon" small enough to fit the pebble, and without the
+   padlock (it isn't locked by the player's progress, it isn't built yet). */
+.ct-node.is-soon .ct-node__num { font-size: .42em; letter-spacing: .02em; }
+.ct-node.is-soon::before, .ct-node.is-soon::after { display: none; }
+@media (min-width: 900px) { .ct-title-card { width: 400px; } }

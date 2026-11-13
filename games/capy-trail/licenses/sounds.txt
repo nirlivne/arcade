@@ -1,0 +1,17 @@
+Capy Trail SFX (P4, THE-1326; retuned A14, THE-1351/THE-1354)
+
+Every sound effect in the game is synthesised at runtime by our own code. There are no audio files, no
+samples and no third-party sounds among them, so there is nothing to license and no attribution is required.
+
+  coin, jump, duck, lane, land,     render/synth.js renderSfx()     made by The Game Company, own work
+  step, crash, click
+  geese honks, stumble thunk        render/sfx.js (Web Audio        made by The Game Company, own work
+                                     oscillators)
+  power-up sounds (THE-1388):       render/synth.js renderSfx()     made by The Game Company, own work
+  honeyPickup, shieldUp, shieldPop,  (recipes designed in
+  balloonPickup, balloonFloat,       design/capy-trail/powerups/
+  balloonDescend, springPickup,      sfx-powerups.mjs)
+  springBoing, mysteryOpen,
+  mysteryPrize
+
+The background music is a third-party CC0 track and is licensed separately: see licenses/music.txt.

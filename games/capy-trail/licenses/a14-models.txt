@@ -1,0 +1,6 @@
+The detailed decor set (assets/tree.glb, assets/sheep.glb, assets/hut.glb, assets/flowers.glb), THE-1352 /
+THE-1355 (board feedback #3 item 6, THE-1349), replacing this game's earlier procedural tree/sheep/hut/
+flowers shapes (render/look.js).
+
+In-house, built by design/capy-trail/a14/make_a14.py (Blender 5.2, headless Python) on top of the A12/A13
+build scripts. Not derived from any third-party asset, CC0 library or reference model.

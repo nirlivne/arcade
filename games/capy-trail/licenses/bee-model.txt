@@ -1,0 +1,7 @@
+The bee (assets/bee.glb)
+
+Own work. Built in-house by design/capy-trail/bear/make_bee.py (Blender, headless Python; THE-1370, board
+feedback #4 via THE-1369), using this game's own build helpers (build/make_capy.py, build/make_props.py).
+Not derived from any third-party asset, CC0 library or reference model. The shapes are lofted and UV-sphere
+primitives, with per-vertex clay colours from this game's palette and two rigid wing nodes with a "buzz" clip.
+Copyright The Game Company; same terms as the game's other in-house models (a12-models.txt, a14-models.txt).

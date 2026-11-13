@@ -1,0 +1,7 @@
+The power-up pickups (assets/pu-shield.glb, assets/pu-balloon.glb, assets/pu-spring.glb, assets/pu-mystery.glb),
+THE-1388 (Bear Trail power-ups, spec 2026-11-07 Part 1, slices 2-5 of THE-1377): the Picnic Shield, the Balloon Ride
+pickup and ride balloon (hi + lo), the Spring Paws pickup and the Mystery Box (body + hinged lid).
+
+In-house, built by design/capy-trail/powerups/make_powerups.py (Blender 5.2, headless Python) on top of the
+make_capy.py / make_props.py build helpers. Not derived from any third-party asset, CC0 library or reference model.
+The Picnic Shield bubble, aura and timer ring are drawn in code (design/capy-trail/powerups/README.md).

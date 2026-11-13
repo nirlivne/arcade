@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#FFF3E0">
+  <!-- THE-1582: board GO 2026-11-13 is "public but not promoted" -- link-only on the arcade, not indexed. -->
+  <meta name="robots" content="noindex">
+  <link rel="manifest" id="manifestLink" href="manifest.bear.json">
+  <!-- static fallback for no-JS/crawlers: the default hero ("bear")'s icon; the inline script below picks
+       the capy one under a `?hero=capy` override, same rule as the manifest link next to it (THE-1383). -->
+  <link rel="icon" id="faviconLink" href="icon-bear-192.png">
+  <link rel="preload" href="fonts/bagelfatone-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="ui-kit.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="skin.css">
+  <!-- static fallback for no-JS/crawlers: the default hero ("bear")'s name -->
+  <title>Bear Trail</title>
+  <script src="theme.js"></script>
+  <!-- THE-1372: the <title> and the manifest link both have to follow theme.js's `hero` setting too (board
+       2026-11-07 11:35Z), so this runs as early as possible -- before ui-kit.js/game.js, right after the
+       manifest link it updates exists in the DOM (scripts execute as parsed; a script above this link
+       couldn't find it yet). A `?hero=` override matches render/hero.js's own resolveHeroKind() for the
+       per-hero test runs. THE-1383: the favicon link follows the same hero switch, to its own icon set
+       (icon-bear-192.png / icon-192.png -- the capy set keeps its original, unprefixed names). -->
+  <script>
+    (function () {
+      var hero = new URLSearchParams(location.search).get("hero");
+      if (hero !== "bear" && hero !== "capy") hero = (window.THEME && window.THEME.hero === "capy") ? "capy" : "bear";
+      var set = window.THEME && window.THEME.heroes && window.THEME.heroes[hero];
+      if (set && set.name) document.title = set.name;
+      var link = document.getElementById("manifestLink");
+      if (link) link.href = "manifest." + hero + ".json";
+      var favicon = document.getElementById("faviconLink");
+      if (favicon) favicon.href = hero === "capy" ? "icon-192.png" : "icon-bear-192.png";
+    })();
+  </script>
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/addons/" } }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene"></canvas>
+
+    <div class="ct-hud" id="hud" hidden>
+      <div class="ct-pebble ct-coin" id="hudCoinPebble"><span class="ct-coin-dot" aria-hidden="true"></span> <span id="hudCoins">0</span></div>
+      <div class="ct-pebble ct-chaser" id="chaserPip" hidden aria-label="The bees are close">
+        <svg class="ct-chaser-ring" viewBox="0 0 36 36" aria-hidden="true">
+          <circle class="ct-chaser-ring-track" cx="18" cy="18" r="15"></circle>
+          <circle class="ct-chaser-ring-fill" id="chaserRingFill" cx="18" cy="18" r="15"></circle>
+        </svg>
+        <span class="ct-chaser-dot" aria-hidden="true"></span>
+      </div>
+      <!-- THE-1407 slice 6: score replaces distance as line 1; distance drops to line 2. hud.js owns
+           #hudMult's hidden state (x1) and the one-time "is-best"/"· new best" pop -- see score-missions/README.md.
+           THE-1412: a level run shows #levelHud instead (game.js toggles which of the two is hidden). -->
+      <div class="ct-distance">
+        <span class="ct-score" id="hudScoreWrap"><span id="hudScore">0</span><span class="ct-mult" id="hudMult" hidden>&times;2</span></span>
+        <div class="ct-score-sub" id="hudScoreSub"><span id="hudDistance">0 m</span></div>
+        <div class="ct-level-hud" id="levelHud" hidden>
+          <span class="ct-level-hud__name" id="levelHudName"></span>
+          <span class="ct-progress" id="levelHudProgress" role="progressbar" aria-label="To the finish" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <span class="ct-progress__fill"></span><span class="ct-progress__flag"></span></span>
+        </div>
+      </div>
+      <button class="ct-pebble ct-music" id="musicBtn" aria-label="Music on" aria-pressed="false"><span class="ct-music-icon" aria-hidden="true">&#9834;</span></button>
+      <button class="ct-pebble ct-sound" id="soundBtn" aria-label="Sound on" aria-pressed="false"><span class="ct-sound-icon" aria-hidden="true"></span></button>
+      <button class="ct-pebble ct-pause" id="pauseBtn" aria-label="Pause"><span class="ct-pause-icon" aria-hidden="true"></span></button>
+    </div>
+
+    <div class="ct-stick-zone" id="stickZone" hidden></div>
+    <div class="ct-stick-base" id="stickBase" hidden></div>
+    <div class="ct-stick-knob" id="stickKnob" hidden></div>
+    <button class="ct-btn ct-jump" id="jumpBtn" hidden data-theme-text="hints.jump">JUMP</button>
+    <button class="ct-btn ct-duck" id="duckBtn" hidden data-theme-text="hints.duck">DUCK</button>
+
+    <!-- THE-1375: secret `0`-key debug map for Nir (ui/map.js + render/map-layout.js) -- read-only, hidden
+         from players, never in About/how-to/share card. Desktop-only, no touch path. -->
+    <canvas class="ct-map-canvas" id="mapCanvas" hidden></canvas>
+
+    <!-- THE-1372: short in-run coaching label, positioned every frame from the hero's head (game.js +
+         ui/in-run-label.js). Replaces the UIKit toast during a run; the toast stays for menu/results only. -->
+    <div class="ct-in-run-label" id="inRunLabel" role="status" hidden></div>
+
+    <!-- Spec Part 1: the active timed power-up's ring, anchored next to the hero's head (game.js +
+         ui/powerup-ring.js), shrinking as the power-up's time runs out. -->
+    <div class="ct-powerup-ring" id="powerupRing" hidden aria-hidden="true">
+      <svg viewBox="0 0 36 36">
+        <circle class="ct-powerup-ring-track" cx="18" cy="18" r="15"></circle>
+        <circle class="ct-powerup-ring-fill" id="powerupRingFill" cx="18" cy="18" r="15"></circle>
+      </svg>
+    </div>
+
+    <!-- P5 (THE-1328): the title sits over the live world (the intro's opening shot: the capy chewing on the
+         trail, three geese behind it), so Play flows straight into the reveal. -->
+    <div class="uk-screen uk-screen--clear is-active ct-title-screen" id="title">
+      <div class="uk-panel ct-card ct-title-card">
+        <h1 class="uk-title ct-logo" data-theme-text="title">Capy Trail</h1>
+        <p class="uk-subtitle ct-tagline" data-theme-text="tagline"></p>
+        <!-- THE-1412 (levels/README.md): Levels (new, primary) opens the map; Endless (#playBtn, restyled)
+             keeps every existing "tap/any key starts Endless" test working unchanged. -->
+        <div class="uk-actions">
+          <button class="uk-btn uk-btn--lg" id="levelsBtn"><span data-theme-text="text.levels">Levels</span><span class="ct-btn-stars" id="titleStars" aria-label="0 stars"><i class="ct-star is-on" aria-hidden="true"></i><span id="titleStarsCount">0</span></span></button>
+          <button class="uk-btn ct-endless" id="playBtn" data-theme-text="text.endless">Endless</button>
+        </div>
+        <p class="ct-title-hint" id="titleHint"></p>
+      </div>
+      <!-- A13.2 (THE-1318 review): title-only utility pebbles, separate from the hidden-till-running HUD
+           ones; a real-pointer/real-key test (title-util.test.mjs) proves none of these also starts the run. -->
+      <div class="ct-title-util" id="titleUtil">
+        <button class="ct-pebble ct-music" id="titleMusicBtn" aria-label="Music on" aria-pressed="false"><span class="ct-music-icon" aria-hidden="true">&#9834;</span></button>
+        <button class="ct-pebble ct-sound" id="titleSoundBtn" aria-label="Sound on" aria-pressed="false"><span class="ct-sound-icon" aria-hidden="true"></span></button>
+        <button class="ct-pebble ct-info" id="aboutBtn" aria-label="About">i</button>
+      </div>
+      <div class="ct-brand-footer" id="titleBrand"></div>
+    </div>
+
+    <!-- THE-1412 (levels/README.md): the trail map. ui/level-map.js builds the <li> list and footer from
+         sim/levels.js + the save's stars/unlock state -- nothing here is hand-written per level. -->
+    <div class="uk-screen uk-screen--clear" id="levels">
+      <div class="uk-panel ct-card ct-map" role="dialog" aria-label="Level map">
+        <header class="ct-map__head">
+          <button class="ct-pebble" id="mapBackBtn" aria-label="Back"><span class="ct-back-icon" aria-hidden="true"></span></button>
+          <h2 class="ct-map__title">Trail map</h2>
+          <span class="ct-map__total" id="mapTotal" aria-label="0 of 36 stars"><i class="ct-star is-on" aria-hidden="true"></i><span id="mapTotalText">0/36</span></span>
+        </header>
+        <ol class="ct-map__trail" id="levelsTrail"></ol>
+        <footer class="ct-map__foot">
+          <div class="ct-map__goal">
+            <span class="ct-map__name" id="mapGoalName"></span>
+            <span class="ct-map__goals" id="mapGoals"></span>
+          </div>
+          <button class="uk-btn uk-btn--lg" id="mapPlayBtn">Play</button>
+        </footer>
+      </div>
+    </div>
+
+    <div class="uk-screen" id="results">
+      <div class="uk-panel ct-card ct-results" id="resultsPanel">
+        <div class="ct-results__stats">
+          <p class="ct-cause" id="resultCause"></p>
+          <!-- THE-1407 slice 6: the score is the big number (was distance); distance, coins and best
+               (best score now) share the one line under it -- score-missions/README.md's exact DOM.
+               THE-1412: skin.css hides .uk-stat once #resultsPanel has .is-level; game.js/screens.js
+               own showing/hiding #levelStars itself (hidden by default, unhidden only in a level). -->
+          <div class="uk-stat"><div class="uk-stat__label">Score</div><div class="uk-stat__value">
+            <span class="ct-score"><span id="resultScore">0</span><span class="ct-mult" id="resultMult" hidden>&times;2</span></span>
+          </div></div>
+          <div class="ct-level-stars" id="levelStars" role="img" aria-label="0 of 3 stars" hidden>
+            <span class="ct-bigstar" id="levelStar0" style="--i:0"><i class="ct-star" aria-hidden="true"></i><b>Finish</b></span>
+            <span class="ct-bigstar" id="levelStar1" style="--i:1"><i class="ct-star" aria-hidden="true"></i><b>Coins</b></span>
+            <span class="ct-bigstar" id="levelStar2" style="--i:2"><i class="ct-star" aria-hidden="true"></i><b>No hits</b></span>
+          </div>
+          <p class="ct-results__line" id="resultLine"><span class="ct-num" id="resultDistance"></span> <span class="ct-dot-sep" aria-hidden="true">&middot;</span>
+            <span class="ct-coin-dot" aria-hidden="true"></span> <span class="ct-num" id="resultCoins"></span> <span class="ct-dot-sep" aria-hidden="true">&middot;</span>
+            <span id="resultBest"></span></p>
+          <!-- THE-1412: levels/README.md's own line shape (coins this run, time, hit count) -- a separate
+               paragraph rather than repurposing resultLine's spans, so neither mode's markup is ever torn
+               down (game.js/screens.js toggle `hidden` between the two, never innerHTML either one away). -->
+          <p class="ct-results__line" id="levelResultLine" hidden>
+            <span class="ct-coin-dot" aria-hidden="true"></span> <span id="levelResultCoins"></span> <span class="ct-dot-sep" aria-hidden="true">&middot;</span>
+            <span id="levelResultTime"></span> <span class="ct-dot-sep" aria-hidden="true">&middot;</span>
+            <span id="levelResultHits"></span></p>
+          <p class="ct-deadpan" id="resultDeadpan"></p>
+        </div>
+        <div class="uk-actions ct-results__actions">
+          <button class="uk-btn uk-btn--lg" id="againBtn" data-theme-text="text.again">Again</button>
+          <!-- A13.4 (THE-1318 review): Home + Share as two pebbles under Again.
+               THE-1412: #mapBtn (Map, level results only) sits next to Home; game.js hides/shows homeBtn
+               vs mapBtn/retryBtn per levels/README.md ("Home is replaced by Map in a level"). -->
+          <div class="ct-results__pebbles">
+            <button class="ct-pebble" id="homeBtn" aria-label="Home">&#8962;</button>
+            <button class="ct-pebble" id="retryBtn" aria-label="Play again" hidden><span aria-hidden="true">&#8635;</span></button>
+            <button class="ct-pebble" id="mapBtn" aria-label="Trail map" hidden><span class="ct-map-icon" aria-hidden="true"></span></button>
+            <button class="ct-pebble ct-share" id="shareBtn" aria-label="Share"><span class="ct-share-icon" aria-hidden="true">&#8599;</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="uk-screen" id="pause">
+      <div class="uk-panel ct-card ct-pause-card">
+        <h2 class="uk-title ct-card-title" data-theme-text="text.paused">Paused</h2>
+        <div class="uk-actions">
+          <button class="uk-btn uk-btn--lg" id="resumeBtn" data-theme-text="text.resume">Resume</button>
+          <!-- A13.3 (THE-1318 review): labelled toggle pills -- the state is in words, so no emoji and no
+               strike-through (skin.css suppresses the icon-only .is-off::after here). -->
+          <div class="uk-row ct-pause-toggles">
+            <button class="ct-pebble ct-pebble--static ct-music" id="pauseMusicBtn" aria-label="Music on" aria-pressed="false"><span class="ct-music-icon" aria-hidden="true">&#9834;</span><span class="ct-toggle-label" id="pauseMusicLabel">Music on</span></button>
+            <button class="ct-pebble ct-pebble--static ct-sound" id="pauseSoundBtn" aria-label="Sound on" aria-pressed="false"><span class="ct-sound-icon" aria-hidden="true"></span><span class="ct-toggle-label" id="pauseSoundLabel">Sound on</span></button>
+          </div>
+          <div class="uk-row">
+            <button class="uk-btn uk-btn--ghost" id="pauseHomeBtn" data-theme-text="text.home">Home</button>
+            <button class="uk-btn uk-btn--ghost" id="pauseAboutBtn" data-theme-text="text.about">About</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="uk-screen" id="rotate">
+      <div class="uk-panel"><p class="uk-subtitle" data-theme-text="rotateText">Turn me sideways</p></div>
+    </div>
+
+    <!-- P5 (THE-1328): About, per the studio standard: name, studio credit, controls, and only the credits a
+         licence requires (three.js, MIT; A14/THE-1354: the CC0 music track, credited as a courtesy). Every
+         model and sound effect is our own work (licenses/). -->
+    <dialog class="uk-sheet ct-about" id="aboutDialog" aria-labelledby="aboutTitle">
+      <div class="uk-sheet__head">
+        <h2 class="uk-sheet__title" id="aboutTitle" data-theme-text="title">Capy Trail</h2>
+        <button class="uk-btn uk-btn--ghost ct-close" id="aboutClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="uk-sheet__body">
+        <div class="ct-about-brand" id="aboutBrand"></div>
+        <!-- THE-1332 review: two columns at short heights (style.css), so the how-to is never clipped -->
+        <section class="ct-about-col">
+        <h3 class="ct-about-h">Controls</h3>
+        <dl class="ct-controls">
+          <dt>Change lane</dt><dd>&larr; &rarr; or A D &middot; swipe on the left half</dd>
+          <dt>Jump</dt><dd>&uarr; W or Space &middot; JUMP</dd>
+          <dt>Duck</dt><dd>&darr; S &middot; DUCK</dd>
+          <dt>Pause</dt><dd>Esc or P &middot; the pause button</dd>
+          <dt>Music / Sound</dt><dd>M / N &middot; the &#9834; / speaker buttons</dd>
+        </dl>
+        </section>
+        <section class="ct-about-col ct-about-settings">
+        <!-- S7 (THE-1303): a game-side reduce-motion toggle, overriding the OS prefers-reduced-motion
+             (ui-kit.js UIKit.reduceMotion() checks data-reduce-motion first). -->
+        <h3 class="ct-about-h">Settings</h3>
+        <label class="ct-setting"><span class="ct-setting__label">Reduce motion</span><span class="uk-toggle"><input type="checkbox" id="settingMotion"><span class="uk-toggle__track"></span></span></label>
+        <!-- S7 (THE-1303): 2 quality tiers, player-facing. The engine already has 3 internal tiers
+             (low/mid/high, auto-picked by device); this toggle offers the 2 the player can actually pick
+             between -- the device's own best tier, or one step down for a weaker device/battery saving. -->
+        <label class="ct-setting"><span class="ct-setting__label">High quality</span><span class="uk-toggle"><input type="checkbox" id="settingQuality"><span class="uk-toggle__track"></span></span></label>
+        <!-- THE-1582: off by default = the low-poly bear. On = the same CC BY mesh, subdivided and given a
+             soft sheen in-house (licenses/bear-model.txt). Bear hero only; game.js hides it for the capy. -->
+        <label class="ct-setting" id="settingBearHDRow"><span class="ct-setting__label">HD bear</span><span class="uk-toggle"><input type="checkbox" id="settingBearHD"><span class="uk-toggle__track"></span></span></label>
+        </section>
+        <!-- THE-1582: credits in their own block so short landscape screens can put them under Controls
+             (style.css), which keeps About scroll-free with the extra HD bear row. -->
+        <section class="ct-about-col ct-about-credits">
+        <p class="ct-about-credit">3D: <a href="licenses/three.txt" target="_blank" rel="noopener">three.js</a> (MIT). Music: "Happy Beat" by burabotti (<a href="licenses/music.txt" target="_blank" rel="noopener">CC0</a>). Fonts: <a href="licenses/fonts-bagelfatone.txt" target="_blank" rel="noopener">Bagel Fat One</a>, <a href="licenses/fonts-nunito.txt" target="_blank" rel="noopener">Nunito</a> (OFL). Models/sound effects: ours.</p>
+        <!-- THE-1372: the bear set's CC BY 4.0 credit (licenses/bear-model.txt); empty and hidden for capy. -->
+        <p class="ct-about-credit" id="aboutCredit" data-theme-text="aboutCredit"></p>
+        </section>
+      </div>
+    </dialog>
+
+    <div class="uk-screen" id="contextLost">
+      <div class="uk-panel"><p class="uk-subtitle">Tap to reload</p></div>
+    </div>
+
+    <!-- THE-1408: score-missions/README.md's DOM contract; game.js/ui/missions.js fill it in. -->
+    <section class="ct-missions" id="missions" aria-label="Missions">
+      <header class="ct-missions__head">
+        <span class="ct-missions__title" id="missionsTitle"></span>
+        <span class="ct-missions__reward" id="missionsReward"></span>
+      </header>
+      <ol class="ct-missions__list" id="missionsList"></ol>
+    </section>
+  </div>
+  <script src="ui-kit.js"></script>
+  <script type="module" src="game.js"></script>
+  <script src="register-sw.js"></script>
+</body>
+</html>

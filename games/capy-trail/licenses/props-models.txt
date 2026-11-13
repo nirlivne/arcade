@@ -1,0 +1,6 @@
+The bird, logs, bushes and lane blockers (assets/bird.glb, assets/props.glb)
+
+In-house, built by build/make_props.py (Blender, headless Python; THE-1282 R3).
+Not derived from any third-party asset, CC0 library, or reference model.
+Shapes are procedural (lofted superellipses and noise-pushed icospheres) with
+per-vertex clay colours taken from this game's own palette (render/look.js).

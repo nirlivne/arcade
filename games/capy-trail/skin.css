@@ -1,0 +1,364 @@
+/* Capy Trail's own skin (A13.1, THE-1362): the art brief's clay look (design/capy-trail/ui.css, THE-1246) on the
+   as-built P5 DOM. Loaded last, after style.css. Cream pebbles on a clay base, cream slab cards, cocoa text,
+   orange primary; Bagel Fat One for the logo, numbers and primary labels, Nunito for everything else.
+   Fonts: SIL OFL 1.1, texts in licenses/fonts-*.txt. Bagel blocks (short strings, preloaded); Nunito swaps so
+   body text never goes blank on a slow first load (THE-1318 A13.1.C2).
+   Class names marked "A13.2" / "A13.3" / "A13.4" are DOM the dev adds on THE-1303; until then they match
+   nothing and cost nothing. */
+@font-face { font-family: "CT Bagel"; src: url("fonts/bagelfatone-latin.woff2") format("woff2"); font-weight: 400; font-display: block; }
+@font-face { font-family: "CT Nunito"; src: url("fonts/nunito-latin.woff2") format("woff2"); font-weight: 200 1000; font-display: swap; }
+
+:root {
+  --cream: #FFF3E0; --cream-hi: #FFFAF2; --cream-lo: #F6DFBD; --cream-base: #E2BF92;
+  --cocoa: #3A2418; --cocoa-2: #6B4A36; --leaf: #2F6E2A; --clay-focus: #A8461A;
+  --orange: #FF8A2A; --orange-hi: #FFB061; --orange-lo: #F0701C; --orange-base: #C2541A;
+  --lilac: #B9A6E6; --lilac-hi: #D6CBF2; --lilac-base: #8A76BE;
+  --clay-shadow: 0 14px 22px rgba(70, 45, 120, 0.28);
+  --clay-pebble: radial-gradient(120% 90% at 35% 25%, var(--cream-hi), var(--cream) 55%, var(--cream-lo));
+  --font-display: "CT Bagel", ui-rounded, system-ui, sans-serif;
+  --font-body: "CT Nunito", ui-rounded, system-ui, sans-serif;
+  /* the kit tokens the rest of style.css reads, pointed at the clay palette */
+  --color-text: #3A2418; --color-text-muted: #6B4A36; --color-outline: #3A2418;
+}
+/* contrast: --cocoa on --cream >= 4.5 */
+/* contrast: --cocoa on --cream-lo >= 4.5 */
+/* contrast: --cocoa-2 on --cream >= 4.5 */
+/* contrast: --cocoa-2 on --cream-lo >= 4.5 */
+/* contrast: --cocoa on --orange >= 4.5 */
+/* contrast: --cocoa on --orange-lo >= 4.5 */
+/* contrast: --cocoa on --lilac >= 4.5 */
+/* contrast: --leaf on --cream >= 4.5 */
+/* contrast: --clay-focus on --cream >= 3 */
+/* contrast: --cocoa on --cream-hi >= 4.5 */
+
+body { font-family: var(--font-body); color: var(--cocoa); }
+
+/* ---------------------------------------------------------------- pebbles: buttons and HUD chips */
+.uk-btn, .ct-pebble {
+  border: 0; color: var(--cocoa); font-family: var(--font-body); font-weight: 900;
+  background: var(--clay-pebble);
+  box-shadow: 0 5px 0 var(--cream-base), var(--clay-shadow), inset 0 2px 0 #fff, inset 0 -4px 8px rgba(170, 120, 70, .22);
+}
+.ct-pebble { border-radius: 46% 54% 50% 50% / 56% 56% 44% 44%; }
+.uk-btn { border-radius: 40px / 34px; transition: transform var(--dur-fast, 120ms) ease-out, box-shadow var(--dur-fast, 120ms) ease-out; }
+.uk-btn--lg {
+  background: radial-gradient(120% 90% at 35% 25%, var(--orange-hi), var(--orange) 60%, var(--orange-lo));
+  box-shadow: 0 7px 0 var(--orange-base), var(--clay-shadow), inset 0 2px 0 rgba(255, 255, 255, .55), inset 0 -5px 10px rgba(150, 50, 0, .25);
+  font-family: var(--font-display); font-weight: 400; letter-spacing: .01em; text-shadow: 0 1px 0 rgba(255, 220, 170, .7);
+}
+.uk-btn--ghost, .uk-btn--secondary { background: var(--clay-pebble); box-shadow: 0 5px 0 var(--cream-base), var(--clay-shadow), inset 0 2px 0 #fff; }
+/* pressed: the pebble sinks onto its clay base (replaces the kit's black-outline press) */
+.uk-btn:active, button.ct-pebble:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--cream-base), 0 6px 10px rgba(70, 45, 120, .22), inset 0 2px 0 #fff; }
+.uk-btn--lg:active { box-shadow: 0 2px 0 var(--orange-base), 0 6px 10px rgba(70, 45, 120, .22), inset 0 2px 0 rgba(255, 255, 255, .55); }
+.uk-btn:focus-visible, .ct-pebble:focus-visible, .ct-btn:focus-visible { outline: 3px solid var(--clay-focus); outline-offset: 4px; }
+.ct-pebble.is-off::after { background: var(--cocoa); }
+
+/* ---------------------------------------------------------------- HUD */
+.ct-distance { color: var(--cream-hi); font-family: var(--font-display); font-weight: 400; text-shadow: 0 2px 0 rgba(58, 36, 24, .55), 0 0 10px rgba(58, 36, 24, .45); }
+.ct-distance .ct-best { color: var(--cream-hi); font-family: var(--font-body); font-weight: 800; }
+.ct-coin { font-variant-numeric: tabular-nums; }
+.ct-chaser-dot { border-color: var(--cocoa); }
+/* the speaker glyph gets one sound-wave arc so it reads as a speaker, not "back" (A13.3); the arc drops when off */
+.ct-sound-icon { width: 20px; }
+.ct-sound-icon::before { background: var(--cocoa); clip-path: polygon(0 32%, 28% 32%, 60% 6%, 60% 94%, 28% 68%, 0 68%); right: auto; width: 13px; }
+.ct-sound-icon::after { content: ""; position: absolute; right: 0; top: 2px; width: 7px; height: 10px; border: 2.5px solid var(--cocoa); border-left: 0; border-radius: 0 10px 10px 0; box-sizing: border-box; }
+.ct-pebble.is-off .ct-sound-icon::after { display: none; }
+.ct-pause-icon::before, .ct-pause-icon::after { background: var(--cocoa); border-radius: 2px; }
+/* A13.3: one set of toggles on screen -- the HUD's Music/Sound/Pause pebbles hide under the pause card */
+#app:has(#pause.is-active) .ct-hud :is(.ct-music, .ct-sound, .ct-pause) { visibility: hidden; }
+
+/* touch controls: clay pebbles too (sizes unchanged from style.css: 96 / 72 px) */
+.ct-btn { border: 0; color: var(--cocoa); font-family: var(--font-display); font-weight: 400; letter-spacing: .02em; }
+.ct-jump {
+  background: radial-gradient(120% 90% at 35% 25%, var(--orange-hi), var(--orange) 60%, var(--orange-lo));
+  box-shadow: 0 6px 0 var(--orange-base), var(--clay-shadow), inset 0 2px 0 rgba(255, 255, 255, .55);
+}
+.ct-duck {
+  background: radial-gradient(120% 90% at 35% 25%, var(--lilac-hi), var(--lilac) 60%);
+  box-shadow: 0 6px 0 var(--lilac-base), var(--clay-shadow), inset 0 2px 0 rgba(255, 255, 255, .55);
+}
+.ct-btn:active { transform: translateY(4px); }
+.ct-stick-base { background: rgba(255, 243, 224, .28); border: 3px solid rgba(255, 250, 242, .7); }
+.ct-stick-knob { background: radial-gradient(120% 90% at 35% 25%, var(--orange-hi), var(--orange) 60%, var(--orange-lo)); box-shadow: 0 4px 0 var(--orange-base); }
+
+/* ---------------------------------------------------------------- the slab card (pause, results, About) */
+.ct-card, .uk-sheet {
+  border: 0; color: var(--cocoa);
+  background: radial-gradient(140% 100% at 30% 0%, var(--cream-hi), var(--cream) 50%, #F8E4C4);
+  border-radius: 34px 30px 36px 32px / 32px 34px 30px 36px;
+  box-shadow: 0 10px 0 var(--cream-base), 0 30px 50px rgba(60, 35, 110, .35), inset 0 2px 0 #fff;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.uk-sheet::backdrop { background: rgba(58, 36, 24, .35); }
+.ct-card-title, .uk-sheet__title { font-family: var(--font-display); font-weight: 400; color: var(--cocoa); }
+
+/* ---------------------------------------------------------------- A13.2 title: no card, the clay lockup on the world */
+.ct-title-card { background: none; box-shadow: none; border: 0; padding: 0; justify-items: start; text-align: left; width: auto; max-width: 46vw; overflow: visible; }
+@media (min-width: 900px) { .ct-title-card { width: auto; } }
+.uk-btn[hidden] { display: none; }
+.ct-logo {
+  font: 400 clamp(3rem, 11vh + 1rem, 6rem)/0.86 var(--font-display); color: var(--cream-hi); margin: 0;
+  text-shadow: 0 2px 0 #F2B46A, 0 4px 0 #E8963F, 0 6px 0 #D9782C, 0 8px 0 #B95A24, 0 10px 0 #8A3F1C, 0 18px 22px rgba(60, 30, 110, .45);
+}
+/* the orange "a" in "Tr<span class="o">a</span>il" */
+.ct-logo .o { color: var(--orange); text-shadow: 0 2px 0 #E8702A, 0 4px 0 #D06020, 0 6px 0 #B9501C, 0 8px 0 #9A4018, 0 10px 0 #7A3014, 0 18px 22px rgba(60, 30, 110, .45); }
+.ct-tagline { color: var(--cream-hi); font-weight: 800; text-shadow: 0 1px 0 rgba(58, 36, 24, .7), 0 0 10px rgba(58, 36, 24, .45); max-width: 22rem; }
+.ct-title-card .uk-actions { width: min(100%, 15rem); }
+/* A13.2: "best {N} m · tap, Space or any key" under Play */
+.ct-title-hint { margin: 0; font: 900 12px/1.2 var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--cream-hi); text-shadow: 0 1px 0 rgba(58, 36, 24, .75), 0 0 8px rgba(58, 36, 24, .5); }
+/* A13.2: the top-right utility pebbles on the title (i / Music / Sound), 44 px each */
+.ct-title-util { position: absolute; top: max(var(--space-4), env(safe-area-inset-top)); right: max(var(--space-4), env(safe-area-inset-right)); display: flex; gap: var(--space-2); }
+.ct-title-util .ct-pebble { position: relative; top: auto; right: auto; width: 44px; }
+.ct-info { font: 900 22px/1 Georgia, serif; }
+/* A13.2.C4: below 360 px tall the tagline may drop; the hint line and Play stay */
+@media (max-height: 359px) { .ct-title-card .ct-tagline { display: none; } }
+.ct-brand-footer { filter: drop-shadow(0 1px 0 rgba(58, 36, 24, .5)); }
+
+/* ---------------------------------------------------------------- A13.3 pause: labelled toggle pills */
+.ct-pause-toggles { width: 100%; gap: var(--space-2); }
+.ct-pause-toggles .ct-pebble { flex: 1; width: auto; min-height: 44px; border-radius: 40px / 34px; gap: var(--space-2); font: 900 15px/1 var(--font-body); }
+.ct-pause-toggles .ct-pebble.is-off { color: var(--cocoa-2); }
+/* the state is in words here, so no strike-through and no dimmed label */
+.ct-pause-toggles .ct-pebble.is-off::after { display: none; }
+.ct-pause-toggles .ct-pebble.is-off > .ct-toggle-label { opacity: 1; }
+
+/* ---------------------------------------------------------------- A13.4 results: left card, crash pose stays in view */
+#results.uk-screen { place-items: center start; padding-left: max(var(--space-6), 6vw, env(safe-area-inset-left)); }
+.ct-results { width: min(100%, 300px); grid-template-columns: 1fr; justify-items: center; text-align: center; gap: var(--space-2); padding: var(--space-4) var(--space-5) var(--space-5); }
+.ct-results__stats { justify-items: center; }
+.ct-cause { font: 900 var(--text-sm)/1.25 var(--font-body); color: var(--cocoa-2); }
+.ct-results .uk-stat__label { display: none; }
+.ct-results .uk-stat__value { font: 400 3rem/0.95 var(--font-display); color: var(--cocoa); }
+.ct-results__line { font-weight: 900; }
+.ct-new-best { color: var(--leaf); }
+.ct-dot-sep { color: var(--cocoa-2); }
+.ct-deadpan { font-style: normal; font-weight: 700; color: var(--cocoa-2); font-size: var(--text-sm); }
+.ct-results__actions { width: 100%; gap: var(--space-3); }
+/* A13.4: Home + Share as two 48 px pebbles under Again */
+.ct-results__pebbles { display: flex; justify-content: center; gap: var(--space-3); }
+.ct-results__pebbles .ct-pebble { position: relative; width: 48px; height: 48px; top: auto; left: auto; right: auto; padding: 0; }
+@media (max-height: 430px) {
+  .ct-results .uk-stat__value { font-size: 2.5rem; }
+  .ct-results .uk-btn--lg { min-height: 48px; padding-block: var(--space-2); }
+}
+@media (max-width: 560px) {
+  #results.uk-screen { place-items: center; padding-left: max(var(--space-4), env(safe-area-inset-left)); }
+}
+
+/* ---------------------------------------------------------------- slice 6 (THE-1392): score + the ×N badge
+   DOM contract: design/capy-trail/score-missions/README.md. The HUD keeps its 2 centre lines (no new chip):
+   line 1 was the distance and becomes the score; line 2 was "best N m" and becomes the distance. */
+.ct-score { position: relative; display: inline-block; font-variant-numeric: tabular-nums; }
+.ct-distance .ct-score-sub { color: var(--cream-hi); font: 800 var(--text-sm)/1.2 var(--font-body); }
+/* the run passed the best score: one pop, then the sub-line reads "312 m · new best" */
+.ct-score.is-best { animation: ct-score-pop var(--dur-slow, 320ms) var(--ease-spring, ease-out); }
+@keyframes ct-score-pop { 40% { transform: scale(1.18); } }
+/* the ×N badge: an orange clay sticker hung off the score's right edge, so the number itself stays centred.
+   Hidden while the multiplier is ×1 (a new player's HUD is unchanged); the missions card (slice 7) explains it. */
+.ct-mult {
+  display: inline-block; padding: 1px 7px 2px; border-radius: 12px 14px 12px 14px;
+  background: radial-gradient(120% 90% at 35% 25%, var(--orange-hi), var(--orange) 60%, var(--orange-lo));
+  box-shadow: 0 2px 0 var(--orange-base), 0 4px 8px rgba(70, 45, 120, .25), inset 0 1px 0 rgba(255, 255, 255, .55);
+  color: var(--cocoa); font: 400 15px/1.2 var(--font-display); letter-spacing: .02em; text-shadow: none;
+  transform: rotate(-6deg); white-space: nowrap;
+}
+.ct-mult[hidden] { display: none; }
+.ct-score > .ct-mult { position: absolute; left: 100%; top: -2px; margin-left: 6px; }
+/* results: the score is the big number (was the distance); distance, coins and best share the one line under it */
+.ct-results .ct-score > .ct-mult { top: 2px; margin-left: 8px; font-size: 18px; }
+.ct-results__line .ct-num { font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- slice 7 (THE-1392): the missions card
+   One shared card (#missions, a direct child of #app after the screens), shown top-right on Title, Pause and
+   Results, under the title's utility pebbles. The hero stays in view between it and the left-hand cards.
+   DOM contract, celebration timings and sounds: design/capy-trail/score-missions/README.md. */
+.ct-missions {
+  position: fixed; z-index: 20; top: calc(max(var(--space-4), env(safe-area-inset-top)) + 44px + var(--space-3));
+  right: max(var(--space-4), env(safe-area-inset-right)); width: 250px; box-sizing: border-box;
+  display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  color: var(--cocoa); pointer-events: none;
+  background: radial-gradient(140% 100% at 30% 0%, var(--cream-hi), var(--cream) 55%, #F8E4C4);
+  border-radius: 22px 20px 24px 21px / 21px 23px 20px 24px;
+  box-shadow: 0 6px 0 var(--cream-base), 0 18px 30px rgba(60, 35, 110, .3), inset 0 2px 0 #fff;
+  opacity: 0; visibility: hidden; transition: opacity var(--dur-med, 220ms) var(--ease-out, ease-out), visibility 0s linear var(--dur-med, 220ms);
+}
+#app:has(:is(#title, #pause, #results).is-active) .ct-missions:not([hidden]) { opacity: 1; visibility: visible; transition-delay: 0s; }
+.ct-missions[hidden] { display: none; }
+.ct-missions__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 24px; }
+.ct-missions__title { font: 400 17px/1 var(--font-display); }
+.ct-missions__reward { font: 900 12px/1 var(--font-body); color: var(--cocoa-2); white-space: nowrap; }
+.ct-missions__reward .ct-mult { margin-left: 2px; font-size: 14px; }
+.ct-missions__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.ct-mission { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; column-gap: var(--space-2); row-gap: 3px; align-items: center; }
+.ct-mission__check {
+  grid-row: 1 / span 2; width: 20px; height: 20px; border-radius: 50%; box-sizing: border-box;
+  border: 2.5px solid var(--cream-base); background: var(--cream-lo); position: relative;
+}
+.ct-mission__text { font: 800 13.5px/1.15 var(--font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ct-mission__count { font: 900 12px/1 var(--font-body); color: var(--cocoa-2); font-variant-numeric: tabular-nums; }
+.ct-mission__bar { grid-column: 2 / span 2; height: 6px; border-radius: 3px; background: var(--cream-lo); box-shadow: inset 0 1px 1px rgba(150, 100, 60, .3); overflow: hidden; }
+/* --p: progress 0..1, set inline by the UI; the transition is the "bars fill" beat on Results */
+.ct-mission__fill { display: block; height: 100%; width: calc(var(--p, 0) * 100%); border-radius: inherit; background: linear-gradient(var(--orange-hi), var(--orange)); transition: width 600ms var(--ease-out, ease-out); }
+/* done: leaf check, leaf bar, count reads as a tick */
+.ct-mission.is-done .ct-mission__check { border-color: var(--leaf); background: var(--leaf); }
+.ct-mission.is-done .ct-mission__check::after { content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 9px; border: solid var(--cream-hi); border-width: 0 2.5px 2.5px 0; transform: rotate(40deg); }
+.ct-mission.is-done .ct-mission__fill { background: var(--leaf); }
+.ct-mission.is-done .ct-mission__count { color: var(--leaf); }
+/* contrast: --cream-hi on --leaf >= 4.5 */
+/* Results only: the row that got done in this run pops its check (staggered by the UI, 150 ms apart) */
+.ct-mission.is-new-done .ct-mission__check { animation: ct-check-pop 360ms var(--ease-spring, ease-out); }
+@keyframes ct-check-pop { 0% { transform: scale(.4); } 60% { transform: scale(1.3); } 100% { transform: none; } }
+/* set complete (Results): the reward line becomes the headline, and its badge stamps in at the new value */
+.ct-missions.is-set-done { box-shadow: 0 6px 0 var(--orange-base), 0 0 0 3px var(--orange), 0 18px 30px rgba(60, 35, 110, .3), inset 0 2px 0 #fff; }
+.ct-missions.is-set-done .ct-missions__reward { color: var(--cocoa); font-size: 13px; }
+.ct-missions.is-set-done .ct-missions__reward .ct-mult { animation: ct-mult-stamp 520ms var(--ease-spring, ease-out); font-size: 18px; }
+@keyframes ct-mult-stamp { 0% { transform: rotate(-6deg) scale(2.2); opacity: 0; } 55% { transform: rotate(-6deg) scale(.9); opacity: 1; } 100% { transform: rotate(-6deg) scale(1); } }
+/* the new set slides in after the stamp */
+.ct-missions.is-new-set .ct-mission { animation: ct-row-in 260ms var(--ease-out, ease-out) both; }
+.ct-missions.is-new-set .ct-mission:nth-child(2) { animation-delay: 60ms; }
+.ct-missions.is-new-set .ct-mission:nth-child(3) { animation-delay: 120ms; }
+@keyframes ct-row-in { from { transform: translateX(16px); opacity: 0; } }
+:root[data-reduce-motion="true"] .ct-missions *, :root[data-reduce-motion="true"] .ct-missions { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-reduce-motion="false"]) .ct-missions * { animation: none !important; transition: none !important; } }
+/* Pause shifts left like Results, so the card and the missions sit side by side (phone and small desktop) */
+@media (max-width: 1099px) { #pause.uk-screen { place-items: center start; padding-left: max(var(--space-6), 6vw, env(safe-area-inset-left)); } }
+/* mid-run "Mission ✓": the existing head label (ui/in-run-label.js), with a leaf edge so it reads as a win, not a hint */
+.ct-in-run-label.is-mission { border-color: var(--leaf); color: var(--leaf); box-shadow: 0 0 0 2px var(--cream-hi), var(--shadow-2, 0 6px 14px rgba(0, 0, 0, .2)); }
+
+/* ---------------------------------------------------------------- slice 8 (THE-1395): Title buttons, level map, level HUD, level results
+   DOM contract: design/capy-trail/levels/README.md. Level data: design/capy-trail/levels.md + levels/levels.js.
+   CSS only: the map's trail, node states, stars and the results star stamp need no JS beyond setting classes. */
+:root { --star: #FFC83A; --star-rim: rgba(122, 72, 24, .55); }
+/* contrast: --cocoa on --star >= 4.5 */
+/* Title: Levels is the primary button (with the star total), Endless (#playBtn, kept) the second */
+.ct-title-card .uk-actions { gap: var(--space-2); }
+.uk-btn.ct-endless { background: var(--clay-pebble); color: var(--cocoa); }
+.ct-btn-stars { display: inline-flex; align-items: center; gap: 4px; margin-left: var(--space-2); padding: 2px 8px 2px 6px; border-radius: 12px; background: rgba(255, 250, 242, .55); font: 400 .8em/1 var(--font-display); vertical-align: 2px; }
+.ct-btn-stars .ct-star { width: 15px; height: 15px; }
+
+/* a star: one clip-path, gold when earned; the rim comes from a drop-shadow on its parent */
+.ct-star { display: inline-block; width: 15px; height: 15px; flex: none; background: var(--cream-base);
+  clip-path: polygon(50% 0, 62% 34%, 98% 35%, 69% 57%, 80% 92%, 50% 71%, 20% 92%, 31% 57%, 2% 35%, 38% 34%); }
+.ct-star.is-on { background: linear-gradient(#FFE07A, var(--star) 60%, #F2A93B); }
+.ct-stars, .ct-btn-stars, .ct-map__total, .ct-goal, .ct-level-stars { filter: drop-shadow(0 1.5px 0 var(--star-rim)); }
+
+/* the map screen: a cream slab over the world, 12 pebble nodes on one dashed trail that runs 1 -> 6 along the top,
+   turns at the right end and comes back 7 -> 12 along the bottom */
+#levels.uk-screen { place-items: center; padding: max(var(--space-3), env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right)) max(var(--space-3), env(safe-area-inset-bottom)) max(var(--space-4), env(safe-area-inset-left)); }
+.ct-map { --node: 68px; --row: 104px; --gap: 20px; width: min(100%, 820px); box-sizing: border-box; display: grid; justify-items: stretch; text-align: left; gap: var(--space-3); padding: var(--space-4) var(--space-6) var(--space-5); }
+.ct-map__head { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: var(--space-3); }
+.ct-map__head .ct-pebble { position: relative; top: auto; left: auto; right: auto; width: 44px; height: 44px; padding: 0; }
+.ct-map__title { margin: 0; font: 400 28px/1 var(--font-display); }
+.ct-map__total { display: inline-flex; align-items: center; gap: 6px; font: 400 20px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.ct-map__total .ct-star { width: 20px; height: 20px; }
+/* back arrow, drawn: a chevron */
+.ct-back-icon { position: relative; width: 14px; height: 14px; }
+.ct-back-icon::before { content: ""; position: absolute; inset: 1px 0 1px 4px; border: solid var(--cocoa); border-width: 0 0 3.5px 3.5px; border-radius: 0 0 0 3px; transform: rotate(45deg); }
+.ct-map__trail { list-style: none; margin: 0; padding: 0; position: relative; display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(2, var(--row)); row-gap: var(--gap); }
+.ct-map__trail > li { position: relative; z-index: 1; display: grid; justify-items: center; align-content: start; }
+.ct-map__trail > li:nth-child(7) { grid-area: 2 / 6; } .ct-map__trail > li:nth-child(8) { grid-area: 2 / 5; }
+.ct-map__trail > li:nth-child(9) { grid-area: 2 / 4; } .ct-map__trail > li:nth-child(10) { grid-area: 2 / 3; }
+.ct-map__trail > li:nth-child(11) { grid-area: 2 / 2; } .ct-map__trail > li:nth-child(12) { grid-area: 2 / 1; }
+/* the trail: a dashed U through every node centre; the turn bulges past column 6 by half the row pitch */
+.ct-map__trail::before {
+  --r: calc((var(--row) + var(--gap)) / 2);
+  content: ""; position: absolute; z-index: 0; box-sizing: border-box;
+  left: calc(100% / 12); right: calc(100% / 12 - var(--r)); top: calc(var(--node) / 2 - 3px); height: calc(var(--row) + var(--gap) + 6px);
+  border: 6px dashed var(--cream-base); border-left: 0; border-radius: 0 var(--r) var(--r) 0;
+}
+/* a node: a clay pebble with its number, 0-3 stars under it */
+.ct-node {
+  position: relative; width: var(--node); height: var(--node); padding: 0; border: 0; display: grid; place-items: center; cursor: pointer;
+  color: var(--cocoa); font: 400 calc(var(--node) * .42)/1 var(--font-display); background: var(--clay-pebble);
+  border-radius: 46% 54% 50% 50% / 56% 56% 44% 44%;
+  box-shadow: 0 5px 0 var(--cream-base), 0 10px 16px rgba(70, 45, 120, .25), inset 0 2px 0 #fff;
+  transition: transform var(--dur-fast, 120ms) ease, box-shadow var(--dur-fast, 120ms) ease;
+}
+.ct-map__trail > li:nth-child(odd) .ct-node { rotate: -3deg; }
+.ct-map__trail > li:nth-child(even) .ct-node { rotate: 2deg; }
+.ct-node:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 var(--cream-base), 0 4px 8px rgba(70, 45, 120, .2), inset 0 2px 0 #fff; }
+.ct-node:focus-visible { outline: 3px solid var(--clay-focus); outline-offset: 4px; }
+.ct-stars { display: flex; align-items: flex-end; gap: 2px; margin-top: 8px; height: 18px; }
+.ct-stars .ct-star:nth-child(2) { width: 18px; height: 18px; }
+/* is-current: the next level to beat. Orange like Play, a slow bob and a soft ring, so it reads "go here" */
+.ct-node.is-current { background: radial-gradient(120% 90% at 35% 25%, var(--orange-hi), var(--orange) 60%, var(--orange-lo)); box-shadow: 0 5px 0 var(--orange-base), 0 10px 16px rgba(70, 45, 120, .3), inset 0 2px 0 rgba(255, 255, 255, .6); animation: ct-node-bob 1.8s ease-in-out infinite; }
+.ct-node.is-current::before { content: ""; position: absolute; inset: -9px; border-radius: 50%; border: 3px solid var(--orange); opacity: 0; animation: ct-node-ring 1.8s ease-out infinite; }
+@keyframes ct-node-bob { 50% { transform: translateY(-5px); } }
+@keyframes ct-node-ring { 0% { transform: scale(.85); opacity: .7; } 100% { transform: scale(1.25); opacity: 0; } }
+/* is-selected: the node the footer describes (tap a node to select it, tap it again or Play to start) */
+.ct-node.is-selected:not(.is-current) { box-shadow: 0 5px 0 var(--cream-base), 0 0 0 4px var(--orange), 0 10px 16px rgba(70, 45, 120, .25), inset 0 2px 0 #fff; }
+/* is-locked (and disabled): sunk into the slab, number faded, a small cocoa padlock on the corner, no stars */
+.ct-node.is-locked { cursor: default; color: var(--cocoa-2); background: var(--cream-lo); box-shadow: 0 2px 0 var(--cream-base), inset 0 3px 5px rgba(150, 100, 60, .35); }
+.ct-node.is-locked .ct-node__num { opacity: .5; }
+.ct-node.is-locked::after { content: ""; position: absolute; right: -3px; bottom: 0; width: 17px; height: 13px; border-radius: 3px 3px 4px 4px; background: var(--cocoa-2); box-shadow: 0 0 0 2px var(--cream); }
+.ct-node.is-locked::before { content: ""; position: absolute; right: 0; bottom: 10px; width: 7px; height: 8px; border: 3px solid var(--cocoa-2); border-bottom: 0; border-radius: 7px 7px 0 0; }
+.ct-node.is-locked + .ct-stars { visibility: hidden; }
+/* the last node carries the finish pennant, so the map reads as one trail with an end */
+.ct-map__trail > li:nth-child(12)::after { content: ""; position: absolute; left: calc(50% - var(--node) / 2 - 16px); top: -6px; width: 22px; height: 15px; background: var(--orange); clip-path: polygon(0 0, 100% 50%, 0 100%); box-shadow: inset 3px 0 0 var(--cocoa); }
+.ct-map__trail > li:nth-child(12)::before { content: ""; position: absolute; left: calc(50% - var(--node) / 2 - 17px); top: -6px; width: 3px; height: 40px; border-radius: 2px; background: var(--cocoa); }
+/* footer: what the selected level asks for, and its Play button */
+.ct-map__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding-top: var(--space-2); border-top: 2px solid var(--cream-lo); }
+.ct-map__goal { margin: 0; min-width: 0; display: grid; gap: 4px; }
+.ct-map__name { font: 400 19px/1.05 var(--font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ct-map__goals { display: flex; flex-wrap: wrap; gap: 4px var(--space-3); font: 800 13px/1.2 var(--font-body); color: var(--cocoa-2); }
+.ct-goal { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.ct-goal .ct-star { width: 14px; height: 14px; }
+.ct-goal.is-on { color: var(--cocoa); }
+.ct-map__foot .uk-btn--lg { width: auto; min-width: 9.5rem; flex: none; }
+/* phone landscape (844x390 and smaller): tighter rows so head + trail + footer fit in 390 px */
+@media (max-height: 520px) {
+  .ct-map { --node: 50px; --row: 76px; --gap: 8px; gap: var(--space-2); padding: var(--space-3) var(--space-5) var(--space-3); }
+  .ct-map__title { font-size: 24px; }
+  .ct-map__head .ct-pebble { width: 40px; height: 40px; }
+  .ct-map__foot { padding-top: var(--space-2); }
+  .ct-map__foot .uk-btn--lg { min-height: 46px; padding-block: var(--space-2); }
+  .ct-stars { margin-top: 6px; height: 16px; }
+  .ct-stars .ct-star { width: 13px; height: 13px; } .ct-stars .ct-star:nth-child(2) { width: 16px; height: 16px; }
+}
+@media (max-width: 640px) { .ct-map { --node: 46px; --row: 72px; padding-inline: var(--space-4); } .ct-map__goals { font-size: 12px; } }
+@media (max-height: 360px) { .ct-map__head { display: none; } .ct-map__trail { margin-top: var(--space-1); } }
+
+/* level HUD (centre block in a level): "Level 3" over a progress bar that ends in the finish flag. The coin chip
+   reads "41/175" and turns leaf green when star 2's target is met. */
+.ct-level-hud { display: grid; justify-items: center; gap: 6px; }
+.ct-level-hud__name { color: var(--cream-hi); font: 400 20px/1 var(--font-display); text-shadow: 0 2px 0 rgba(58, 36, 24, .55); }
+.ct-progress { position: relative; width: 172px; height: 10px; border-radius: 5px; background: rgba(58, 36, 24, .38); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .25), 0 0 0 2px rgba(255, 250, 242, .55); }
+.ct-progress__fill { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--p, 0) * 100%); border-radius: inherit; background: linear-gradient(var(--orange-hi), var(--orange)); }
+/* the hero dot rides the end of the fill */
+.ct-progress__fill::after { content: ""; position: absolute; right: -7px; top: -3px; width: 12px; height: 12px; border-radius: 50%; background: var(--cream-hi); border: 2px solid var(--cocoa); }
+.ct-progress__flag { position: absolute; right: -2px; bottom: 2px; width: 3px; height: 20px; border-radius: 2px; background: var(--cream-hi); }
+.ct-progress__flag::after { content: ""; position: absolute; left: 3px; top: 0; width: 13px; height: 9px; background: var(--orange); clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.ct-coin.is-target-met { color: var(--leaf); box-shadow: 0 0 0 3px var(--leaf), 0 5px 0 var(--cream-base); }
+
+/* level results: the same left card, with 3 big stars instead of the score. Earned-this-run stars stamp in one by
+   one (is-new, 280 ms apart, after a 300 ms beat); stars kept from an earlier run are simply gold. */
+.ct-results.is-level .uk-stat { display: none; }
+.ct-level-stars { display: flex; justify-content: center; align-items: flex-end; gap: var(--space-2); margin: var(--space-1) 0 var(--space-2); }
+.ct-bigstar { display: grid; justify-items: center; gap: 4px; width: 76px; }
+.ct-bigstar .ct-star { width: 54px; height: 54px; }
+.ct-bigstar:nth-child(2) .ct-star { width: 66px; height: 66px; margin-bottom: 6px; }
+.ct-bigstar b { font: 900 12px/1.1 var(--font-body); color: var(--cocoa-2); white-space: nowrap; filter: none; }
+.ct-bigstar.is-on b { color: var(--cocoa); }
+.ct-bigstar.is-new .ct-star { animation: ct-star-stamp 460ms var(--ease-spring, ease-out) both; animation-delay: calc(300ms + var(--i, 0) * 280ms); }
+@keyframes ct-star-stamp { 0% { transform: scale(2.1) rotate(-25deg); opacity: 0; } 60% { transform: scale(.88) rotate(4deg); opacity: 1; } 100% { transform: none; } }
+.ct-results.is-level .ct-cause { font: 400 20px/1.1 var(--font-display); color: var(--cocoa); }
+.ct-results.is-level.is-failed .ct-cause { font: 900 var(--text-sm)/1.25 var(--font-body); color: var(--cocoa-2); }
+.ct-results__pebbles .ct-map-icon { position: relative; width: 20px; height: 20px; }
+/* retry: the ↻ glyph, like Share's ↗ (no drawn icon needed) */
+/* map: three trail stones and a flag */
+.ct-map-icon::before { content: ""; position: absolute; left: 0; bottom: 1px; width: 5px; height: 5px; border-radius: 50%; background: var(--cocoa); box-shadow: 7px -4px 0 var(--cocoa), 13px 0 0 var(--cocoa); }
+.ct-map-icon::after { content: ""; position: absolute; right: 0; top: 0; width: 9px; height: 7px; background: var(--orange-base); clip-path: polygon(0 0, 100% 50%, 0 100%); box-shadow: inset 2px 0 0 var(--cocoa); }
+:root[data-reduce-motion="true"] :is(.ct-node, .ct-bigstar .ct-star), :root[data-reduce-motion="true"] .ct-node::before { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { :root:not([data-reduce-motion="false"]) :is(.ct-node, .ct-bigstar .ct-star), :root:not([data-reduce-motion="false"]) .ct-node::before { animation: none !important; } }
+
+/* ---------------------------------------------------------------- About sheet */
+.ct-about-h { font-family: var(--font-display); font-weight: 400; color: var(--cocoa); }
+.ct-controls dd, .ct-about-by, .ct-about-credit { color: var(--cocoa-2); }
+.ct-about-credit a { color: var(--cocoa); text-decoration-color: var(--orange); text-underline-offset: 2px; }
+.ct-close { font-family: var(--font-body); }
+
+/* ---------------------------------------------------------------- rotate / context-lost cards */
+#rotate .uk-panel, #contextLost .uk-panel {
+  background: radial-gradient(140% 100% at 30% 0%, var(--cream-hi), var(--cream) 50%, #F8E4C4); color: var(--cocoa); border: 0;
+  border-radius: 34px 30px 36px 32px / 32px 34px 30px 36px; box-shadow: 0 10px 0 var(--cream-base), 0 30px 50px rgba(60, 35, 110, .35);
+}

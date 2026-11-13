@@ -1,0 +1,6 @@
+The giant trunk, boulder-line modules and goose (assets/trunk.glb, assets/boulders.glb, assets/goose.glb)
+
+In-house, built by build/make_a12.py (Blender, headless Python; THE-1296, spec amendment A12).
+Not derived from any third-party asset, CC0 library, or reference model.
+Shapes are procedural (lofted cylinders, noise-pushed icospheres and a rigid-node goose rig) with
+per-vertex clay colours taken from this game's own palette (render/look.js).
