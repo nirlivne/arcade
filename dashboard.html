@@ -4,93 +4,338 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<meta http-equiv="refresh" content="300">
 <title>Build status | The Game Company</title>
 <link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
-:root { --bg:#141733; --card:#232852; --ink:#f3f5ff; --muted:#a9b0d6; --accent:#ffcf5c; --green:#4ad48a; --amber:#ffb547; --red:#ff6b6b; --grey:#8a90b8; }
-* { box-sizing: border-box; }
-html { color-scheme: dark; background:var(--bg); }
-body { margin:0; min-height:100vh; background:radial-gradient(1200px 600px at 50% -10%, #2a3070 0, var(--bg) 60%) fixed; color:var(--ink); font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
-.wrap { max-width:900px; margin:0 auto; padding:24px 16px 48px; display:grid; gap:14px; }
-a { color:var(--accent); }
-h1 { margin:0; font-size:clamp(1.6rem,6vw,2.4rem); letter-spacing:-0.02em; }
-h3 { margin:12px 0 4px; font-size:.85rem; color:var(--muted); font-weight:600; }
-.next { margin:0; }
-h2 { margin:0 0 10px; font-size:1rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
-.muted { color:var(--muted); margin:4px 0 0; }
-.kicker { margin:0; color:var(--accent); font-weight:600; font-size:.85rem; text-transform:uppercase; letter-spacing:.08em; }
-.card { background:var(--card); border-radius:14px; padding:16px 18px; box-shadow:0 6px 24px rgba(0,0,0,.3); }
-.head { display:flex; gap:16px; justify-content:space-between; align-items:center; flex-wrap:wrap; }
-.light { display:flex; align-items:center; gap:10px; font-weight:600; padding:8px 14px; border-radius:999px; background:rgba(255,255,255,.06); }
-.light i { width:16px; height:16px; border-radius:50%; background:var(--grey); box-shadow:0 0 12px currentColor; }
-.light.green i { background:var(--green); color:var(--green); } .light.amber i { background:var(--amber); color:var(--amber); }
-.light.red i { background:var(--red); color:var(--red); } .light.grey i { color:transparent; }
-.bar { height:10px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden; }
-.bar span { display:block; height:100%; background:var(--accent); }
-.tracker { list-style:none; margin:12px 0 0; padding:0; display:flex; flex-wrap:wrap; gap:6px; }
-.stage { padding:4px 10px; border-radius:999px; font-size:.85rem; background:rgba(255,255,255,.06); color:var(--muted); }
-.stage.done { background:rgba(74,212,138,.16); color:var(--green); } .stage.done::before { content:"\2713 "; }
-.stage.skip { opacity:.5; }
-.stage.now { background:var(--accent); color:#2a2200; font-weight:700; }
-.tiles { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
-.tile { background:var(--card); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; }
-.tile b { font-size:1.8rem; line-height:1.1; } .tile span { color:var(--muted); font-size:.85rem; }
-.tile.bad b { color:var(--red); } .tile.warn b { color:var(--amber); }
-.rows { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
-.rows li { padding:6px 0; border-top:1px solid rgba(255,255,255,.06); }
-.rows li:first-child { border-top:0; }
-.id { font-family:ui-monospace,Consolas,monospace; color:var(--muted); font-size:.85rem; }
-.st { font-size:.75rem; padding:1px 8px; border-radius:999px; background:rgba(255,255,255,.08); color:var(--muted); white-space:nowrap; }
-.st-in_progress,.st-in_review { background:rgba(74,212,138,.16); color:var(--green); }
-.st-blocked { background:rgba(255,181,71,.14); color:var(--amber); }
-.tag { font-size:.75rem; padding:1px 8px; border-radius:999px; background:rgba(255,255,255,.08); white-space:nowrap; }
-.tag.bad { background:rgba(255,107,107,.18); color:var(--red); } .tag.warn { background:rgba(255,181,71,.14); color:var(--amber); }
-footer { color:var(--muted); font-size:.8rem; text-align:center; }
+:root {
+  /* Neutral dark, defined in OKLCH: cool graphite surfaces, warm white ink, one violet accent.
+     Violet = now and the developer; emerald = good; amber = paused or waiting; rose = needs you. */
+  --bg:oklch(.165 .006 275); --raise:oklch(.205 .008 275); --raise-2:oklch(.245 .01 275);
+  --line:oklch(.30 .01 275); --line-2:oklch(.38 .012 275);
+  --ink:oklch(.965 .005 85); --ink-2:oklch(.84 .008 275); --muted:oklch(.71 .012 275);
+  --accent:oklch(.76 .13 292); --accent-ink:oklch(.2 .05 292); --accent-wash:oklch(.76 .13 292 / .10);
+  --good:oklch(.79 .14 162); --warn:oklch(.83 .13 78); --bad:oklch(.72 .15 12);
+  --warn-wash:oklch(.83 .13 78 / .08); --bad-wash:oklch(.72 .15 12 / .09);
+  --dev:oklch(.64 .15 292); --oth:oklch(.56 .012 275); --seg-todo:oklch(.52 .012 275);
+  --track:oklch(.27 .01 275); --idle:oklch(.26 .008 275); --tip:oklch(.30 .012 275);
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+* { box-sizing:border-box; }
+html { color-scheme:dark; background:var(--bg); }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 var(--sans); font-variant-numeric:tabular-nums; -webkit-text-size-adjust:100%; }
+::selection { background:var(--accent); color:var(--accent-ink); }
+:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:4px; }
+a { color:var(--accent); text-underline-offset:3px; }
+.wrap { max-width:720px; margin:0 auto; padding:28px 16px 56px; }
+.vh { position:absolute !important; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.stale-note { display:none; margin:0 0 16px; padding:10px 14px; border-radius:10px; background:var(--warn-wash); color:var(--warn); font-weight:500; }
+body.stale .stale-note { display:block; }
+
+.top h1 { margin:0; font-size:clamp(1.9rem,7vw,2.6rem); line-height:1.05; letter-spacing:-.025em; font-weight:700; text-wrap:balance; }
+.top .sub { margin:6px 0 0; color:var(--muted); }
+
+.verdict { margin:20px 0 8px; background:var(--raise); border-radius:16px; overflow:hidden; box-shadow:0 1px 0 oklch(1 0 0 / .05) inset, 0 16px 40px -20px oklch(0 0 0 / .8); }
+.state { padding:18px 20px 16px; }
+.state p { margin:0; }
+.state-title { display:flex; align-items:center; gap:10px; font-size:1.3rem; line-height:1.2; flex-wrap:wrap; }
+.state-title strong { font-weight:700; letter-spacing:-.01em; }
+.clock { white-space:nowrap; font-family:var(--mono); font-size:1rem; color:var(--ink-2); }
+.state-line { margin-top:6px !important; color:var(--ink-2); max-width:60ch; }
+.dot { width:12px; height:12px; flex:none; fill:currentColor; }
+.tone-green .dot { color:var(--good); } .tone-amber .dot { color:var(--warn); } .tone-red .dot { color:var(--bad); } .tone-grey .dot { color:var(--muted); }
+.tone-red .state-title strong { color:var(--bad); } .tone-amber .state-title strong { color:var(--warn); }
+.state.tone-red { background:linear-gradient(var(--bad-wash),transparent); }
+.state.tone-green .dot { animation:pulse 2.4s ease-out infinite; }
+@keyframes pulse { 0%{ filter:drop-shadow(0 0 0 oklch(.79 .14 162 / .7)); } 70%{ filter:drop-shadow(0 0 6px oklch(.79 .14 162 / 0)); } }
+
+.load { margin-top:14px; }
+.load-line { margin:0; color:var(--ink-2); font-size:.95rem; max-width:64ch; text-wrap:pretty; }
+.load-line b { color:var(--ink); font-weight:600; }
+.lvl { display:inline-block; margin-right:6px; padding:1px 8px; border-radius:999px; font-size:.8rem; font-weight:600; letter-spacing:.02em; vertical-align:1px; color:var(--bg); }
+.lvl-none { background:transparent; color:var(--muted); box-shadow:inset 0 0 0 1.5px var(--line-2); }
+.lvl-light { background:oklch(.6 .012 275); } .lvl-normal { background:oklch(.76 .012 275); } .lvl-heavy { background:oklch(.92 .008 85); }
+.strip { display:flex; align-items:flex-end; gap:3px; height:34px; margin-top:10px; border-bottom:1px solid var(--line); }
+.hr { flex:1; position:relative; height:100%; display:flex; align-items:flex-end; }
+.hr::before { content:""; display:block; width:100%; height:var(--h); background:oklch(var(--l) .012 275); border-radius:2px 2px 0 0; }
+.hr.now::before { background:var(--accent); }
+.hr.idle::after { content:""; position:absolute; left:50%; bottom:2px; width:4px; height:4px; margin-left:-2px; border-radius:50%; box-shadow:inset 0 0 0 1.25px var(--line-2); }
+.hr.quota { background:linear-gradient(to top, oklch(.83 .13 78 / .16), transparent 90%); border-radius:2px 2px 0 0; }
+.hr.quota::after { content:""; position:absolute; left:0; right:0; bottom:-5px; height:3px; border-radius:2px; background:var(--warn); }
+.strip-axis { display:flex; justify-content:space-between; gap:12px; margin:8px 0 0 !important; color:var(--muted); font-size:.78rem; }
+.strip-axis .q { display:inline-flex; align-items:center; gap:6px; }
+.strip-axis .q i { width:14px; height:3px; border-radius:2px; background:var(--warn); }
+.facts { margin:0; display:grid; grid-template-columns:repeat(2,1fr); border-top:1px solid var(--line); }
+.fact { padding:14px 20px 16px; min-width:0; }
+.fact + .fact { border-left:1px solid var(--line); }
+.fact-needs { grid-column:1 / -1; border-left:0 !important; }
+.fact-needs:not(:first-child) { border-top:1px solid var(--line); }
+.fact-needs.has + .fact { border-left:0; border-top:1px solid var(--line); }
+.fact dd b small { font-size:.85rem; font-weight:500; color:var(--muted); }
+.bad-text { color:var(--bad) !important; }
+.needs a.id { color:var(--accent); }
+.fact dt { color:var(--muted); font-size:.85rem; font-weight:500; }
+.fact dd { margin:2px 0 0; }
+.fact dd b { display:block; font-size:1.12rem; font-weight:600; line-height:1.3; }
+.fact dd > span { color:var(--muted); font-size:.9rem; }
+.fact-needs.has { background:var(--bad-wash); }
+.fact-needs.has .needs-count { color:var(--bad); }
+.calm { color:var(--ink-2); font-weight:500 !important; }
+.needs { margin:6px 0 0; padding:0; list-style:none; display:grid; gap:6px; }
+.needs li { color:var(--ink-2); }
+.needs .id { font-family:var(--mono); font-size:.88rem; color:var(--muted); }
+.segs { display:flex; gap:3px; margin-top:10px; }
+.seg { flex:1; height:8px; border-radius:2px; background:transparent; box-shadow:inset 0 0 0 1.5px var(--seg-todo); }
+.seg.done { background:var(--ink-2); box-shadow:none; }
+.seg.current { background:var(--accent); box-shadow:none; }
+
+.block { padding:26px 0 4px; border-top:1px solid var(--line); margin-top:26px; }
+.block h2 { margin:0 0 12px; font-size:1.35rem; font-weight:600; letter-spacing:-.015em; }
+.block h3 { margin:22px 0 6px; font-size:.95rem; font-weight:600; color:var(--ink-2); }
+.lede { text-wrap:pretty; margin:0 0 4px; color:var(--ink-2); max-width:62ch; }
+.lede b { color:var(--ink); font-weight:600; }
+.aside { margin:10px 0 0; color:var(--muted); font-size:.88rem; max-width:62ch; }
+
+.steps { list-style:none; margin:0; padding:0; }
+.step { display:grid; grid-template-columns:18px 40px 1fr; column-gap:10px; padding:9px 0; border-top:1px solid var(--line); align-items:baseline; }
+.steps:first-child .step:first-child, details + .steps .step:first-child { border-top-color:var(--line); }
+.step .ic { width:16px; height:16px; align-self:start; margin-top:3px; color:var(--muted); }
+.step .code { font-family:var(--mono); font-size:.9rem; color:var(--muted); }
+.step .what { min-width:0; }
+.step .meta { grid-column:3; color:var(--muted); font-size:.85rem; }
+.step .meta:empty { display:none; }
+.step .note { display:block; color:var(--ink-2); font-size:.9rem; font-weight:400; }
+.step.done .ic { color:var(--ink-2); }
+.step.current { background:var(--accent-wash); margin:0 -6px; padding:12px 6px; border-radius:10px; border-top-color:transparent; }
+.step.current + .step { border-top-color:transparent; }
+.step.current .ic, .step.current .code { color:var(--accent); }
+.step.current .what { font-weight:600; }
+.step.todo .what { color:var(--ink-2); }
+.step.cut .what { color:var(--muted); } .step.cut em { font-style:normal; font-size:.8rem; padding:1px 6px; border-radius:4px; background:var(--raise-2); }
+.done-group > summary { display:grid; grid-template-columns:18px 1fr 16px; column-gap:10px; align-items:center; padding:10px 0; cursor:pointer; list-style:none; min-height:44px; }
+.done-group > summary::-webkit-details-marker { display:none; }
+.done-group > summary .ic { width:16px; height:16px; color:var(--ink-2); }
+.chev { width:16px; height:16px; color:var(--muted); grid-column:3; grid-row:1; transition:transform .2s ease-out; }
+.done-group[open] .chev { transform:rotate(180deg); }
+.done-group > summary .meta { grid-column:2; color:var(--muted); font-size:.85rem; }
+.done-group > summary b { font-weight:600; }
+.done-group > summary span:not(.meta) { color:var(--ink-2); }
+.done-group[open] > summary { color:var(--ink); }
+
+.meter { margin:16px 0 0; }
+.track { position:relative; height:12px; border-radius:6px; background:var(--track); box-shadow:inset 0 0 0 1px var(--line-2); }
+.fill { position:absolute; left:0; top:0; bottom:0; border-radius:6px; background:var(--ink-2); }
+
+.fore { position:absolute; top:0; bottom:0; background:repeating-linear-gradient(135deg,oklch(.84 .008 275 / .5) 0 3px,transparent 3px 7px); border-radius:0 6px 6px 0; }
+.tick { position:absolute; top:-4px; bottom:-4px; width:3px; margin-left:-1.5px; background:var(--ink); border-radius:1px; }
+.tick.stop { background:var(--bad); }
+.key .k-tick { width:2px; height:14px; border-radius:1px; background:var(--ink); vertical-align:-2px; margin-right:7px; } .key .k-tick.stop { background:var(--bad); }
+.key { display:flex; flex-wrap:wrap; gap:6px 16px; margin:8px 0 0; color:var(--muted); font-size:.85rem; }
+.key i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+.k-fill { background:var(--ink-2); } .k-fore { background:repeating-linear-gradient(135deg,oklch(.84 .008 275 / .7) 0 2px,transparent 2px 4px); box-shadow:inset 0 0 0 1px var(--line-2); }
+.k-dev { background:var(--dev); } .k-oth { background:var(--oth); } .k-idle { height:4px !important; vertical-align:2px !important; background:var(--line-2); } .k-quota { height:4px !important; vertical-align:2px !important; background:var(--warn); }
+.k-work { background:var(--ink-2); } .k-wait { background:var(--idle); box-shadow:inset 0 0 0 1px var(--line-2); }
+
+.wi { margin-top:16px; }
+.wi-key { display:flex; justify-content:space-between; gap:12px; margin:8px 0 0 !important; color:var(--muted); font-size:.78rem; }
+.wi-key span { display:inline-flex; align-items:center; gap:6px; } .wi-key i { width:10px; height:10px; border-radius:2px; }
+.split { display:flex; gap:2px; height:8px; margin:0; }
+.split span { border-radius:3px; min-width:2px; }
+.split .w { background:var(--ink-2); }
+.split .z { background:var(--idle); box-shadow:inset 0 0 0 1px var(--line-2); }
+
+.chart { position:relative; margin:22px 0 0; }
+.chart svg { display:block; width:100%; height:auto; overflow:visible; }
+.chart .hit { fill:transparent; }
+.chart .col:focus { outline:none; } .chart .col:focus-visible .hit, .chart .col:hover .hit { fill:oklch(1 0 0 / .05); }
+.chart .s-dev { fill:var(--dev); } .chart .s-oth { fill:var(--oth); } .chart .idle { fill:var(--line-2); } .chart .quota { fill:var(--warn); }
+.chart .base { stroke:var(--line-2); stroke-width:1; }
+.chart .plot { padding-top:22px; } .chart .box { position:relative; }
+.chart .lbl { position:absolute; color:var(--ink); font:500 .8rem var(--mono); white-space:nowrap; pointer-events:none; }
+.chart .axis { position:relative; height:18px; margin-top:4px; color:var(--muted); font:.78rem var(--mono); }
+.chart .axis span { position:absolute; transform:translateX(-50%); }
+.chart .tip { position:absolute; top:calc(100% + 6px); padding:6px 10px; border-radius:8px; background:var(--tip); color:var(--ink); font-size:.85rem; white-space:nowrap; box-shadow:0 6px 18px -6px rgba(0,0,0,.6); pointer-events:none; }
+
+.timeline, .sched { list-style:none; margin:0; padding:0; }
+.tl { display:grid; grid-template-columns:96px 84px 1fr; column-gap:10px; padding:8px 0; border-top:1px solid var(--line); align-items:baseline; }
+.timeline .tl:first-child { border-top:0; }
+.tl .t, .sched .t { font-family:var(--mono); font-size:.86rem; color:var(--muted); }
+.tl .who { font-weight:600; font-size:.92rem; }
+.tl .what { color:var(--ink-2); min-width:0; }
+.tl .tok { color:var(--muted); font-size:.88rem; }
+.tl .what .id { font-family:var(--mono); font-size:.86rem; color:var(--muted); }
+.tl .ok { color:var(--good); font-weight:500; } .tl .no { color:var(--ink); font-weight:600; }
+.tl.wait { background:var(--warn-wash); margin:0 -10px; padding:8px 10px; border-radius:10px; border-top-color:transparent; }
+.tl.wait + .tl { border-top-color:transparent; }
+.tl.wait .who { color:var(--warn); }
+.role-dev { color:var(--accent); } .role-cto { color:var(--ink); } .role-ceo { color:var(--ink); } .role-other { color:var(--ink-2); }
+details.more > summary { cursor:pointer; color:var(--accent); padding:12px 0; min-height:44px; display:flex; align-items:center; font-weight:500; }
+.sched li { display:grid; grid-template-columns:96px 1fr; column-gap:10px; padding:8px 0; border-top:1px solid var(--line); }
+.sched li:first-child { border-top:0; }
+.sched li.game .what { color:var(--ink); font-weight:500; }
+.sched .what { color:var(--ink-2); }
+.plain { margin:0; padding-left:18px; color:var(--ink-2); } .plain li { margin:4px 0; }
+footer.foot { padding-top:0; } footer { margin-top:0; padding-top:16px; border-top:1px solid var(--line); color:var(--muted); font-size:.85rem; }
+footer p { margin:0 0 4px; }
+footer a { display:inline-flex; align-items:center; min-height:44px; }
+.fresh { position:fixed; left:50%; bottom:max(16px, env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:5; border:0; border-radius:999px; padding:12px 20px; min-height:44px; background:var(--accent); color:var(--accent-ink); font:600 .95rem var(--sans); box-shadow:0 10px 24px -8px oklch(0 0 0 / .7); cursor:pointer; }
+
+/* Motion. One arrival moment (progress fills to where the build stands), one-time attention on Needs you,
+   smooth disclosure, quick feedback. Everything is visible by default; motion only plays on top. */
+:root { --ease-out:cubic-bezier(.16,1,.3,1); interpolate-size:allow-keywords; }
+@media (prefers-reduced-motion:no-preference) {
+  .seg.done, .seg.current { transform-origin:left center; animation:seg-fill .32s var(--ease-out) backwards; animation-delay:calc(var(--i) * 45ms + 120ms); }
+  .seg.current { animation:seg-fill .32s var(--ease-out) backwards, seg-here .9s ease-out forwards; animation-delay:calc(var(--i) * 45ms + 120ms), calc(var(--i) * 45ms + 420ms); }
+  .fact-needs.has { animation:needs-in .9s ease-out .25s backwards; }
+  details::details-content { height:0; overflow:clip; transition:height .3s var(--ease-out), content-visibility .3s allow-discrete; }
+  details[open]::details-content { height:auto; }
+  .chev { transition:transform .25s var(--ease-out); }
+  .chart .tip:not([hidden]) { animation:tip-in .14s ease-out; }
+  .chart .hit { transition:fill .15s ease-out; }
+  .fresh:not([hidden]) { animation:fresh-in .4s var(--ease-out); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .state.tone-green .dot { animation:none; }
+  .chart .tip:not([hidden]), .fresh:not([hidden]) { animation:fade-in .15s ease-out; }
+}
+@keyframes seg-fill { from { transform:scaleX(0); opacity:.3; } }
+@keyframes seg-here { 0% { box-shadow:0 0 0 0 oklch(.76 .13 292 / .7); } 100% { box-shadow:0 0 0 6px oklch(.76 .13 292 / 0); } }
+@keyframes needs-in { from { background:oklch(.72 .15 12 / .28); } }
+@keyframes tip-in { from { opacity:0; transform:translateY(-3px); } }
+@keyframes fresh-in { from { opacity:0; transform:translate(-50%, 16px); } }
+@keyframes fade-in { from { opacity:0; } }
+
+@media (max-width:560px) {
+  .wrap { padding-top:20px; }
+  .facts { grid-template-columns:1fr; }
+  .fact-needs.has + .fact { border-top:1px solid var(--line); }
+  .fact + .fact { border-left:0; border-top:1px solid var(--line); }
+  .fact { padding:12px 16px 14px; } .state { padding:16px 16px 14px; }
+  .tl { grid-template-columns:auto 1fr; row-gap:2px; } .tl .what { grid-column:1 / -1; }
+  .step { grid-template-columns:18px 36px 1fr; }
+  .sched li { grid-template-columns:84px 1fr; }
+}
 </style>
 </head>
 <body>
 <main class="wrap">
-
-<section class="card head">
-  <div><p class="kicker">In development</p><h1>Hide in Plain Ink</h1>
-  <p class="muted">Stage: <b>design</b> · last activity 13 Nov, 18:50</p></div>
-  <div class="light green"><i></i>On track</div>
-</section>
-<section class="card"><h2>Progress</h2>
-  <div class="bar"><span style="width:33%"></span></div>
-  <ol class="tracker"><li class="stage done">pitch</li><li class="stage done">spec</li><li class="stage now">design</li><li class="stage done">implementation</li><li class="stage todo">code review</li><li class="stage todo">QA</li><li class="stage todo">sign-off</li><li class="stage todo">release package</li><li class="stage todo">published</li></ol>
-</section>
-<section class="tiles">
-  <div class="tile "><b>1</b><span>agents running now</span></div>
-  <div class="tile "><b>16</b><span>open tasks</span></div>
-  <div class="tile "><b>1</b><span>in progress / review</span></div>
-  <div class="tile "><b>15</b><span>blocked (waiting on earlier steps)</span></div>
-  <div class="tile "><b>0</b><span>errors</span></div>
-  <div class="tile "><b>0</b><span>held by Paperclip (board action needed)</span></div>
-  <div class="tile "><b>0</b><span>watchdog recoveries active</span></div>
-  <div class="tile bad"><b>11</b><span>bugs / fixes open (1 blocking)</span></div>
-</section>
-<section class="card"><h2>Next expected activity</h2>
-  <p class="next">1 agent running now: see Running now.</p>
-  <h3>Scheduled work</h3><ul class="rows"><li><b>13 Nov, 20:35 (18:35 UTC)</b> Hourly stuck check: is anyone waiting on input that will never come?</li><li><b>2 Oct, 14:05 (11:05 UTC)</b> Scheduled: do the ~11:00 UTC Captain Fold sign-off merge (THE-307/308 + branch 3241daf)</li></ul>
-  
-  <h3>Housekeeping</h3><ul class="rows"><li><b>13 Nov, 21:20 (19:20 UTC)</b> Build-status dashboard snapshot (hourly, arcade/dashboard.html)</li><li><b>13 Nov, 22:05 (20:05 UTC)</b> Usage-limit resume sweep and stall watchdog (every 2 h)</li></ul>
-</section>
-<section class="card"><h2>Running now</h2>
-  <ul class="rows"><li><b>CTO</b></li></ul>
-</section>
-<section class="card"><h2>Bugs and pending fixes</h2>
-  <ul class="rows"><li><span class="id">THE-1557</span> <span class="st st-in_review">in review</span> Plain Ink S4b set 6 + the whole-level bots: reveal beat stub, scissors chase, CP11–CP12, route bot ≥ 120 s, re <span class="tag ">unrated</span></li><li><span class="id">THE-1565</span> <span class="st st-blocked">blocked</span> Plain Ink S8 title, reveal, ending, results, onboarding demo, About <span class="tag ">unrated</span></li><li><span class="id">THE-1563</span> <span class="st st-blocked">blocked</span> Plain Ink S7 Hebrew narration: RTL paper strip (Secular One), 6 trigger points, baked voice playback <span class="tag ">unrated</span></li><li><span class="id">THE-1561</span> <span class="st st-blocked">blocked</span> Plain Ink S6 sound: WebAudio 60s big band (original motifs), stabs on events, paper foley, mixer + toggles <span class="tag ">unrated</span></li><li><span class="id">THE-1559</span> <span class="st st-blocked">blocked</span> Plain Ink S5 riddles + film frames: seek FLIP, R1 backwards R, R2 lamp-code doors, R4 Mole, F1–F3, the Negativ <span class="tag ">unrated</span></li><li><span class="id">THE-1568</span> <span class="st st-blocked">blocked</span> Audio listen pass: Plain Ink S6 sound (big band motifs, stabs, foley) <span class="tag bad">D1 · blocking</span></li><li><span class="id">THE-1566</span> <span class="st st-blocked">blocked</span> Review + merge: Plain Ink slice S8 <span class="tag ">unrated</span></li><li><span class="id">THE-1564</span> <span class="st st-blocked">blocked</span> Review + merge: Plain Ink slice S7 <span class="tag ">unrated</span></li><li><span class="id">THE-1562</span> <span class="st st-blocked">blocked</span> Review + merge: Plain Ink slice S6 <span class="tag ">unrated</span></li><li><span class="id">THE-1560</span> <span class="st st-blocked">blocked</span> Review + merge: Plain Ink slice S5 <span class="tag ">unrated</span></li><li><span class="id">THE-1558</span> <span class="st st-blocked">blocked</span> Review + merge: Plain Ink slice S4b <span class="tag ">unrated</span></li></ul>
-</section>
-<section class="card"><h2>Needs attention</h2>
-  <p class="muted">Nothing: no errors, stalls or recoveries.</p>
-</section>
-<section class="card"><h2>Open tasks</h2>
-  <ul class="rows"><li><span class="id">THE-1557</span> <span class="st st-in_review">in review</span> Plain Ink S4b set 6 + the whole-level bots: reveal beat stub, scissors chase, CP11–CP12, route bot ≥ 120 s, re</li><li><span class="id">THE-1565</span> <span class="st st-blocked">blocked</span> Plain Ink S8 title, reveal, ending, results, onboarding demo, About</li><li><span class="id">THE-1563</span> <span class="st st-blocked">blocked</span> Plain Ink S7 Hebrew narration: RTL paper strip (Secular One), 6 trigger points, baked voice playback</li><li><span class="id">THE-1561</span> <span class="st st-blocked">blocked</span> Plain Ink S6 sound: WebAudio 60s big band (original motifs), stabs on events, paper foley, mixer + toggles</li><li><span class="id">THE-1559</span> <span class="st st-blocked">blocked</span> Plain Ink S5 riddles + film frames: seek FLIP, R1 backwards R, R2 lamp-code doors, R4 Mole, F1–F3, the Negativ</li><li><span class="id">THE-1568</span> <span class="st st-blocked">blocked</span> Audio listen pass: Plain Ink S6 sound (big band motifs, stabs, foley)</li><li><span class="id">THE-1566</span> <span class="st st-blocked">blocked</span> Review + merge: Plain Ink slice S8</li><li><span class="id">THE-1564</span> <span class="st st-blocked">blocked</span> Review + merge: Plain Ink slice S7</li><li><span class="id">THE-1562</span> <span class="st st-blocked">blocked</span> Review + merge: Plain Ink slice S6</li><li><span class="id">THE-1560</span> <span class="st st-blocked">blocked</span> Review + merge: Plain Ink slice S5</li><li><span class="id">THE-1558</span> <span class="st st-blocked">blocked</span> Review + merge: Plain Ink slice S4b</li><li><span class="id">THE-1567</span> <span class="st st-blocked">blocked</span> Plain Ink S9 skin, comforts and shell: skin.css/tokens, settings, turn-phone, theme.js, PWA + sw.js, viewports</li><li><span class="id">THE-1569</span> <span class="st st-blocked">blocked</span> Code review: Hide in Plain Ink (S9 + whole-game pass, release gate)</li><li><span class="id">THE-1570</span> <span class="st st-blocked">blocked</span> Test the build: Hide in Plain Ink (spec §10, on main)</li><li><span class="id">THE-1571</span> <span class="st st-blocked">blocked</span> Build review and sign-off: Hide in Plain Ink (game-ux-review + lineup check)</li><li><span class="id">THE-1572</span> <span class="st st-blocked">blocked</span> Release package + listed publish pre-flight: Hide in Plain Ink</li></ul>
-</section>
-<section class="card"><h2>Shipped games</h2><ul class="rows"><li><a href="games/bloop-stack/">Bloop Stack</a> <span class="muted">2026-09-25</span></li><li><a href="games/tidy-tiles/">Tidy Tiles</a> <span class="muted">2026-09-27</span></li><li><a href="games/tray-disaster/">Tray Disaster</a> <span class="muted">2026-09-27</span></li><li><a href="games/rush-lane/">Rush Lane</a> <span class="muted">2026-09-28</span></li><li><a href="games/potion-pour/">Potion Pour</a> <span class="muted">2026-09-28</span></li><li><a href="games/petal-patch/">Petal Patch</a> <span class="muted">2026-09-29</span></li><li><a href="games/loop-break/">Loop Break</a> <span class="muted">2026-09-30</span></li><li><a href="games/captain-fold/">Captain Fold</a> <span class="muted">2026-10-02</span></li><li><a href="games/cannonball-family/">Cannonball Family</a> <span class="muted">2026-10-07</span></li><li><a href="games/capy-trail/">Bear Trail</a> <span class="muted">2026-11-13</span></li><li class="muted">+ 5 link-only games</li></ul></section>
-<footer>Snapshot of the studio's task board, <time class="stamp">13 Nov, 20:20 Israel time (18:20 UTC)</time>. Republished whenever anything on it changes, checked hourly. <a href="./">Back to the arcade</a></footer>
+<button class="fresh" type="button" hidden>New data · tap to refresh</button>
+<p class="stale-note" role="alert">Not updated for over 30 min. Numbers may be out of date.</p>
+<header class="top"><h1>Hide in Plain Ink</h1><p class="sub">Game #15 · build status</p></header>
+<section class="verdict" aria-label="At a glance"><div class="state tone-red">
+    <p class="state-title"><svg class="dot red" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5"/></svg><strong>Waiting for an answer</strong> <span class="clock" data-since="1794588696740">1 h 42 min</span></p>
+    <p class="state-line">Nothing built since 18:51. 2 unanswered check-ins.</p>
+    <div class="load">
+      <p class="load-line"><span class="lvl lvl-none">No work</span> in the last hour</p>
+      <div class="strip" role="img" aria-label="Tokens per hour, last 24 hours. Last hour: no work. 2 hours out of usage quota."><i class="hr idle" style="--h:0.0%;--l:0.460"></i><i class="hr idle" style="--h:0.0%;--l:0.460"></i><i class="hr" style="--h:19.3%;--l:0.545"></i><i class="hr" style="--h:24.2%;--l:0.566"></i><i class="hr" style="--h:10.0%;--l:0.461"></i><i class="hr" style="--h:0.0%;--l:0.460"></i><i class="hr" style="--h:0.0%;--l:0.460"></i><i class="hr" style="--h:14.6%;--l:0.524"></i><i class="hr" style="--h:35.5%;--l:0.616"></i><i class="hr" style="--h:37.2%;--l:0.624"></i><i class="hr" style="--h:80.2%;--l:0.813"></i><i class="hr" style="--h:55.5%;--l:0.704"></i><i class="hr quota" style="--h:10.0%;--l:0.484"></i><i class="hr" style="--h:10.0%;--l:0.464"></i><i class="hr" style="--h:10.0%;--l:0.462"></i><i class="hr" style="--h:10.0%;--l:0.462"></i><i class="hr" style="--h:10.0%;--l:0.463"></i><i class="hr" style="--h:21.7%;--l:0.555"></i><i class="hr" style="--h:100.0%;--l:0.900"></i><i class="hr" style="--h:40.1%;--l:0.637"></i><i class="hr" style="--h:46.9%;--l:0.666"></i><i class="hr" style="--h:46.2%;--l:0.663"></i><i class="hr idle quota" style="--h:0.0%;--l:0.460"></i><i class="hr now" style="--h:0.0%;--l:0.460"></i></div>
+      <p class="strip-axis" aria-hidden="true"><span>24 h ago</span><span class="q"><i></i>out of usage quota</span><span>now</span></p>
+      <div class="wi" role="img" aria-label="Last 24 hours: 10 h 39 min working, 12 h 49 min idle">
+        <div class="split" aria-hidden="true"><span class="w" style="flex:0.454"></span><span class="z" style="flex:0.546"></span></div>
+        <p class="wi-key" aria-hidden="true"><span><i class="k-work"></i>10 h 39 min working</span><span><i class="k-wait"></i>12 h 49 min idle</span></p>
+      </div>
+    </div>
+  </div><dl class="facts">
+    <div class="fact fact-needs has"><dt>Needs you</dt><dd><b class="needs-count">2 things to act on</b><ul class="needs"><li><a class="id" href="http://localhost:3100/THE/issues/THE-1539">THE-1539</a> waits for an answer. Answer it, or ask the CEO who owes one.</li><li>Forecast passes the 750M hard stop during S5. Raise the limit or cut a step.</li></ul></dd></div>
+    <div class="fact"><dt>Ships</dt><dd><b>Tomorrow, Sat 14 Nov, evening</b><span>earliest Sat 06:00, if the limit is raised</span></dd></div>
+    <div class="fact"><dt>Progress</dt><dd><b>4 of 13 steps</b><span>31%</span><div class="segs" aria-hidden="true"><i class="seg done" style="--i:0"></i><i class="seg done" style="--i:1"></i><i class="seg done" style="--i:2"></i><i class="seg done" style="--i:3"></i><i class="seg current" style="--i:4"></i><i class="seg todo" style="--i:5"></i><i class="seg todo" style="--i:6"></i><i class="seg todo" style="--i:7"></i><i class="seg todo" style="--i:8"></i><i class="seg todo" style="--i:9"></i><i class="seg todo" style="--i:10"></i><i class="seg todo" style="--i:11"></i><i class="seg todo" style="--i:12"></i></div></dd></div>
+    
+  </dl></section>
+<section class="block" aria-labelledby="h-day"><h2 id="h-day">Last 24 hours</h2>
+    <p class="lede"><b>4 slices merged</b>.</p>
+    <h3>Timeline, newest first</h3>
+    <ol class="timeline"><li class="tl wait open"><span class="t">18:51–now</span><span class="who">Idle</span><span class="what"><b>1 h 42 min</b> · Out of quota 19:35–20:00 · 2 unanswered check-ins</span></li><li class="tl"><span class="t">18:31–18:51</span><span class="who role-dev">Developer</span><span class="what">Built S4b <span class="tok">· 59M tokens</span></span></li><li class="tl wait"><span class="t">17:52–18:31</span><span class="who">Waiting</span><span class="what"><b>39 min</b></span></li><li class="tl"><span class="t">17:35–17:52</span><span class="who role-dev">Developer</span><span class="what">Built S4b <span class="tok">· 59M tokens</span></span></li><li class="tl wait"><span class="t">16:58–17:35</span><span class="who">Waiting</span><span class="what"><b>38 min</b></span></li><li class="tl"><span class="t">16:35–16:58</span><span class="who role-dev">Developer</span><span class="what">Built S4b <span class="tok">· 50M tokens</span></span></li></ol>
+    <details class="more"><summary>Show 37 more</summary><ol class="timeline"><li class="tl wait"><span class="t">16:00–16:35</span><span class="who">Waiting</span><span class="what"><b>35 min</b> · 1 unanswered check-in</span></li><li class="tl"><span class="t">15:53–16:00</span><span class="who role-dev">Developer</span><span class="what">Built S4b <span class="tok">· 8M tokens</span></span></li><li class="tl"><span class="t">15:31–15:51</span><span class="who role-cto">CTO</span><span class="what">Reviewed S4a: <span class="no">changes required</span></span></li><li class="tl"><span class="t">14:33–15:48</span><span class="who role-dev">Developer</span><span class="what">Built S4a <span class="tok">· 128M tokens</span></span></li><li class="tl wait"><span class="t">09:15–14:33</span><span class="who">Waiting</span><span class="what"><b>5 h 18 min</b> · Out of quota 09:20–09:40 · 5 unanswered check-ins · you answered at 14:33</span></li><li class="tl"><span class="t">09:10–09:15</span><span class="who role-dev">Developer</span><span class="what">Built S4a <span class="tok">· 1M tokens</span></span></li><li class="tl"><span class="t">09:02–09:07</span><span class="who role-cto">CTO</span><span class="what">Reviewed S3: <span class="ok">pass, merged</span></span></li><li class="tl"><span class="t">08:06–08:20</span><span class="who role-cto">CTO</span><span class="what">Escalation: no-hide search bot still beats W2/W3 after the full patrol fix (THE…</span></li><li class="tl"><span class="t">07:43–08:59</span><span class="who role-dev">Developer</span><span class="what">Built S3 <span class="tok">· 82M tokens</span></span></li><li class="tl"><span class="t">07:41</span><span class="who role-dev">Developer</span><span class="what">Built S4b <span class="tok">· 1M tokens</span></span></li><li class="tl"><span class="t">07:25–07:32</span><span class="who role-cto">CTO</span><span class="what">Reviewed S2: <span class="no">changes required</span></span></li><li class="tl"><span class="t">07:17–07:40</span><span class="who role-dev">Developer</span><span class="what">Built S2 <span class="tok">· 79M tokens</span></span></li><li class="tl wait"><span class="t">06:47–07:17</span><span class="who">Waiting</span><span class="what"><b>30 min</b></span></li><li class="tl"><span class="t">06:38–06:47</span><span class="who role-dev">Developer</span><span class="what">Built S2 <span class="tok">· 30M tokens</span></span></li><li class="tl wait"><span class="t">06:08–06:38</span><span class="who">Waiting</span><span class="what"><b>30 min</b></span></li><li class="tl"><span class="t">05:53–06:08</span><span class="who role-dev">Developer</span><span class="what">Built S2 <span class="tok">· 31M tokens</span></span></li><li class="tl wait"><span class="t">05:23–05:53</span><span class="who">Waiting</span><span class="what"><b>30 min</b></span></li><li class="tl"><span class="t">04:57–05:23</span><span class="who role-dev">Developer</span><span class="what">Built S2 <span class="tok">· 34M tokens</span></span></li><li class="tl"><span class="t">04:49–04:57</span><span class="who role-other">Designer</span><span class="what">S1 feel check: Hide in Plain Ink tracer on desktop and phone (real two-thumb to…</span></li><li class="tl"><span class="t">04:46–04:49</span><span class="who role-cto">CTO</span><span class="what">S1 checkpoint: Hide in Plain Ink tracer merged (run/jump in cut paper, the twis…</span></li><li class="tl"><span class="t">00:46–01:02</span><span class="who role-cto">CTO</span><span class="what">Hebrew voice render: Gemini TTS, tape chain, Whisper listen check (game #15)</span></li><li class="tl"><span class="t">00:44–04:43</span><span class="who role-dev">Developer</span><span class="what">Built S1 </span></li><li class="tl"><span class="t">00:44–00:57</span><span class="who role-other">Designer</span><span class="what">Skin for Hide in Plain Ink: tokens.css, skin.css, DESIGN.md, icons + cover (gam…</span></li><li class="tl"><span class="t">00:33–00:46</span><span class="who role-cto">CTO</span><span class="what">Build Hide in Plain Ink (game #15: hide-and-seek spy platformer, level 1, cut-p…</span></li><li class="tl"><span class="t">00:19–00:31</span><span class="who role-other">QA</span><span class="what">Spec review (QA): acceptance criteria §10 for Hide in Plain Ink (game #15)</span></li><li class="tl"><span class="t">00:02–00:41</span><span class="who role-other">Designer</span><span class="what">Spec: Hide in Plain Ink (game #15, story + twist + level 1 beat sheet + riddles…</span></li><li class="tl"><span class="t">00:00–00:35</span><span class="who role-ceo">CEO</span><span class="what">Game #15: a hide-and-seek spy platformer in the 60s Spy Title Sequence cut-pape…</span></li><li class="tl"><span class="t">23:13–00:02</span><span class="who role-other">Designer</span><span class="what">Art-direction brief: game #15 Hide in Plain Ink in the 60s Spy Title Sequence c…</span></li><li class="tl"><span class="t">23:13–23:33</span><span class="who role-cto">CTO</span><span class="what">Build Hide in Plain Ink (game #15: hide-and-seek spy platformer, level 1, cut-p…</span></li><li class="tl"><span class="t">23:07–23:17</span><span class="who role-other">Growth Manager</span><span class="what">Launch kit: Hide in Plain Ink (game #15, listed, English, drafts only)</span></li><li class="tl"><span class="t">23:06–00:20</span><span class="who role-other">Designer</span><span class="what">S1 feel check: Hide in Plain Ink tracer on desktop and phone (real two-thumb to…</span></li><li class="tl"><span class="t">23:06–23:15</span><span class="who role-other">Researcher</span><span class="what">Research note: 1960s spy tradecraft + how stealth/puzzle platformers make hidin…</span></li><li class="tl"><span class="t">23:05–23:12</span><span class="who role-other">QA</span><span class="what">Grill (QA): game #15 Hide in Plain Ink, a hide-and-seek spy platformer in cut p…</span></li><li class="tl"><span class="t">23:05–23:13</span><span class="who role-other">Designer</span><span class="what">Grill (Designer): game #15 Hide in Plain Ink, a hide-and-seek spy platformer in…</span></li><li class="tl"><span class="t">23:05–23:12</span><span class="who role-cto">CTO</span><span class="what">Grill (CTO): game #15 Hide in Plain Ink, a hide-and-seek spy platformer in cut…</span></li><li class="tl"><span class="t">23:01–23:17</span><span class="who role-ceo">CEO</span><span class="what">Game #15: a hide-and-seek spy platformer in the 60s Spy Title Sequence cut-pape…</span></li><li class="tl wait"><span class="t">20:33–23:01</span><span class="who">Waiting</span><span class="what"><b>2 h 27 min</b></span></li></ol></details>
+    <h3>Tokens per hour</h3>
+    <figure class="chart">
+    <div class="plot"><div class="box"><svg viewBox="0 0 480 122" role="img" aria-label="Tokens per hour over the last 24 hours. Peak 127M at 15:00. 7 idle hours."><line class="base" x1="0" x2="480" y1="112.5" y2="112.5"/><g class="col" data-tip="21:00–22:00 · Developer 0 · others 0 · idle"><rect class="hit" x="0.0" y="0" width="20.0" height="132"/>
+      
+      <rect class="idle" x="1.5" y="116" width="17.0" height="4" rx="2"/></g><g class="col" data-tip="22:00–23:00 · Developer 0 · others 0 · idle"><rect class="hit" x="20.0" y="0" width="20.0" height="132"/>
+      
+      <rect class="idle" x="21.5" y="116" width="17.0" height="4" rx="2"/></g><g class="col" data-tip="23:00–00:00 · Developer 0 · others 25M"><rect class="hit" x="40.0" y="0" width="20.0" height="132"/>
+      <path class="s-oth" d="M41.5 112.0v-15.2q0 -3 3 -3h11.0q3 0 3 3v15.2z"/>
+      </g><g class="col" data-tip="00:00–01:00 · Developer 0 · others 31M"><rect class="hit" x="60.0" y="0" width="20.0" height="132"/>
+      <path class="s-oth" d="M61.5 112.0v-19.7q0 -3 3 -3h11.0q3 0 3 3v19.7z"/>
+      </g><g class="col" data-tip="01:00–02:00 · Developer 0 · others 319k"><rect class="hit" x="80.0" y="0" width="20.0" height="132"/>
+      
+      </g><g class="col" data-tip="02:00–03:00 · Developer 0 · others 0"><rect class="hit" x="100.0" y="0" width="20.0" height="132"/>
+      
+      </g><g class="col" data-tip="03:00–04:00 · Developer 0 · others 0"><rect class="hit" x="120.0" y="0" width="20.0" height="132"/>
+      
+      </g><g class="col" data-tip="04:00–05:00 · Developer 9M · others 9M"><rect class="hit" x="140.0" y="0" width="20.0" height="132"/>
+      <rect class="s-dev" x="141.5" y="105.0" width="17.0" height="7.0"/><path class="s-oth" d="M141.5 103.0v-3.7q0 -3 3 -3h11.0q3 0 3 3v3.7z"/>
+      </g><g class="col" data-tip="05:00–06:00 · Developer 45M · others 0"><rect class="hit" x="160.0" y="0" width="20.0" height="132"/>
+      <path class="s-dev" d="M161.5 112.0v-30.4q0 -3 3 -3h11.0q3 0 3 3v30.4z"/>
+      </g><g class="col" data-tip="06:00–07:00 · Developer 47M · others 0"><rect class="hit" x="180.0" y="0" width="20.0" height="132"/>
+      <path class="s-dev" d="M181.5 112.0v-32.0q0 -3 3 -3h11.0q3 0 3 3v32.0z"/>
+      </g><g class="col" data-tip="07:00–08:00 · Developer 96M · others 6M"><rect class="hit" x="200.0" y="0" width="20.0" height="132"/>
+      <rect class="s-dev" x="201.5" y="41.2" width="17.0" height="70.8"/><path class="s-oth" d="M201.5 39.2v-1.6q0 -3 3 -3h11.0q3 0 3 3v1.6z"/>
+      </g><g class="col" data-tip="08:00–09:00 · Developer 67M · others 4M"><rect class="hit" x="220.0" y="0" width="20.0" height="132"/>
+      <rect class="s-dev" x="221.5" y="62.5" width="17.0" height="49.5"/><path class="s-oth" d="M221.5 60.5v0.0q0 -2.6827028353446774 2.6827028353446774 -2.6827028353446774h11.6q2.6827028353446774 0 2.6827028353446774 2.6827028353446774v0.0z"/>
+      </g><g class="col" data-tip="09:00–10:00 · Developer 1M · others 6M · out of usage quota"><rect class="hit" x="240.0" y="0" width="20.0" height="132"/>
+      <rect class="s-dev" x="241.5" y="111.3" width="17.0" height="0.7"/><path class="s-oth" d="M241.5 109.3v-1.4q0 -3 3 -3h11.0q3 0 3 3v1.4z"/>
+      <rect class="quota" x="241.5" y="116" width="17.0" height="4" rx="2"/></g><g class="col" data-tip="10:00–11:00 · Developer 1M · others 0 · idle"><rect class="hit" x="260.0" y="0" width="20.0" height="132"/>
+      <path class="s-dev" d="M261.5 112.0v0.0q0 -0.9208166925849676 0.9208166925849676 -0.9208166925849676h15.2q0.9208166925849676 0 0.9208166925849676 0.9208166925849676v0.0z"/>
+      <rect class="idle" x="261.5" y="116" width="17.0" height="4" rx="2"/></g><g class="col" data-tip="11:00–12:00 · Developer 630k · others 0 · idle"><rect class="hit" x="280.0" y="0" width="20.0" height="132"/>
+      
+      <rect class="idle" x="281.5" y="116" width="17.0" height="4" rx="2"/></g><g class="col" data-tip="12:00–13:00 · Developer 548k · others 0 · idle"><rect class="hit" x="300.0" y="0" width="20.0" height="132"/>
+      
+      <rect class="idle" x="301.5" y="116" width="17.0" height="4" rx="2"/></g><g class="col" data-tip="13:00–14:00 · Developer 965k · others 0 · idle"><rect class="hit" x="320.0" y="0" width="20.0" height="132"/>
+      <path class="s-dev" d="M321.5 112.0v0.0q0 -0.7151463571111781 0.7151463571111781 -0.7151463571111781h15.6q0.7151463571111781 0 0.7151463571111781 0.7151463571111781v0.0z"/>
+      <rect class="idle" x="321.5" y="116" width="17.0" height="4" rx="2"/></g><g class="col" data-tip="14:00–15:00 · Developer 27M · others 0"><rect class="hit" x="340.0" y="0" width="20.0" height="132"/>
+      <path class="s-dev" d="M341.5 112.0v-17.4q0 -3 3 -3h11.0q3 0 3 3v17.4z"/>
+      </g><g class="col" data-tip="15:00–16:00 · Developer 112M · others 15M"><rect class="hit" x="360.0" y="0" width="20.0" height="132"/>
+      <rect class="s-dev" x="361.5" y="28.9" width="17.0" height="83.1"/><path class="s-oth" d="M361.5 26.9v-7.9q0 -3 3 -3h11.0q3 0 3 3v7.9z"/>
+      </g><g class="col" data-tip="16:00–17:00 · Developer 51M · others 0"><rect class="hit" x="380.0" y="0" width="20.0" height="132"/>
+      <path class="s-dev" d="M381.5 112.0v-34.7q0 -3 3 -3h11.0q3 0 3 3v34.7z"/>
+      </g><g class="col" data-tip="17:00–18:00 · Developer 59M · others 0"><rect class="hit" x="400.0" y="0" width="20.0" height="132"/>
+      <path class="s-dev" d="M401.5 112.0v-41.0q0 -3 3 -3h11.0q3 0 3 3v41.0z"/>
+      </g><g class="col" data-tip="18:00–19:00 · Developer 59M · others 0"><rect class="hit" x="420.0" y="0" width="20.0" height="132"/>
+      <path class="s-dev" d="M421.5 112.0v-40.5q0 -3 3 -3h11.0q3 0 3 3v40.5z"/>
+      </g><g class="col" data-tip="19:00–20:00 · Developer 0 · others 0 · out of usage quota"><rect class="hit" x="440.0" y="0" width="20.0" height="132"/>
+      
+      <rect class="quota" x="441.5" y="116" width="17.0" height="4" rx="2"/></g><g class="col" data-tip="20:00–21:00 · Developer 0 · others 0"><rect class="hit" x="460.0" y="0" width="20.0" height="132"/>
+      
+      </g></svg><span class="lbl" style="left:77.08%;top:11.48%;transform:translate(-50%,-100%)">127M</span></div></div>
+    <div class="axis" aria-hidden="true"><span style="left:2.08%">21</span><span style="left:14.58%">00</span><span style="left:27.08%">03</span><span style="left:39.58%">06</span><span style="left:52.08%">09</span><span style="left:64.58%">12</span><span style="left:77.08%">15</span><span style="left:89.58%">18</span></div>
+    <div class="tip" hidden></div>
+    <figcaption class="key"><span><i class="k-dev"></i>Developer</span><span><i class="k-oth"></i>other roles</span><span><i class="k-idle"></i>idle hour</span><span><i class="k-quota"></i>out of usage quota</span></figcaption>
+    <div class="vh"><table><caption>Tokens per hour</caption><thead><tr><th>Hour</th><th>Developer</th><th>Others</th></tr></thead><tbody><tr><td>21:00</td><td>0</td><td>0</td></tr><tr><td>22:00</td><td>0</td><td>0</td></tr><tr><td>23:00</td><td>0</td><td>25M</td></tr><tr><td>00:00</td><td>0</td><td>31M</td></tr><tr><td>01:00</td><td>0</td><td>319k</td></tr><tr><td>02:00</td><td>0</td><td>0</td></tr><tr><td>03:00</td><td>0</td><td>0</td></tr><tr><td>04:00</td><td>9M</td><td>9M</td></tr><tr><td>05:00</td><td>45M</td><td>0</td></tr><tr><td>06:00</td><td>47M</td><td>0</td></tr><tr><td>07:00</td><td>96M</td><td>6M</td></tr><tr><td>08:00</td><td>67M</td><td>4M</td></tr><tr><td>09:00</td><td>1M</td><td>6M</td></tr><tr><td>10:00</td><td>1M</td><td>0</td></tr><tr><td>11:00</td><td>630k</td><td>0</td></tr><tr><td>12:00</td><td>548k</td><td>0</td></tr><tr><td>13:00</td><td>965k</td><td>0</td></tr><tr><td>14:00</td><td>27M</td><td>0</td></tr><tr><td>15:00</td><td>112M</td><td>15M</td></tr><tr><td>16:00</td><td>51M</td><td>0</td></tr><tr><td>17:00</td><td>59M</td><td>0</td></tr><tr><td>18:00</td><td>59M</td><td>0</td></tr><tr><td>19:00</td><td>0</td><td>0</td></tr><tr><td>20:00</td><td>0</td><td>0</td></tr></tbody></table></div>
+  </figure>
+  </section>
+<section class="block" aria-labelledby="h-steps">
+    <h2 id="h-steps">Build steps</h2>
+    <p class="lede">Each slice is a playable piece: the developer builds it, the CTO reviews and merges it. The last three steps check and ship the whole game.</p>
+    <details class="done-group"><summary><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>4 done</b> · S1, S2, S3, S4a</span><span class="meta">tap to list</span><svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></summary><ol class="steps"><li class="step done"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="vh">Done: </span><span class="code">S1</span><span class="what">tracer bullet</span><span class="meta">merged 04:46 · 3 h 59 min · 7M tokens</span></li><li class="step done"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="vh">Done: </span><span class="code">S2</span><span class="what">sets 1–2 complete</span><span class="meta">merged 07:41 · 1 h 13 min · 180M tokens</span></li><li class="step done"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="vh">Done: </span><span class="code">S3</span><span class="what">set 3 and lamps</span><span class="meta">merged 09:07 · 1 h 8 min · 85M tokens</span></li><li class="step done"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="vh">Done: </span><span class="code">S4a</span><span class="what">sets 4–5 layout</span><span class="meta">merged 15:51 · 1 h 4 min · 138M tokens</span></li></ol></details>
+    <ol class="steps"><li class="step current"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8" cy="8" r="2.5" fill="currentColor"/></svg><span class="vh">Now: </span><span class="code">S4b</span><span class="what">set 6 + the whole-level bots<span class="note">~15 min of work left · done ~21:00</span></span><span class="meta">1 h 9 min · 180M tokens</span></li><li class="step todo"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.4"/></svg><span class="vh">To do: </span><span class="code">S5</span><span class="what">riddles + film frames</span><span class="meta">965k tokens</span></li><li class="step todo"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.4"/></svg><span class="vh">To do: </span><span class="code">S6</span><span class="what">sound</span><span class="meta"></span></li><li class="step todo"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.4"/></svg><span class="vh">To do: </span><span class="code">S7</span><span class="what">Hebrew narration</span><span class="meta"></span></li><li class="step todo"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.4"/></svg><span class="vh">To do: </span><span class="code">S8</span><span class="what">title, reveal, ending, results, onboarding demo, About</span><span class="meta"></span></li><li class="step todo"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.4"/></svg><span class="vh">To do: </span><span class="code">S9</span><span class="what">skin, comforts and shell</span><span class="meta"></span></li><li class="step todo"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.4"/></svg><span class="vh">To do: </span><span class="code"></span><span class="what">Code review</span><span class="meta"></span></li><li class="step todo"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.4"/></svg><span class="vh">To do: </span><span class="code"></span><span class="what">QA and design sign-off</span><span class="meta"></span></li><li class="step todo"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2.4"/></svg><span class="vh">To do: </span><span class="code"></span><span class="what">Release</span><span class="meta"></span></li></ol>
+    
+  </section>
+<section class="block" aria-labelledby="h-next"><h2 id="h-next">Coming up</h2>
+    <ol class="sched"><li data-at="1794594900000"><span class="t">20:35</span><span class="what">CEO hourly stuck check</span></li><li data-at="1794600300000"><span class="t">22:05</span><span class="what">CTO usage-limit resume and stall watchdog</span></li></ol></section>
+<section class="block" aria-labelledby="h-spend"><h2 id="h-spend">Token spend, whole game</h2><p class="lede"><b>672M</b> so far. Forecast <b>1.25B</b> at release, <span class="bad-text">over the 750M hard stop</span>.</p><div class="meter tone-amber" role="meter" aria-label="Token spend" aria-valuemin="0" aria-valuemax="750" aria-valuenow="672" aria-valuetext="672M of the 750M hard stop">
+        <div class="track"><span class="fill" style="width:53.95%"></span><span class="fore" style="left:53.95%;width:calc(100.00% - 53.95%)"></span>
+          <span class="tick" style="left:52.17%"></span><span class="tick stop" style="left:60.19%"></span></div>
+      </div>
+      <p class="key" aria-hidden="true"><span><i class="k-fill"></i>spent</span><span><i class="k-fore"></i>forecast to release</span><span><i class="k-tick"></i>target 650M</span><span><i class="k-tick stop"></i>hard stop 750M</span></p>
+    <p class="aside">All runs on this game's tickets. Forecast: a typical slice for each slice left, a typical review for each closing step.</p></section>
+<section class="block"><details class="more"><summary>Elsewhere in the studio</summary><ul class="plain"><li>Open board decision: <a class="id" href="http://localhost:3100/THE/issues/THE-975">THE-975</a> Board decision: game standards for bigger games and online features (size, offl… <span class="age">· waiting 19 days</span></li><li>Passport Run: 2 of 6 steps done, last activity Sun 10:17.</li><li>15 games shipped (5 link-only).</li></ul></details></section>
 </main>
+<footer class="wrap foot" data-stamp="1794594829601"><p>Updated 20:33 Israel time, <span class="ago">just now</span>. Rebuilt every 10 minutes when something changes.</p><p><a href="./">Back to the arcade</a></p></footer>
+<script>(()=>{const now=()=>Date.now();const dur=ms=>{const m=Math.max(0,Math.round(ms/6e4));if(m<60)return m+" min";if(m>=2880)return Math.round(m/1440)+" days";const h=Math.floor(m/60),r=m%60;return r?h+" h "+r+" min":h+" h"};
+const st=document.querySelector("[data-stamp]"),built=st?+st.dataset.stamp:0;
+const tick=()=>{document.querySelectorAll("[data-since]").forEach(e=>{e.textContent=dur(now()-+e.dataset.since)});
+document.querySelectorAll("[data-at]").forEach(e=>{e.hidden=+e.dataset.at<now()});
+if(st){const age=now()-built;st.querySelector(".ago").textContent=dur(age)+" ago";document.body.classList.toggle("stale",age>35*6e4)}};
+tick();setInterval(tick,3e4);
+let touched=0;["pointerdown","keydown","scroll"].forEach(t=>addEventListener(t,()=>touched=now(),{passive:true}));
+const pill=document.querySelector(".fresh");if(pill)pill.addEventListener("click",()=>location.reload());
+const check=async()=>{if(location.protocol==="file:")return;try{const r=await fetch(location.href,{cache:"no-store"});const m=(await r.text()).match(/data-stamp="(d+)"/);
+if(m&&+m[1]>built){const calm=scrollY<80&&!document.querySelector("details[open]")&&now()-touched>6e4;if(calm)location.reload();else if(pill)pill.hidden=false}}catch{}};
+setInterval(check,3e5);addEventListener("visibilitychange",()=>{if(!document.hidden)check()});
+const tip=document.querySelector(".chart .tip"),svg=document.querySelector(".chart svg");if(!tip||!svg)return;
+const show=g=>{const r=g.getBoundingClientRect(),f=svg.parentNode.getBoundingClientRect();tip.textContent=g.dataset.tip;tip.hidden=false;const w=tip.offsetWidth;tip.style.left=Math.min(Math.max(r.left-f.left+r.width/2-w/2,0),f.width-w)+"px"};
+svg.querySelectorAll(".col").forEach(g=>{g.addEventListener("pointerenter",()=>show(g));g.addEventListener("pointerdown",()=>show(g))});
+svg.addEventListener("pointerleave",e=>{if(e.pointerType==="mouse")tip.hidden=true});document.addEventListener("pointerdown",e=>{if(!svg.contains(e.target))tip.hidden=true})})();</script>
 </body>
+<!-- sig:eyJzdCI6WyJ3YWl0aW5nIiwicmVkIixudWxsLG51bGxdLCJsb2FkIjoibm9uZSIsInN0ZXBzIjoiZG9uZWRvbmVkb25lZG9uZWN1cnJlbnR0b2RvdG9kb3RvZG90b2RvdG9kb3RvZG90b2RvdG9kbyIsIm5lZWRzIjpbIjxhIGNsYXNzPVwiaWRcIiBocmVmPVwiaHR0cDovL2xvY2FsaG9zdDozMTAwL1RIRS9pc3N1ZXMvVEhFLTE1MzlcIj5USEUtMTUzOTwvYT4gd2FpdHMgZm9yIGFuIGFuc3dlci4gQW5zd2VyIGl0LCBvciBhc2sgdGhlIENFTyB3aG8gb3dlcyBvbmUuIiwiRm9yZWNhc3QgcGFzc2VzIHRoZSA3NTBNIGhhcmQgc3RvcCBkdXJpbmcgUzUuIFJhaXNlIHRoZSBsaW1pdCBvciBjdXQgYSBzdGVwLiJdLCJldGEiOjQ5ODUyMSwic3BlbmQiOjEzNCwicm93cyI6NDMsIndha2VzIjpbMTc5NDU5NDkwMDAwMCwxNzk0NjAwMzAwMDAwXX0= -->
 </html>
