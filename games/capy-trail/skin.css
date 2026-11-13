@@ -309,7 +309,7 @@ body { font-family: var(--font-body); color: var(--cocoa); }
 @media (max-height: 520px) {
   .ct-map { --node: 50px; --row: 76px; --gap: 8px; gap: var(--space-2); padding: var(--space-3) var(--space-5) var(--space-3); }
   .ct-map__title { font-size: 24px; }
-  .ct-map__head .ct-pebble { width: 40px; height: 40px; }
+  .ct-map__head .ct-pebble { width: 44px; height: 44px; } /* THE-1261: was 40 px, under the 44 px touch floor */
   .ct-map__foot { padding-top: var(--space-2); }
   .ct-map__foot .uk-btn--lg { min-height: 46px; padding-block: var(--space-2); }
   .ct-stars { margin-top: 6px; height: 16px; }

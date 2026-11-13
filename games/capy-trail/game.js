@@ -420,6 +420,10 @@ function checkOrientation() {
 // it the moment a press would actually register (window opens 1.25 s before centre = 4.75 s).
 const OPENING_TURN_AT = 6.0;
 const TURN_HINT_AT = OPENING_TURN_AT - TURN_BEFORE - TURN_BUFFER;
+// THE-1586 (onboarding D1 review, THE-1261): the junction turn above is a one-off fork choice, not the
+// ongoing lane-swipe control used the whole run -- a fresh player was never taught it. Sits after the
+// turn window closes (4.95) and well before duck (8.3).
+const LANE_HINT_AT = 5.8;
 
 // THE-1372 (board 2026-11-07: "I can't read the green toast mid-run"): these used to be screens.toast()
 // (the UIKit menu toast); now they're a label anchored to the hero's head (inRunLabel), positioned from
@@ -429,12 +433,24 @@ function maybeHint(t) {
   const labels = theme.inRunLabels || {};
   if (!hintsShown.jump && t >= 3.3 && t < 3.5) { hintsShown.jump = true; inRunLabel.show(labels.jump || "Jump!", world?.heroHeadScreen()); }
   else if (!hintsShown.turn && t >= TURN_HINT_AT && t < TURN_HINT_AT + 0.2) { hintsShown.turn = true; inRunLabel.show(labels.turnLeft || "← Left!", world?.heroHeadScreen()); }
+  else if (!hintsShown.lane && t >= LANE_HINT_AT && t < LANE_HINT_AT + 0.2) { hintsShown.lane = true; showLaneHint(labels); }
   else if (!hintsShown.duck && t >= 8.3 && t < 8.5) { hintsShown.duck = true; inRunLabel.show(labels.duck || "Duck!", world?.heroHeadScreen()); }
   else if (!hintsShown.grace && t >= 20.0 && t < 20.3) {
     hintsShown.grace = true;
     inRunLabel.show(labels.graceOver || "Careful now!", world?.heroHeadScreen());
     if (sessionRuns >= 3) { data.seenHowTo = true; saveMod.save(data); }
   }
+}
+function showLaneHint(labels) {
+  inRunLabel.show(isTouch ? (labels.laneTouch || "Swipe ← →") : (labels.laneKeys || "← → to step"), world?.heroHeadScreen());
+}
+// THE-1586: level 1 ("First steps") teaches jump/duck only (levels.js) -- a first-time player who starts
+// on a level (not Endless) never saw the lane-swipe control either. Own flag/window, independent of
+// maybeLevelHint's t<1.2 early return.
+function maybeLevel1LaneHint(t) {
+  if (hintsShown.lane || t < LANE_HINT_AT || t >= LANE_HINT_AT + 0.2) return;
+  hintsShown.lane = true;
+  showLaneHint(theme.inRunLabels || {});
 }
 // THE-1412 (levels/README.md): "each level's hint shows as the in-run head label for 2.5 s at t = 1 s".
 function maybeLevelHint(t, level) {
@@ -514,6 +530,7 @@ function frame(now) {
       while (acc >= FIXED_DT && steps < 5) {
         sim.step(FIXED_DT); acc -= FIXED_DT; steps++; maybeHint(sim.t);
         if (currentLevelIndex !== null) maybeLevelHint(sim.t, LEVELS[currentLevelIndex]);
+        if (currentLevelIndex === 0) maybeLevel1LaneHint(sim.t);
         // THE-1408: the tracker reads new log entries every step (the log caps at 512).
         const prevDone = liveMissions.done;
         const freshForMissions = newLogEntriesSince(sim.log, missionLogT);

@@ -2,7 +2,7 @@
 //   node tools/sw-build.mjs capy-trail --lazy
 // Precaches the sw.config.json set, caches every other file of the game the first time it is fetched, and
 // serves cache-first; CACHE_VERSION is a hash of all the game's cached files, so an update clears both.
-var CACHE_VERSION = 'capy-trail-53066fd0';
+var CACHE_VERSION = 'capy-trail-a331296a';
 var FILES = [
   './',
   'assets/audio/music-happy-beat.m4a',

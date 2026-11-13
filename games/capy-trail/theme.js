@@ -64,6 +64,10 @@ window.THEME = {
     duck: "Duck!",
     turnLeft: "← Left!",
     turnRight: "→ Right!",
+    // THE-1586 (onboarding D1 review): the opening's turn hint is a one-off junction choice, not the
+    // ongoing lane-swipe control -- a fresh player never saw it taught at all. Text picked by isTouch.
+    laneTouch: "Swipe ← →",
+    laneKeys: "← → to step",
     // A12.13 C3 (THE-1301) rewritten short (THE-1372): the full sentence named the geese by species; this
     // doesn't name the chaser at all, so both heroes share it. CTO review (THE-1374): "Careful: 1 hit left"
     // was 4 words (board: 1-3) and not quite true (a stumble still doesn't end the run, only a bonk does).
