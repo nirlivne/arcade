@@ -61,5 +61,12 @@
     "date": "2026-10-07",
     "status": "released",
     "description": "Your family as a circus stunt troupe: pull back, let go, and fire your people from the felt cannon to knock every tin off the ledges. 30 levels plus a daily show, with your own family's names and photos."
+  },
+  {
+    "slug": "capy-trail",
+    "title": "Bear Trail",
+    "date": "2026-11-13",
+    "status": "released",
+    "description": "A bear gallops a winding 3D trail through forest, lagoon and desert: switch lanes, jump logs, duck under branches and grab coins while a bee swarm waits for your second slip. How far can you run?"
   }
 ]
