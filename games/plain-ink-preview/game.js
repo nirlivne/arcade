@@ -30,6 +30,8 @@ import { TAGS, newTags, stepTags, visibleTag } from './ui/tags.js';
 import { drawScissors, drawTitleLetters, titleLettersFor } from './render/finale.js';
 import { drawZoneLine, drawBracket, drawCone, drawGuard, drawRoomBack, drawRoomFront, drawRoomEye, drawCutTag } from './render/hazards.js';
 import { beatAt } from './sim/rules.js';
+import { SOLUTION } from './data/solution.js';
+import { decodeTape, intentOf, nextSpeed, PRESS_LIT_TICKS, END_HOLD_TICKS } from './ui/watch.js';
 
 const RESPAWN_TICKS = Math.round(RESPAWN_S / DT);
 
@@ -141,6 +143,9 @@ function renderTags(a, e, f) {
 }
 function flipBtnCue(on) { document.getElementById('flipBtn').classList.toggle('is-cue', on); }
 let paused = false;
+// SEE THE ROUTE (ui/watch.js): while set, the sim is fed the human-like bot's tape instead of the player's
+// input and nothing is saved. { tape, i, speed, hold, jumpLit, flipLit, mask, back: what to restore }
+let watch = null;
 
 // ---- sound (THE-1561): the context starts on the first gesture (browsers block it before) ----
 let audio = null; // { mixer, music, sfx }
@@ -254,14 +259,17 @@ function doRespawnOrStep(intent) {
   const prevState = runState;
   const prevBody = runState.body;
   // spec §8 Longer grace: the setting rides on the sim state every tick, so a mid-run toggle counts at once
-  if (runState.longGrace !== saveData.settings.longGrace) runState = { ...runState, longGrace: saveData.settings.longGrace };
-  runState = { ...runState, view: simView() }; // S4: the real camera rect, this tick
+  // (the route tape was recorded without it, so a watched run never has it)
+  const longGrace = watch ? false : saveData.settings.longGrace;
+  if (runState.longGrace !== longGrace) runState = { ...runState, longGrace };
+  // S4: the real camera rect, this tick. A watched run uses the view its tape was recorded with, so the replay
+  // is the same run on every screen size.
+  runState = { ...runState, view: watch ? DEFAULT_VIEW : simView() };
   const r = runStep(runState, intent, LEVEL);
   runState = r.state;
   pushEvents(r.events);
   audioTick();
-  narrationTick(prevState, r.events);
-  tagsStep();
+  if (!watch) { narrationTick(prevState, r.events); tagsStep(); }
   if (tagPulseTicks > 0) tagPulseTicks -= 1;
   audio?.sfx.warn(runState.snipping || runState.ended ? 0 : runState.warn); // S2 c: the brass note follows the meter
   if (runState.body.coat !== prevBody.coat) audioEvent({ type: 'flip' });
@@ -276,10 +284,12 @@ function doRespawnOrStep(intent) {
   for (const e of r.events) {
     // the last hide (spec §2.2 last row): the sim already stopped the clock on this tick; the
     // ending owns its chord (played after the sweep, THE-1565 Q6), so no stab here
-    if (e.type === 'ended') { enterEnding(); continue; }
+    // (a watched run stops on the last hide: the ending and the bests belong to the player's own run)
+    if (e.type === 'ended') { if (!watch) enterEnding(); continue; }
     if (e.type === 'respawn') musicResync = true;
     audioEvent(e);
     if (e.type === 'rehearsalSnap') { snapAt = runState.tick; tagPulseTicks = Math.round(1.2 / DT); }
+    if (watch) { if (e.type === 'checkpoint') showWatchHint(); continue; } // watching never saves
     // saves on a checkpoint (so a reload continues there, spec §8)
     if (e.type === 'checkpoint') {
       saveData.run = { cp: runState.cp, clockMs: runState.clockMs, snips: runState.snips, coat: runState.body.coat, negative: false, framesThisRun: saveData.frames.slice(), resolved: [], graceUsed: runState.graceUsed };
@@ -299,6 +309,7 @@ function tick() {
   if (screen === 'ending') { endingStep(); return; }
   if (screen === 'demo') { demoStep(); return; }
   if (screen !== 'play' || paused) return;
+  if (watch) { for (let k = watch.speed; watch && k > 0; k--) watchStep(); return; }
   const intent = QA_STEP ? manualIntent : input.sample();
   doRespawnOrStep(intent);
   if (!QA_STEP) { manualIntent.jumpPressed = false; manualIntent.flipPressed = false; }
@@ -334,7 +345,7 @@ function render() {
   // stand-ons (+ tape) -> guards -> hero -> go-behinds (+ cut-here) -> the hero's outline behind one -> warning
   drawDecorations(level1.decorations.filter(near), LEVEL.ground === 'tangerine' ? 'tangerine' : LEVEL.ground);
   drawBackdrops(level1.backdrops.filter(near));
-  for (const r of runState.rooms) if (near(r.rect)) drawRoomBack(r, level1.GROUND_Y); // ruling 11: the lit room's cream wash
+  for (const r of runState.rooms) if (near(r.rect)) drawRoomBack(r, level1.GROUND_Y); // ruling 11 / 14c: the lit room's alarm-light wash
   // the floor band first, so a beam's landing (the band's top 24 u in cream) paints over its tape
   drawFloorStandOn(cam.x - halfView - 400, cam.x + halfView + 400, level1.GROUND_Y);
   for (const l of runState.lamps) drawLampPatch(l.poly, level1.GROUND_Y);
@@ -361,7 +372,8 @@ function render() {
   }
 
   stats.cutHere = runState.hidden === true; // F1 done-when: stats().cutHere <=> state().hidden
-  const heroArgs = { x: runState.body.x, y: runState.body.y, coat: runState.body.coat, hidden: runState.hidden, facingLeft, runPhase, grounded: runState.body.grounded, rework: true };
+  const heroArgs = { x: runState.body.x, y: runState.body.y, coat: runState.body.coat, hidden: runState.hidden, facingLeft, runPhase, grounded: runState.body.grounded, rework: true,
+    alarmLit: runState.rooms.some((r) => r.lit && runState.body.x >= r.rect.x && runState.body.x < r.rect.x + r.rect.w) };
   drawHero(heroArgs);
   drawGoBehinds(level1.goBehinds.filter(near));
   // H6: behind a go-behind, the dashed outline goes on top of the letter, in the colour opposite its fill
@@ -426,7 +438,8 @@ function frame(t) {
   // the pause toggle (Escape/P key, or a tap on the touch pauseBtn, both collected by input.js)
   // must drain every frame, not just while screen === 'play' && !paused -- otherwise it could
   // never be seen while already paused, and Resume would have no way back in.
-  if (input.samplePause() && screen === 'play') setPaused(!paused);
+  if (input.samplePause() && screen === 'play') { if (watch) endWatch(); else setPaused(!paused); }
+  renderWatchKeys();
   // M (spec G10): one key mutes everything; pressed again, everything comes back on
   if (input.sampleMute()) {
     const buses = ['music', 'sfx', 'voice'];
@@ -647,6 +660,83 @@ window.addEventListener('keydown', skipDemo);
 document.getElementById('howtoBtn').addEventListener('click', () => startDemo('title'));
 document.getElementById('pauseHowtoBtn').addEventListener('click', () => startDemo('pause'));
 
+// ---- SEE THE ROUTE (ui/watch.js): the human-like bot's clean run, replayed through the real sim ----
+// From the title it plays the whole level; from the pause sheet it starts at the player's checkpoint
+// (the tape is fast-forwarded there, silently) and hands their own run back, paused, when it ends.
+const watchBarEl = document.getElementById('watchBar');
+const watchHintEl = document.getElementById('watchHint');
+const watchSpeedEl = document.getElementById('watchSpeedBtn');
+const watchKeyEls = Object.fromEntries([...watchBarEl.querySelectorAll('[data-k]')].map((el) => [el.dataset.k, el]));
+const touchDiscEls = { left: touchEl.querySelector('.pi-tbtn--left'), right: touchEl.querySelector('.pi-tbtn--right'), jump: root.jumpBtnEl, flip: root.flipBtnEl };
+let watchTape = null;
+function showWatchHint() { watchHintEl.textContent = theme.text.watchHints[runState.cp] ?? ''; }
+function startWatch(from) { // 'title' | 'pause'
+  watchTape ??= decodeTape(SOLUTION.tape);
+  const back = { to: from, runState, narration, tags };
+  const startAt = from === 'pause' ? SOLUTION.cpTicks[runState.cp] ?? 0 : 0;
+  let s = newRunState(LEVEL.checkpoints[0], LEVEL);
+  for (let i = 0; i < startAt; i++) s = runStep(s, intentOf(watchTape[i]), LEVEL).state;
+  if (from === 'pause') setPaused(false);
+  watch = { tape: watchTape, i: startAt, speed: 1, hold: 0, jumpLit: 0, flipLit: 0, mask: 0, back };
+  runState = s;
+  musicResync = true; // the replay's sim beat, not the player's
+  tags = newTags(true); // no RUN / JUMP / FLIP lesson tags over a watched run
+  audio?.voice.stop();
+  strip.hide();
+  if (ensureAudio()) {
+    audio.mixer.hushMusic(false);
+    audio.mixer.resume().then(() => { if (watch && !audio.music.playing()) audio.music.start(); });
+  }
+  screen = 'play';
+  document.body.dataset.watch = '1';
+  document.getElementById('titleScreen').setAttribute('hidden', '');
+  resultsEl.setAttribute('hidden', '');
+  goalTagEl?.removeAttribute('hidden');
+  watchSpeedEl.textContent = '1×';
+  watchBarEl.removeAttribute('hidden');
+  showWatchHint();
+}
+function watchStep() {
+  if (watch.hold > 0) { if (--watch.hold === 0) endWatch(); return; }
+  if (runState.ended || watch.i >= watch.tape.length) { watch.hold = END_HOLD_TICKS; watch.mask = 0; return; }
+  const mask = watch.tape[watch.i++];
+  watch.mask = mask;
+  if (mask & 8) watch.jumpLit = PRESS_LIT_TICKS; else if (watch.jumpLit > 0) watch.jumpLit -= 1;
+  if (mask & 16) watch.flipLit = PRESS_LIT_TICKS; else if (watch.flipLit > 0) watch.flipLit -= 1;
+  doRespawnOrStep(intentOf(mask));
+}
+// the keys the bot is pressing: the bar's key row on a keyboard, the real touch discs on a phone
+let watchKeysShown = '';
+function renderWatchKeys() {
+  const on = watch ? { left: !!(watch.mask & 1), right: !!(watch.mask & 2), jump: watch.jumpLit > 0 || !!(watch.mask & 4), flip: watch.flipLit > 0 } : {};
+  const key = watch ? '' + +on.left + +on.right + +on.jump + +on.flip : '';
+  if (key === watchKeysShown) return;
+  watchKeysShown = key;
+  for (const k of ['left', 'right', 'jump', 'flip']) {
+    watchKeyEls[k].classList.toggle('is-on', !!on[k]);
+    touchDiscEls[k]?.classList.toggle('is-down', !!on[k]);
+  }
+}
+function endWatch() {
+  if (!watch) return;
+  const { back } = watch;
+  watch = null;
+  delete document.body.dataset.watch;
+  watchBarEl.setAttribute('hidden', '');
+  renderWatchKeys();
+  input.sample(); // drop any key edges pressed while watching
+  runState = back.runState; narration = back.narration; tags = back.tags;
+  musicResync = true;
+  if (back.to === 'pause') { setPaused(true); return; }
+  audio?.music.stop();
+  audio?.mixer.hushMusic(true);
+  toTitle();
+}
+document.getElementById('watchBtn').addEventListener('click', () => startWatch('title'));
+document.getElementById('pauseWatchBtn').addEventListener('click', () => startWatch('pause'));
+document.getElementById('watchExitBtn').addEventListener('click', endWatch);
+watchSpeedEl.addEventListener('click', () => { if (!watch) return; watch.speed = nextSpeed(watch.speed); watchSpeedEl.textContent = watch.speed + '×'; });
+
 // ---- PWA (spec §8): offline via sw.js (built by tools/sw-build.mjs) + our own install button ----
 // glyphs.js has a top-level await, so this module can finish after `load` has already fired: register
 // now if it has (a bare load listener then never ran, and the game never went offline-capable)
@@ -699,10 +789,11 @@ document.getElementById('restartLevelBtn')?.addEventListener('click', () => {
 // turn your phone (spec §5, S9 Q5): the skin shows the card on this same query; play pauses behind it,
 // and turning back leaves the pause sheet up (no auto-resume mid-wedge)
 const PORTRAIT_PHONE = matchMedia('(orientation: portrait) and (max-width: 600px)');
-const pauseIfTurned = () => { if (PORTRAIT_PHONE.matches && screen === 'play' && !paused) setPaused(true); };
+const pauseIfTurned = () => { if (PORTRAIT_PHONE.matches) endWatch(); if (PORTRAIT_PHONE.matches && screen === 'play' && !paused) setPaused(true); };
 PORTRAIT_PHONE.addEventListener('change', pauseIfTurned);
 
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) endWatch();
   if (document.hidden && screen === 'play') setPaused(true);
   else if (document.hidden) audio?.mixer.suspend();
   else if (!paused) audio?.mixer.resume();
@@ -768,4 +859,6 @@ window.__ink = {
   showLine: (id) => strip.show(theme.lines[id], false),
   // THE-1637: the in-world tag on screen now (run | jump | flip | null) and whether the lesson is done
   tags: () => ({ shown: shownTag, taught: tags.taught }),
+  // SEE THE ROUTE: null, or where the replay is on the tape
+  watch: () => (watch ? { i: watch.i, ticks: watch.tape.length, speed: watch.speed, hint: watchHintEl.textContent } : null),
 };

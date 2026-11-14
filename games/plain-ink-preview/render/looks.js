@@ -123,8 +123,8 @@ function drawScissorsGlyph(x, y, size, col, bg) {
 
 // ---- lamps ----
 // The patch is the same polygon the sim counts (H3: draw = count), solid cream, no alpha. Where it lands on
-// the floor band, the band's top 24 u are painted cream across the footprint.
-export const LANDING_H = 24;
+// the floor band, the band's tape (--pi-tape-h, 14 u) is painted cream across the footprint -- never deeper
+// (THE-1652 review: a 24 u landing poked 10 u below the floor line under SL).
 export function drawLampPatch(poly, floorY = 0) {
   if (!poly) return;
   piece([poly.map((p) => [p.x, p.y])], C.paper, { gap: 0, shadow: false });
@@ -132,7 +132,7 @@ export function drawLampPatch(poly, floorY = 0) {
   if (onFloor.length >= 2) {
     const x0 = Math.min(...onFloor.map((p) => p.x)), x1 = Math.max(...onFloor.map((p) => p.x));
     g.fillStyle = C.paper;
-    g.fillRect(x0, floorY, x1 - x0, LANDING_H);
+    g.fillRect(x0, floorY, x1 - x0, tok().tapeH);
   }
 }
 

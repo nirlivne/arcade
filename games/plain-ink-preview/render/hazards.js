@@ -113,20 +113,25 @@ export function drawGuard(gd, eye = 0, floorY = 0) {
 }
 
 // ---- the flashing room (ruling 11) ----
-// lit: a cream wash over the whole room, every ceiling bulb on, the ceiling eye-slot wide. dark: the bulbs are
-// ink, the eye shut. Beat 5 (the warning): the bulbs flicker on dim. The door frames are always dashed lipstick.
+// lit: the alarm-light wash (--pi-fr-lit, ruling 14c / THE-1669: never cream or ink, so "lit = exposed" can't be
+// read as either coat), every ceiling bulb on, the ceiling eye-slot wide. dark: the bulbs are ink, the eye shut.
+// Beat 5 (the warning): the bulbs flicker on dim. The door frames are dashed lipstick, ink while the wash is up.
 const ROOM_TOP = -720;
+let FR_LIT = null;
+export const frLit = () => (FR_LIT ??= getComputedStyle(document.documentElement).getPropertyValue('--pi-fr-lit').trim() || C.red);
+let FR_WARN = null;
+const frWarn = () => (FR_WARN ??= getComputedStyle(document.documentElement).getPropertyValue('--pi-fr-warn').trim() || C.redD);
 export function drawRoomBack(room, floorY = 0) {
   if (!room.lit) return;
   const r = room.rect;
-  g.fillStyle = C.paper;
+  g.fillStyle = frLit();
   g.fillRect(r.x, -1400, r.w, 1400 + floorY);
 }
 export function drawRoomFront(room, tick, eye = 0, floorY = 0) {
   const r = room.rect;
   // door frames: dashed lipstick, floor to the lintel, so the player sees where the rule starts
   g.save();
-  g.strokeStyle = C.red; g.lineWidth = 6; g.setLineDash(ZONE_DASH);
+  g.strokeStyle = room.lit ? C.ink : C.red; g.lineWidth = 6; g.setLineDash(ZONE_DASH);
   g.beginPath();
   for (const x of [r.x, r.x + r.w]) { g.moveTo(x, floorY); g.lineTo(x, ROOM_TOP); }
   g.moveTo(r.x, ROOM_TOP); g.lineTo(r.x + r.w, ROOM_TOP);
@@ -138,7 +143,7 @@ export function drawRoomFront(room, tick, eye = 0, floorY = 0) {
     g.fillStyle = C.ink;
     g.fillRect(x - 3, ROOM_TOP - 200, 6, 200);
     piece([[[x - 34, ROOM_TOP + 30], [x + 34, ROOM_TOP + 30], [x + 16, ROOM_TOP], [x - 16, ROOM_TOP]]], C.ink, { gap: 0, shadow: false });
-    g.fillStyle = room.lit ? C.paper : flicker ? C.paperD : C.inkL;
+    g.fillStyle = room.lit ? C.paper : flicker ? frWarn() : C.inkL; // the warning beat: --pi-fr-warn tint
     g.beginPath(); g.arc(x, ROOM_TOP + 34, 12, 0, Math.PI); g.fill();
     if (room.lit) { // on: an ink rim and short ink rays, so a cream bulb still reads as lit on the cream wash
       g.strokeStyle = C.ink; g.lineWidth = 3;

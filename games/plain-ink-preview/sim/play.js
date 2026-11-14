@@ -46,7 +46,7 @@ export function newPlayState(cp, level, overrides = {}) {
 function lampNow(l, beat) {
   const angleDeg = l.angleAt(beat);
   const lit = l.litAt(beat);
-  return { id: l.id, bulb: l.bulb, angleDeg, lit, glow: l.glowAt ? l.glowAt(beat) : false, zone: l.zone || null, canSnip: l.canSnip !== false, poly: lit ? beamPolygon({ bulb: l.bulb, angleDeg, halfAngleDeg: l.halfAngleDeg, throw: l.throw }) : null };
+  return { id: l.id, bulb: l.bulb, angleDeg, throw: l.throw, lit, glow: l.glowAt ? l.glowAt(beat) : false, zone: l.zone || null, canSnip: l.canSnip !== false, poly: lit ? beamPolygon({ bulb: l.bulb, angleDeg, halfAngleDeg: l.halfAngleDeg, throw: l.throw }) : null };
 }
 
 // every watcher at one beat: lamps, guards (+ their clipped cones), flashing rooms. They run on the sim beat
@@ -87,6 +87,30 @@ export function perceive(level, hz, body, view) {
   const brave = hidden && (hz.lamps.some((l) => l.poly && on(l.bulb) && points.some((p) => pointInPoly(p, l.poly))) ||
     hz.guards.some((g) => on(g.eye) && points.some((p) => pointInPoly(p, g.cone))));
   return { scene, count, hidden, points, seers, brave };
+}
+
+// S5 (spec-rework ruling 14b): which side of a lit beam's centre line a point is on (+ / - / 0), and whether
+// it is within the beam's throw along that line. The line runs from the bulb at angleDeg (0 = straight down).
+function lineSide(l, p) {
+  const r = (l.angleDeg * Math.PI) / 180, dx = Math.sin(r), dy = Math.cos(r);
+  const rx = p.x - l.bulb.x, ry = p.y - l.bulb.y;
+  const along = rx * dx + ry * dy;
+  return { side: Math.sign(dx * ry - dy * rx), along };
+}
+// the lamps whose centre line the hero's body centre crossed this tick (from last tick's line and centre to
+// this tick's), among the lamps that see the hero now. A beam sweeping over a standing hero counts too.
+export function beamCrossings(prevLamps, prevBody, lamps, body, seers) {
+  const out = [];
+  const c0 = { x: prevBody.x, y: prevBody.y - BODY_H / 2 }, c1 = { x: body.x, y: body.y - BODY_H / 2 };
+  for (const l of lamps) {
+    if (!l.poly || !seers.includes(l)) continue;
+    const p = prevLamps.find((k) => k.id === l.id);
+    if (!p || !p.poly) continue;
+    const a = lineSide(p, c0), b = lineSide(l, c1);
+    if (b.along < 0 || b.along > l.throw) continue;
+    if (a.side !== 0 && a.side !== b.side) out.push(l); // standing still on the line is not a crossing
+  }
+  return out;
 }
 
 function viewRect(body, v) {
@@ -167,14 +191,18 @@ export function step(state, intent, level) {
   s.eyeBy = s.warn > 0 ? (s.seenBy || state.eyeBy) : null;
   if (prevW === 0 && s.warn > 0) events.push({ type: 'warnStart', tick: s.tick, by: s.seenBy });
   if (prevW > 0 && s.warn === 0) events.push({ type: 'warnEnd', tick: s.tick });
+  // S5 (ruling 14b): the body centre crossing a seeing lamp's centre line is caught at once, whatever w is
+  // (Longer grace doesn't change it). A lamp that can't catch (the rehearsal lamp) snaps on air at w = 1.
+  const crossed = beamCrossings(state.lamps, state.body, s.lamps, body, seers);
+  if (crossed.length) s.warn = 1;
   if (s.warn >= 1 && seen) {
-    const snipper = seers.find((w) => w.canSnip);
+    const snipper = crossed.find((w) => w.canSnip) || seers.find((w) => w.canSnip);
     if (snipper) {
       s.snipping = true;
       s.respawnTicksLeft = RESPAWN_TICKS;
       s.snips += 1;
       s.seenBy = snipper.id;
-      events.push({ type: 'snip', tick: s.tick, seeker: snipper.id });
+      events.push({ type: 'snip', tick: s.tick, seeker: snipper.id, rule: crossed.includes(snipper) ? 'S5' : 'S2' });
       return { state: s, events };
     }
     if (!state.held) events.push({ type: 'rehearsalSnap', tick: s.tick, by: s.seenBy });

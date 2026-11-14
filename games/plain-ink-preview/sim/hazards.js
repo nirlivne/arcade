@@ -40,15 +40,17 @@ export function zonePolygon({ bulb, halfAngleDeg, throw: len, minDeg, maxDeg }, 
 
 // a lamp def with its cycle and zone attached. litBeats: [from, to) inside the cycle where it is on
 // (default: always); glowBeats: the tell before it comes on.
-export function makeLamp({ parts = [[4, 0, 0]], litBeats = null, glowBeats = null, ...def }) {
+// phaseBeats: a whole-beat shift of the whole cycle (slice 3 phase tuning, spec-rework §3 "Phase tuning").
+export function makeLamp({ parts = [[4, 0, 0]], litBeats = null, glowBeats = null, phaseBeats = 0, ...def }) {
   const s = swing(parts);
-  const inRange = (r, beat) => { const b = mod(beat, s.cycleBeats); return b >= r[0] && b < r[1]; };
+  const inRange = (r, beat) => { const b = mod(beat - phaseBeats, s.cycleBeats); return b >= r[0] && b < r[1]; };
   const lamp = {
     ...def,
+    phaseBeats,
     cycleBeats: s.cycleBeats,
     minDeg: s.minDeg,
     maxDeg: s.maxDeg,
-    angleAt: s.angleAt,
+    angleAt: (beat) => s.angleAt(beat - phaseBeats),
     litAt: litBeats ? (beat) => inRange(litBeats, beat) : () => true,
     glowAt: glowBeats ? (beat) => inRange(glowBeats, beat) : () => false,
   };

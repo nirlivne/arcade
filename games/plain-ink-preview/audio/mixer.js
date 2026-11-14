@@ -68,11 +68,11 @@ export function createMixer(ctx, settings = { music: true, sfx: true, voice: tru
     buses,
     // A one-shot: build(out) creates its nodes into `out` (a fresh gain on the bus) and returns
     // its sources (already started, with stop() scheduled). When the last one ends, the whole
-    // group is disconnected.
-    voice(bus, build) {
+    // group is disconnected. into: a node on that bus to feed instead (the music's per-sync gate).
+    voice(bus, build, into = buses[bus]) {
       if (!settings[bus] || ctx.state !== 'running') return false;
       const out = ctx.createGain();
-      out.connect(buses[bus]);
+      out.connect(into);
       const nodes = [out];
       const make = (node) => { nodes.push(node); return node; };
       const sources = build(out, make);

@@ -30,6 +30,18 @@ export const theme = {
     kicker: 'THE GAME COMPANY PRESENTS',
     level: 'LEVEL 1 · OPENING NIGHT',
     howto: 'HOW TO PLAY',
+    // SEE THE ROUTE: the game plays a clean run itself (ui/watch.js); one hint per checkpoint stretch
+    watch: 'SEE THE ROUTE', watchPart: 'SEE THIS PART', watching: 'WATCHING', watchExit: 'EXIT',
+    watchHints: {
+      cp1: 'RUN, JUMP THE BLOCKS. MATCH YOUR COAT TO THE WALL.',
+      cp2: 'CREAM IN THE LIGHT, INK ON INK. FLIP AS YOU WALK.',
+      cp3: 'WAIT FOR THE SPOTLIGHT TO SWING UP THE WALL. THEN GO.',
+      cp3b: 'THE BULB GLOWS, THEN SHINES. GO WHEN IT GOES OUT.',
+      cp3c: 'WAIT TILL HIS BACK IS TURNED. HIDE ON THE INK WALL.',
+      cp4: 'GO WHEN THE LAMP RESTS ON THE FAR SIDE. FLIP BEHIND THE A.',
+      cp4b: 'SLIP BEHIND THE P. LET HIM WALK PAST.',
+      cp4c: 'MOVE ONLY IN THE DARK. LETTER TO LETTER.',
+    },
     about: 'ABOUT',
     // touch button labels (CEO S1 look note 4: each disc carries a label)
     jump: 'JUMP',

@@ -33,6 +33,7 @@
     </div>
     <div class="pi-title__util">
       <button id="howtoBtn" class="pi-tag-btn" data-t="howto"></button>
+      <button id="watchBtn" class="pi-tag-btn" data-t="watch"></button>
       <button id="aboutBtn" class="pi-tag-btn" data-t="about"></button>
       <button id="settingsBtn" class="uk-icon-btn" aria-label="Settings">⚙</button>
       <!-- own install button (spec §8 PWA): shown only once the browser offers an install (beforeinstallprompt) -->
@@ -86,6 +87,7 @@
       <div class="sheet-row">
         <button id="restartFlagBtn" class="uk-btn uk-btn--secondary" data-t="restartFlag"></button>
         <button id="restartLevelBtn" class="uk-btn uk-btn--secondary" data-t="restartLevel"></button>
+        <button id="pauseWatchBtn" class="uk-btn uk-btn--secondary" data-t="watchPart"></button>
       </div>
       <div class="sheet-row">
         <button id="pauseHowtoBtn" class="uk-btn uk-btn--secondary" data-t="howto"></button>
@@ -124,6 +126,16 @@
       <div class="pi-wtag" data-tag="run" hidden><span class="pi-tag"><span class="pi-tag__num"></span><span class="pi-tag__name"></span></span></div>
       <div class="pi-wtag" data-tag="jump" hidden><span class="pi-tag"><span class="pi-tag__num"></span><span class="pi-tag__name"></span></span></div>
       <div class="pi-wtag" data-tag="flip" hidden><span class="pi-tag"><span class="pi-tag__num"></span><span class="pi-tag__name"></span></span></div>
+    </div>
+  </div>
+
+  <!-- SEE THE ROUTE (ui/watch.js): the game plays a clean run itself; hint + the keys it presses + speed + exit -->
+  <div id="watchBar" class="pi-watch" hidden>
+    <span class="pi-tag pi-watch__hint"><span class="pi-tag__num" data-t="watching"></span><span id="watchHint" class="pi-tag__name" aria-live="polite"></span></span>
+    <div class="pi-watch__row">
+      <span class="pi-watch__keys" aria-hidden="true"><i data-k="left">◀</i><i data-k="right">▶</i><i data-k="jump" data-t="jump"></i><i data-k="flip" data-t="flip"></i></span>
+      <button id="watchSpeedBtn" class="pi-tag-btn" aria-label="Playback speed">1×</button>
+      <button id="watchExitBtn" class="pi-tag-btn" data-t="watchExit"></button>
     </div>
   </div>
 

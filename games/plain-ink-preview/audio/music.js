@@ -45,17 +45,19 @@ const LOOKAHEAD_S = 0.3;
 const SYNC_TOL_S = 0.03; // ruling 4: re-sync when the music drifts more than 30 ms from the sim beat
 
 // one note of the score, at absolute time t (s). spring: the guitar's reverb send (THE-1568 D2 4)
-function play(mixer, e, t, spring) {
+// gate: { dry, send }, the current sync epoch's way into the music bus and the spring
+function play(mixer, e, t, gate) {
   const dur = e.dur * BEAT_S;
+  const into = gate.dry;
   switch (e.inst) {
-    case 'bass': return tones(mixer, 'music', [hz(e.midi)], { t, dur, gain: 0.32, a: 0.01, types: ['triangle'], filter: { from: 700, to: 300 } });
-    case 'brass': return tones(mixer, 'music', e.midi.map(hz), { t, dur, gain: 0.07, a: 0.03, types: ['sawtooth', 'sawtooth'], detune: 7, filter: { from: 2600, to: 700, q: 2 } });
-    case 'guitar': return tones(mixer, 'music', [hz(e.midi)], { t, dur, gain: 0.12, a: 0.004, types: ['sawtooth', 'square'], detune: 4, bend: 0.985, filter: { from: 3200, to: 500, q: 6 }, send: spring });
-    case 'vibes': return tones(mixer, 'music', e.midi.map(hz), { t, dur, gain: 0.05, a: 0.005, types: ['sine'] });
+    case 'bass': return tones(mixer, 'music', [hz(e.midi)], { t, dur, gain: 0.32, a: 0.01, types: ['triangle'], filter: { from: 700, to: 300 }, into });
+    case 'brass': return tones(mixer, 'music', e.midi.map(hz), { t, dur, gain: 0.07, a: 0.03, types: ['sawtooth', 'sawtooth'], detune: 7, filter: { from: 2600, to: 700, q: 2 }, into });
+    case 'guitar': return tones(mixer, 'music', [hz(e.midi)], { t, dur, gain: 0.12, a: 0.004, types: ['sawtooth', 'square'], detune: 4, bend: 0.985, filter: { from: 3200, to: 500, q: 6 }, send: gate.send, into });
+    case 'vibes': return tones(mixer, 'music', e.midi.map(hz), { t, dur, gain: 0.05, a: 0.005, types: ['sine'], into });
     case 'bongo': {
       const f = e.drum === 'hi' ? 330 : 220;
-      noise(mixer, 'music', { t, dur: 0.03, gain: 0.08, from: 3000 });
-      return tones(mixer, 'music', [f], { t, dur: e.dur, gain: 0.3, a: 0.002, bend: 0.6 });
+      noise(mixer, 'music', { t, dur: 0.03, gain: 0.08, from: 3000, into });
+      return tones(mixer, 'music', [f], { t, dur: e.dur, gain: 0.3, a: 0.002, bend: 0.6, into });
     }
   }
   return false;
@@ -74,6 +76,17 @@ export function createMusic(mixer) {
   spring.connect(wet);
   wet.connect(mixer.buses.music);
   let on = false, bar = 0, barAt = 0, tense = false;
+  // Every note goes in through the current sync epoch's gate. A re-anchor drops the old gate, so the notes the
+  // look-ahead already scheduled on the old bar clock (up to a bar ahead) go silent instead of playing over
+  // the new bar (THE-1652 review carry-over 1).
+  const newGate = () => {
+    const dry = ctx.createGain(), send = ctx.createGain();
+    dry.connect(mixer.buses.music);
+    send.connect(spring);
+    return { dry, send };
+  };
+  let gate = newGate();
+  const regate = () => { gate.dry.disconnect(); gate.send.disconnect(); gate = newGate(); };
   return {
     spring,
     start() { if (on) return; on = true; bar = 0; barAt = ctx.currentTime + 0.05; },
@@ -91,6 +104,7 @@ export function createMusic(mixer) {
       const next = Math.floor(beat / 4) + 1;
       bar = next;
       barAt = now + (next * 4 - beat) * BEAT_S;
+      regate();
       return true;
     },
     // the beat the music is on now (tests: |music - sim| <= 30 ms)
@@ -101,7 +115,7 @@ export function createMusic(mixer) {
       // after a long stall (the tab was frozen), restart the bar clock instead of catching up
       if (barAt < ctx.currentTime - 1) barAt = ctx.currentTime + 0.05;
       while (barAt < ctx.currentTime + LOOKAHEAD_S) {
-        for (const e of barEvents(bar, tense)) play(mixer, e, barAt + e.beat * BEAT_S, spring);
+        for (const e of barEvents(bar, tense)) play(mixer, e, barAt + e.beat * BEAT_S, gate);
         bar += 1;
         barAt += 4 * BEAT_S;
       }

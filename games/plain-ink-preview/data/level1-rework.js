@@ -48,6 +48,9 @@ const SEAM_X = 12050, BA_X = 11400, BB_X1 = 12760;
 export const backdrops = [
   // part 1: a plain cream poster panel -- a cream coat goes dashed here (first look at H6, nothing at stake)
   { id: 'B1', x: 1950, y: -480, w: 520, h: 480, ink: 'cream' },
+  // part 2: the rehearsal lamp's cream wall (ruling 14a): a cream coat is hidden here before the beam's
+  // edge, so flipping to match the light never shows the hero to RL even for a tick
+  { id: 'B2', x: 3560, y: -720, w: 1080, h: 720, ink: 'cream' },
   // part 2: ink / cream / ink, touching -- flip as you walk; the only feedback is H6
   { id: 'W1', x: 4700, y: -480, w: 400, h: 480, ink: 'ink' },
   { id: 'W2', x: 5100, y: -480, w: 400, h: 480, ink: 'cream' },
@@ -69,6 +72,10 @@ export const decorations = [
 export const goBehinds = [
   // an "N": walking behind it turns the hero dashed with a paper sound, whatever the coat
   { id: 'G1', label: 'N', x: 3000, y: -360, w: 240, h: 360, ink: 'ink' },
+  // part 4, ruling 14a: an "A" on the ink | cream seam under the slow lamp, in front of the LA-LB gap. Behind it
+  // both coats are hidden, so the mid-air flip happens with w = 0. Its top stays under SLOW's bulb (y -700) and
+  // above a full jump's apex from LA (feet -540: H5 needs 6 of the 9 rows covered).
+  { id: 'GS', label: 'A', x: SEAM_X - 200, y: -665, w: 400, h: 665, ink: 'ink' },
   // part 4: a "P" the second guard walks behind
   { id: 'G2', label: 'P', x: 13560, y: -420, w: 340, h: 420, ink: 'cream' },
   // the flashing room (ruling 11): R1 -> R2 -> the I of INK, about 700 u apart
@@ -81,27 +88,31 @@ export const goBehinds = [
 // Lamps (spec-rework §1.4, CTO ruling 3: every bulb at y >= -700). parts: the angle schedule
 // [[beats, fromDeg, toDeg], ...] on the float sim beat; a lamp that swings gets a dashed zone (ruling 10).
 const SLOW = { half: 17, throw: 900, rest: 23 };
+// Slice-3 phase tuning (spec-rework §3 "Phase tuning", THE-1654): whole-beat shifts of each cycle so the human-like
+// bot's clean run (tools/plain-ink-human-bot.mjs, seed 0) takes 62-68 s. Windows and waits are cyclic, so the
+// window check is unchanged by these.
+export const PHASE = { SL: 13, BL: 5, GU1: 3, SLOW: 6, GU2: 11, FR: 6 };
 export const lamps = [
   // RL, the rehearsal lamp: fixed straight down, can't catch (on w = 1 the scissors snap on empty air and w holds)
   makeLamp({ id: 'RL', bulb: { x: 4100, y: -700 }, halfAngleDeg: 23, throw: 800, canSnip: false, tag: 'REHEARSAL' }),
   // SL, the sweeping spotlight: rest down 4 beats, swing up the wall over 2, rest up (off the route) 8, back over 2
-  makeLamp({ id: 'SL', bulb: { x: 7400, y: -600 }, halfAngleDeg: 12, throw: 840, bracket: true, parts: [[4, 0, 0], [2, 0, 120], [8, 120, 120], [2, 120, 0]] }),
+  makeLamp({ id: 'SL', bulb: { x: 7400, y: -600 }, halfAngleDeg: 12, throw: 840, bracket: true, phaseBeats: PHASE.SL, parts: [[4, 0, 0], [2, 0, 120], [8, 120, 120], [2, 120, 0]] }),
   // BL, the blinking lamp over the gap: off beats 0-6 (on beat 5 the filament glows: the tell), on beats 6-8
-  makeLamp({ id: 'BL', bulb: { x: 8800, y: -700 }, halfAngleDeg: 15, throw: 760, parts: [[8, 0, 0]], litBeats: [6, 8], glowBeats: [5, 6] }),
+  makeLamp({ id: 'BL', bulb: { x: 8800, y: -700 }, halfAngleDeg: 15, throw: 760, parts: [[8, 0, 0]], litBeats: [6, 8], glowBeats: [5, 6], phaseBeats: PHASE.BL }),
   // SLOW, the pendulum over the seam: rest on LA 4, swing 4, rest on LB 4, swing back 4
-  makeLamp({ id: 'SLOW', bulb: { x: SEAM_X, y: -700 }, halfAngleDeg: SLOW.half, throw: SLOW.throw,
+  makeLamp({ id: 'SLOW', bulb: { x: SEAM_X, y: -700 }, halfAngleDeg: SLOW.half, throw: SLOW.throw, phaseBeats: PHASE.SLOW,
     parts: [[4, -SLOW.rest, -SLOW.rest], [4, -SLOW.rest, SLOW.rest], [4, SLOW.rest, SLOW.rest], [4, SLOW.rest, -SLOW.rest]] }),
 ];
 
 // walking guards (§4): patrol xMin <-> xMax, 8 beats a leg; at beat 0 at xMin walking right; 24-beat cycle
 export const guards = [
-  { id: 'GU1', xMin: 9940, xMax: 10660 },
-  { id: 'GU2', xMin: 13500, xMax: 14220 },
+  { id: 'GU1', xMin: 9940, xMax: 10660, phaseBeats: PHASE.GU1 },
+  { id: 'GU2', xMin: 13500, xMax: 14220, phaseBeats: PHASE.GU2 },
 ];
 
 // the flashing room (ruling 11): 12 beats, 6 dark (the 6th is the warning), 6 lit. Lit, only go-behinds hide.
 export const rooms = [
-  { id: 'FR', rect: { x: 14900, y: -2000, w: 2000, h: 2000 }, cycleBeats: 12, darkBeats: 6 },
+  { id: 'FR', rect: { x: 14900, y: -2000, w: 2000, h: 2000 }, cycleBeats: 12, darkBeats: 6, phaseBeats: PHASE.FR },
 ];
 
 export const checkpoints = [
@@ -113,6 +124,18 @@ export const checkpoints = [
   { id: 'cp4', part: 4, x: 11300, spawnX: 11300, spawnY: GROUND_Y, coat: 'ink' }, // before SLOW
   { id: 'cp4b', part: 4, x: 12800, spawnX: 12800, spawnY: GROUND_Y, coat: 'ink' }, // before GU2
   { id: 'cp4c', part: 4, x: 14800, spawnX: 14800, spawnY: GROUND_Y, coat: 'ink' }, // before the flashing room
+];
+
+// Ruling 14a: every place where the clean route changes coat between a dark (ink) and a lit (cream) area.
+// x = the seam; feet = the feet heights the route crosses it at. tools/plain-ink-windows.mjs measures the
+// in-between (hero centres where BOTH coats are unseen by every watcher at every beat) and fails it below
+// body width + one flip at top speed + 100 u.
+export const seams = [
+  { id: 'RL in (ink -> cream)', x: 3560, feet: [0] },
+  { id: 'RL out (cream -> ink)', x: 4700, feet: [0] },
+  { id: 'W1 | W2', x: 5100, feet: [0] },
+  { id: 'W2 | W3', x: 5500, feet: [0] },
+  { id: 'SLOW mid-air (ink -> cream)', x: SEAM_X, feet: [-240, -300, -360, -420, -480, -540, 0] },
 ];
 
 // THE-1637 in-world tags (FREEZE dropped: it contradicts H2). y = the tag's bottom edge.

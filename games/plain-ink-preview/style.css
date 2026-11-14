@@ -71,5 +71,20 @@ body[data-screen="ending"] .pi-strip { top: max(var(--space-4), env(safe-area-in
 
 /* demo captions: one line under the puppet card (canvas), the skip hint after 1 s */
 .demo { position: fixed; inset: 0; pointer-events: none; display: grid; align-content: end; justify-items: center; padding-bottom: 3vh; color: var(--pi-cream); }
+/* SEE THE ROUTE bar (ui/watch.js): hint tag on top, then the keys the bot presses + speed + exit */
+.pi-watch { position: fixed; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); translate: -50% 0; z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 8px; width: max-content; max-width: min(92vw, 900px); pointer-events: none; }
+.pi-watch[hidden] { display: none; }
+.pi-watch > * { pointer-events: auto; }
+.pi-watch__hint { font-size: max(16px, calc(var(--pi-hud-size) * .7)); text-align: center; }
+.pi-watch__hint .pi-tag__name { white-space: normal; }
+.pi-watch__row { display: flex; align-items: center; gap: 10px; }
+.pi-watch__keys { display: flex; gap: 6px; }
+.pi-watch__keys i { font: 400 18px/1 var(--font-display); font-style: normal; letter-spacing: .06em; padding: 7px 10px; background: var(--pi-ink); color: var(--pi-cream); opacity: .35; }
+.pi-watch__keys i.is-on { opacity: 1; background: var(--pi-tangerine); color: var(--pi-ink); }
+.pi-watch .pi-tag-btn { font-size: 18px; }
+/* with the touch clusters on screen the bar sits between them, hint only as wide as the gap */
+.has-touch .pi-watch { max-width: 44vw; }
+.has-touch .pi-watch__keys { display: none; } /* the real touch discs light up instead */
+body[data-watch] .pi-hud__goal .pi-pause { display: none; }
 .demo__caption { margin: 0; font: 400 clamp(22px, 7vh, 64px)/1 var(--font-display); letter-spacing: var(--track-display); }
 .demo__skip { margin: var(--space-1) 0 0; font: var(--weight-body) var(--text-sm)/1 var(--font-body); letter-spacing: var(--track-caption); color: var(--pi-cream-2); }

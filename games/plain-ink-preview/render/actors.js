@@ -22,7 +22,8 @@ const RIM_CSS_PX = 2, DASH_W_CSS_PX = 1.75, DASH_CELL_CSS_PX = 4.5;
 // ~10/8 u cells in the opposite ink of the coat (cream dashes on ink, ink on cream), no tie. dashOnly draws
 // just that outline (on top of a go-behind letter), in dashCol (the colour opposite the letter's fill).
 export const HERO_DASH_W_U = 4, HERO_DASH_CELL_U = 9;
-export function drawHero({ x, y, coat, hidden, facingLeft, runPhase, grounded, untuck = false, rework = false, dashOnly = false, dashCol = null }) {
+// alarmLit: standing in the lit flash room's lipstick wash, where a lipstick scarf would vanish (THE-1669): ink
+export function drawHero({ x, y, coat, hidden, facingLeft, runPhase, grounded, untuck = false, rework = false, dashOnly = false, dashCol = null, alarmLit = false }) {
   const pose = grounded && runPhase != null ? runPose(runPhase) : AGENT_POSE.stand;
   const col = coat === 'ink' ? C.ink : C.paper;
   const px = dpr();
@@ -33,7 +34,7 @@ export function drawHero({ x, y, coat, hidden, facingLeft, runPhase, grounded, u
   agentSide(x, y, HERO_SCALE, pose, {
     col,
     porkpie: true,
-    accent: C.red,
+    accent: alarmLit ? C.ink : C.red,
     tuck: hidden && !untuck,
     flip: facingLeft,
     sil: {

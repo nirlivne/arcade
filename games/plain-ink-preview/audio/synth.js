@@ -48,7 +48,7 @@ function env(param, t, peak, a, dur) {
 //         send: a node (e.g. a reverb input) that also gets the voice's output }
 export function tones(mixer, bus, freqs, opts) {
   const { ctx } = mixer;
-  const { t = ctx.currentTime, dur = 0.3, gain = 0.2, a = 0.01, types = ['sine'], detune = 0, filter, bend, send } = opts;
+  const { t = ctx.currentTime, dur = 0.3, gain = 0.2, a = 0.01, types = ['sine'], detune = 0, filter, bend, send, into } = opts;
   return mixer.voice(bus, (out, make) => {
     const amp = make(ctx.createGain());
     env(amp.gain, t, gain, a, dur);
@@ -79,13 +79,13 @@ export function tones(mixer, bus, freqs, opts) {
       });
     }
     return srcs;
-  });
+  }, into);
 }
 
 // Filtered noise burst (paper foley, bongo slap): opts { t, dur, gain, a, type, from, to, q }
 export function noise(mixer, bus, opts) {
   const { ctx } = mixer;
-  const { t = ctx.currentTime, dur = 0.1, gain = 0.3, a = 0.003, type = 'bandpass', from = 2000, to, q = 1 } = opts;
+  const { t = ctx.currentTime, dur = 0.1, gain = 0.3, a = 0.003, type = 'bandpass', from = 2000, to, q = 1, into } = opts;
   return mixer.voice(bus, (out, make) => {
     const src = make(ctx.createBufferSource());
     src.buffer = noiseBuffer(ctx);
@@ -100,5 +100,5 @@ export function noise(mixer, bus, opts) {
     src.start(t, (t * 7.31) % 0.5); // a different slice of the noise each time
     src.stop(t + dur + 0.02);
     return [src];
-  });
+  }, into);
 }

@@ -29,6 +29,12 @@
   --pi-decor-ink: #3b322b;         /* = ink-2: on ink the low-contrast shade has to be the lighter one */
   --pi-cone-line: #e0335a;         /* guard sight cone edges, 4 u (= lipstick); no fill */
   --pi-cone-hatch: #a3243f;        /* cone hatching, 3 u every 28 u at 45 deg (= lipstick-2) */
+  /* THE-1669 (board gate 2, ruling 14c): the flashing room's alarm light. Lit = exposed, so the wash is the
+     DANGER ink, never cream or ink (either coat must stand out on it). Amber was rejected: the rework ground
+     is tangerine end to end, so an amber room would read as more floor, not as an alarm. On the lit wash
+     draw the scarf and the door frames in ink (lipstick on lipstick vanishes). */
+  --pi-fr-lit: #e0335a;            /* FR lit wash, whole room rect (= lipstick) */
+  --pi-fr-warn: #a3243f;           /* FR warning beat: bulbs/LIGHTS! tint only, not a room wash (= lipstick-2) */
   --pi-warn-fill: #e0335a;         /* the "!" warning mark's fill */
   --pi-hidden-dash: 10 8;          /* hero dashed cut-line outline when hidden: dash gap (u), 4 u stroke */
 
@@ -124,3 +130,6 @@
 /* contrast: --pi-lipstick on --pi-ink >= 3 */
 /* contrast: --color-danger on --color-bg >= 3 */
 /* contrast: --pi-cream on --pi-lipstick-2 >= 4.5 */
+/* contrast: --pi-cream on --pi-fr-lit >= 3 */
+/* contrast: --pi-ink on --pi-fr-lit >= 3 */
+/* contrast: --pi-cream on --pi-fr-warn >= 4.5 */
