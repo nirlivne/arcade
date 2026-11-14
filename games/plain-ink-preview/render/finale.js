@@ -36,11 +36,23 @@ export function drawCircle() {
 
 // t: seconds since CP12 was reached (null = not yet; Infinity = already assembled). Letters fly in
 // from scattered spots and turn into place over 1.2 s; reduce motion fades them in instead.
-export function drawTitleLetters(t, reduceMotion) {
+// THE-1651: the rework's level 1 ends in the flashing room's I of INK (a 420 u go-behind). The title assembles
+// around that I instead: P L A I N _ [I] N K at the I's height on the floor, HIDE IN smaller above it.
+export function titleLettersFor(rect, groundY = 0) {
+  const h = rect.h, w = h * 0.38, pitch = h * 0.45;
+  const at = (text, x0, y, lh, lw, p) => [...text].map((ch, i) => ({ label: ch, x: x0 + i * p, y, w: lw, h: lh })).filter((r) => r.label !== ' ');
+  const row2 = [...at('PLAIN', rect.x - 6 * pitch + (pitch - w), groundY - h, h, w, pitch), ...at('NK', rect.x + rect.w + (pitch - w), groundY - h, h, w, pitch)];
+  const x0 = Math.min(...row2.map((r) => r.x)), x1 = Math.max(...row2.map((r) => r.x + r.w));
+  const th = h * 0.5, tw = h * 0.3, tp = h * 0.36;
+  const topW = 6 * tp + tw;
+  return [...at('HIDE IN', (x0 + x1) / 2 - topW / 2, groundY - h - 40 - th, th, tw, tp), ...row2];
+}
+
+export function drawTitleLetters(t, reduceMotion, letters = TITLE_LETTERS) {
   if (t == null) return;
   const k = Math.min(1, Math.max(0, t / ASSEMBLE_S));
   const e = 1 - (1 - k) ** 3;
-  TITLE_LETTERS.forEach((r, i) => {
+  letters.forEach((r, i) => {
     g.save();
     if (reduceMotion) {
       g.globalAlpha = e;

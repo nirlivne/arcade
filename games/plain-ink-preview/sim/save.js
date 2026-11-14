@@ -1,7 +1,7 @@
 // Save shape and sanitiser (design §6, spec §8 Standard v2 "Return loop"). Storage is injected
 // (localStorage normally) so this stays node-testable and never throws on a blocked store.
 
-export const KEY = 'plain-ink-preview:v1'; // preview slot only: never shares the live game's save
+export const KEY = 'plain-ink-preview:v1';
 
 export function defaults() {
   return {

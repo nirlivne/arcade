@@ -37,6 +37,8 @@ export const theme = {
     // first-10-s in-world tags (spec §5, THE-1637) and the key each one shows on a keyboard (none on touch)
     tags: { run: 'RUN', jump: 'JUMP', flip: 'FLIP TO MATCH' }, // FREEZE dropped: hiding is instant (rework H2)
     tagKeys: { run: '→', jump: 'SPACE', flip: 'X' },
+    // THE-1651 (ruling 11): the flashing room's rule on its door (<= 6 words) and its warning-beat tag
+    room: { rule: 'LIGHTS ON: ONLY LETTERS HIDE YOU', warn: 'LIGHTS!' },
   },
   // the onboarding demo's cards (spec §8 script, English UI <= 4 words per caption)
   captions: {

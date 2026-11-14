@@ -5,6 +5,7 @@ import { g, C, piece, rectP, roughC } from '../engine/paper.js';
 import { hasGlyph, drawLetterPiece } from './glyphs.js';
 
 let T = null;
+export { tok };
 function tok() {
   if (T) return T;
   const css = getComputedStyle(document.documentElement);

@@ -63,8 +63,8 @@ export function beamPolygon({ bulb, angleDeg, halfAngleDeg, throw: len }, floorY
   return clipBelow([{ x: bulb.x, y: bulb.y }, at(angleDeg - halfAngleDeg), at(angleDeg + halfAngleDeg)], floorY);
 }
 
-// Sutherland-Hodgman against the half-plane y <= floorY
-function clipBelow(poly, floorY) {
+// Sutherland-Hodgman against the half-plane y <= floorY (works for any simple polygon: a half-plane is convex)
+export function clipBelow(poly, floorY) {
   const out = [];
   for (let i = 0; i < poly.length; i++) {
     const a = poly[i], b = poly[(i + 1) % poly.length];
@@ -79,9 +79,11 @@ function clipBelow(poly, floorY) {
 }
 
 // ---- seeing (§1.2) ----
-// CTO ruling 2: the board's A/B answer lands before slice 2. 'A' = a lamp senses with its lit beam only.
-// 'B' = it also watches its dashed swing zone (lamp.zone, a polygon) while the hero is visible.
-export const LAMP_SENSE = 'A';
+// CTO ruling 2 / ruling 10 (board gate 1, THE-1650): option B. 'A' = a lamp senses with its lit beam only.
+// 'B' = it also watches its dashed swing zone (lamp.zone, a polygon) while the hero is visible. A lamp that
+// doesn't swing has no zone (zone = its beam), so an unlit blinking lamp still sees nothing. One switch: the
+// board may flip it back to 'A' after gate 2.
+export const LAMP_SENSE = 'B';
 
 // lamp: { poly, lit, onScreen, zone? }; hero: { points, hidden }
 export function lampSees(lamp, hero, mode = LAMP_SENSE) {
@@ -90,6 +92,20 @@ export function lampSees(lamp, hero, mode = LAMP_SENSE) {
   if (lamp.lit && lamp.poly) areas.push(lamp.poly);
   if (mode === 'B' && lamp.zone) areas.push(lamp.zone);
   return areas.some((poly) => hero.points.some((p) => pointInPoly(p, poly))); // S1
+}
+
+// S1 for a walking guard: any point inside his clipped cone (hazards.conePolygon has line of sight built in:
+// each ray stops at the first stand-on or wall) while the hero is visible and his eye is on screen (S3, S4).
+export function guardSees(guard, hero) {
+  if (hero.hidden || !guard.onScreen) return false;
+  return hero.points.some((p) => pointInPoly(p, guard.cone));
+}
+
+// Ruling 11, the flashing room: while lit it sees the hero's centre anywhere in its rect unless a go-behind
+// hides them (coats don't count in there). No cone, no line of sight. Dark, it sees nothing.
+export function roomSees(room, centre, behindGoBehind) {
+  if (!room.lit || !room.onScreen || behindGoBehind) return false;
+  return inRect(centre, room.rect);
 }
 
 // S2, the board's no-farm meter (CTO ruling 8, spec-rework rev 310859ef): fills in 0.70 s while seen; unseen,

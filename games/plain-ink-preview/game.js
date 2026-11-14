@@ -27,7 +27,9 @@ import { drawTitleScreen } from './render/title.js';
 import { drawDemo } from './render/demo.js';
 import { DEMO_CARDS, demoCard, demoDone, canSkipDemo } from './ui/demo.js';
 import { TAGS, newTags, stepTags, visibleTag } from './ui/tags.js';
-import { drawScissors } from './render/finale.js';
+import { drawScissors, drawTitleLetters, titleLettersFor } from './render/finale.js';
+import { drawZoneLine, drawBracket, drawCone, drawGuard, drawRoomBack, drawRoomFront, drawRoomEye, drawCutTag } from './render/hazards.js';
+import { beatAt } from './sim/rules.js';
 
 const RESPAWN_TICKS = Math.round(RESPAWN_S / DT);
 
@@ -61,8 +63,13 @@ const LEVEL = {
   backdrops: level1.backdrops,
   goBehinds: level1.goBehinds,
   lamps: level1.lamps,
+  guards: level1.guards,
+  rooms: level1.rooms,
   checkpoints: level1.checkpoints,
 };
+const END_PIECE = level1.goBehinds.find((gb) => gb.end);
+const TITLE_AROUND_I = titleLettersFor(END_PIECE, level1.GROUND_Y); // the finale title assembles around the I of INK
+const TITLE_CX = (Math.min(...TITLE_AROUND_I.map((r) => r.x)) + Math.max(...TITLE_AROUND_I.map((r) => r.x + r.w))) / 2;
 let lastLayout = null; // __ink.layout()
 // S4: the camera's visible world rect, fed to the sim every tick (world u around the hero's x / the floor line)
 function simView() {
@@ -270,6 +277,7 @@ function doRespawnOrStep(intent) {
     // the last hide (spec §2.2 last row): the sim already stopped the clock on this tick; the
     // ending owns its chord (played after the sweep, THE-1565 Q6), so no stab here
     if (e.type === 'ended') { enterEnding(); continue; }
+    if (e.type === 'respawn') musicResync = true;
     audioEvent(e);
     if (e.type === 'rehearsalSnap') { snapAt = runState.tick; tagPulseTicks = Math.round(1.2 / DT); }
     // saves on a checkpoint (so a reload continues there, spec §8)
@@ -309,6 +317,8 @@ function render() {
   const dpr = canvas.width / canvas.clientWidth;
   const cam = makeCamera();
   followHero(cam, runState.body.x); // the sim's S4 view rect assumes this straight follow
+  // the ending (no sim, no S4): the camera eases over to frame the title assembling around the I
+  if (screen === 'ending' || (screen === 'results' && runState.ended)) { const k = screen === 'results' ? 1 : Math.min(1, endingTick * DT / 0.8); cam.x += (TITLE_CX - cam.x) * (1 - (1 - k) ** 3); }
   const [a, b, c, d, e, f] = worldTransform(cam, canvas.clientWidth, canvas.clientHeight, screen === 'play' ? floorCapY() : Infinity);
   lastLayout = { floorY: f + level1.GROUND_Y * d, scale: a, camX: cam.x, viewW: canvas.clientWidth, viewH: canvas.clientHeight };
   renderTags(a, e, f);
@@ -324,16 +334,30 @@ function render() {
   // stand-ons (+ tape) -> guards -> hero -> go-behinds (+ cut-here) -> the hero's outline behind one -> warning
   drawDecorations(level1.decorations.filter(near), LEVEL.ground === 'tangerine' ? 'tangerine' : LEVEL.ground);
   drawBackdrops(level1.backdrops.filter(near));
+  for (const r of runState.rooms) if (near(r.rect)) drawRoomBack(r, level1.GROUND_Y); // ruling 11: the lit room's cream wash
   // the floor band first, so a beam's landing (the band's top 24 u in cream) paints over its tape
   drawFloorStandOn(cam.x - halfView - 400, cam.x + halfView + 400, level1.GROUND_Y);
   for (const l of runState.lamps) drawLampPatch(l.poly, level1.GROUND_Y);
+  for (const l of runState.lamps) drawZoneLine(l.zone, level1.GROUND_Y); // ruling 10: what a swinging lamp watches
   drawStandOnShadows(pieces);
   drawStandOns(pieces);
   drawStandOns(walls);
   for (const cp of LEVEL.checkpoints) drawCheckpointFlag({ triggerX: cp.x - 30, triggerW: 60, triggerY: level1.GROUND_Y - 1, triggerH: 1 }, isPastCheckpoint(cp.id));
+  for (const r of runState.rooms) {
+    if (!near(r.rect)) continue;
+    drawRoomFront(r, runState.tick, 0, level1.GROUND_Y);
+    drawRoomEye(r, Math.min(r.rect.x + r.rect.w - 300, Math.max(r.rect.x + 300, cam.x)), runState.eyeBy === r.id ? eyeStep(runState.warn) : 0);
+  }
   for (const l of runState.lamps) {
     const def = LEVEL.lamps.find((k) => k.id === l.id);
+    if (def.bracket) drawBracket(l.bulb);
     drawLampFixture(l, { lit: l.lit, glow: l.glow, eye: runState.eyeBy === l.id ? eyeStep(runState.warn) : 0, /* open while w > 0, hold included, like the "!" and the note */ tag: def.tag || null });
+  }
+
+  // guards: the cone (always drawn: it is what he sees), then the puppet; his eye opens with the meter
+  for (const gd of runState.guards) {
+    drawCone(gd);
+    drawGuard(gd, runState.eyeBy === gd.id ? eyeStep(runState.warn) : 0, level1.GROUND_Y);
   }
 
   stats.cutHere = runState.hidden === true; // F1 done-when: stats().cutHere <=> state().hidden
@@ -348,14 +372,32 @@ function render() {
   if (snapT >= 0 && snapT < 0.6) {
     g2d(() => { paper.g.translate(runState.body.x + 70, runState.body.y - 90); paper.g.scale(0.45, 0.45); drawScissors(0, Math.max(0, 1 - snapT / 0.3), 0); });
   }
+  // the flashing room's tags: its rule on the door, and "LIGHTS!" pulsing over the room on the warning beat
+  for (const r of runState.rooms) {
+    if (!near(r.rect)) continue;
+    drawCutTag(r.rect.x + 230, -500, theme.text.room.rule, { size: 34 });
+    if (r.warn && Math.floor(runState.tick / 10) % 2 === 0) drawCutTag(Math.min(r.rect.x + r.rect.w - 200, Math.max(r.rect.x + 200, cam.x)), -440, theme.text.room.warn, { size: 64, hot: true, rot: 0.03 });
+  }
+  if (screen === 'ending' || (screen === 'results' && runState.ended)) {
+    const t = endingTick * DT;
+    // a cream card fades in behind the title so the ink letters read over the room's letters and blocks
+    const xs = TITLE_AROUND_I.map((r) => r.x), ys = TITLE_AROUND_I.map((r) => r.y);
+    const x0 = Math.min(...xs) - 60, x1 = Math.max(...TITLE_AROUND_I.map((r) => r.x + r.w)) + 60, y0 = Math.min(...ys) - 60;
+    g2d(() => { paper.g.globalAlpha = Math.min(1, t / 0.4); paper.g.fillStyle = C.paper; paper.g.fillRect(x0, y0, x1 - x0, level1.GROUND_Y - y0); });
+    drawGoBehinds([END_PIECE]);
+    drawTitleLetters(t, saveData.settings.reduceMotion, TITLE_AROUND_I);
+  }
   if (!runState.snipping) drawWarnMark(runState.body.x, runState.body.y - BODY_H, runState.warn);
 
   // the snip beat: freeze (+ a glint on the lamp that saw) -> cut band -> screen wipe
   if (runState.snipping) {
     const elapsedS = (RESPAWN_TICKS - runState.respawnTicksLeft) * DT;
     const phase = snipPhase(elapsedS);
-    const spotter = runState.lamps.find((l) => l.id === runState.seenBy);
-    if (phase === 'freeze' && spotter) drawGlint(spotter.bulb.x, spotter.bulb.y);
+    const lampBy = runState.lamps.find((l) => l.id === runState.seenBy);
+    const guardBy = runState.guards.find((gd) => gd.id === runState.seenBy);
+    const roomBy = runState.rooms.find((r) => r.id === runState.seenBy);
+    const glintAt = lampBy ? lampBy.bulb : guardBy ? guardBy.eye : roomBy ? { x: runState.body.x, y: -630 } : null;
+    if (phase === 'freeze' && glintAt) drawGlint(glintAt.x, glintAt.y);
     // reduce motion (spec §8): a static band, and the wipe is a cut (drawn whole) instead of a slide
     const still = saveData.settings.reduceMotion;
     if (phase === 'cut') drawCutBand(runState.body.x, runState.body.y, still ? 0 : (elapsedS - SNIP_FREEZE_S) / (SNIP_STOP_S - SNIP_FREEZE_S));
@@ -370,6 +412,7 @@ function isPastCheckpoint(id) {
   return order.indexOf(id) <= order.indexOf(runState.cp);
 }
 
+let musicResync = true; // the next frame re-anchors the music on the sim beat (play, resume, respawn)
 let accumulator = 0;
 let lastT = performance.now();
 function frame(t) {
@@ -390,6 +433,8 @@ function frame(t) {
     const anyOn = buses.some((bus) => saveData.settings[bus]);
     for (const bus of buses) setSetting(bus, !anyOn);
   }
+  // ruling 4: the music follows the sim beat -- forced on play / resume / respawn, else when > 30 ms off
+  if (screen === 'play' && !paused && audio && audio.music.sync(beatAt(runState.tick), musicResync)) musicResync = false;
   audio?.music.update();
   const roughBefore = paper.roughCount;
   render();
@@ -411,6 +456,7 @@ pauseScreenEl.addEventListener('cancel', (e) => e.preventDefault());
 // (spec: the visibilitychange freeze). Pausing always drops the accumulator and resyncs lastT.
 function setPaused(p) {
   paused = p;
+  if (!p) musicResync = true;
   accumulator = 0;
   lastT = performance.now();
   showPauseSheet(p);
@@ -427,6 +473,7 @@ function startRun(spawn, overrides) {
     audio.mixer.resume().then(() => { audio.sfx.onEvent({ type: 'title' }); audio.music.start(); });
   }
   runState = newRunState(spawn, LEVEL, overrides);
+  musicResync = true;
   tags = newTags(saveData.taught);
   snapAt = -Infinity;
   // a new run arms the lines; Continue resumes the saved run (THE-1563 Q1/Q2). Level 1 only saves at part
@@ -671,7 +718,11 @@ window.__ink = {
       // THE-1648 rework rules: matched + covered points of 45 (H1), the S2 meter, who sees, the lamps' state
       count: runState.count, cover: runState.count / 45,
       warn: runState.warn, warnUnseen: runState.warnUnseen, eyeBy: runState.eyeBy, held: runState.held, seenBy: runState.seenBy, tick: runState.tick,
-      lamps: runState.lamps.map((l) => ({ id: l.id, bulb: { ...l.bulb }, angleDeg: l.angleDeg, lit: l.lit, poly: l.poly ? l.poly.map((p) => ({ ...p })) : null })),
+      lamps: runState.lamps.map((l) => ({ id: l.id, bulb: { ...l.bulb }, angleDeg: l.angleDeg, lit: l.lit, glow: l.glow, poly: l.poly ? l.poly.map((p) => ({ ...p })) : null, zone: l.zone ? l.zone.map((p) => ({ ...p })) : null })),
+      // THE-1651: the walking guards (where, which way, phase, the clipped cone) and the flashing room
+      guards: runState.guards.map((gd) => ({ id: gd.id, x: gd.x, dir: gd.dir, phase: gd.phase, frame: gd.frame, eye: { ...gd.eye }, cone: gd.cone.map((p) => ({ ...p })) })),
+      rooms: runState.rooms.map((r) => ({ id: r.id, lit: r.lit, warn: r.warn, rect: { ...r.rect } })),
+      beat: beatAt(runState.tick),
       snipping: runState.snipping,
       longGrace: !!runState.longGrace, graceUsed: !!runState.graceUsed, // spec §8 Longer grace
       view: { ...runState.view },
@@ -695,9 +746,10 @@ window.__ink = {
   save: () => saveData,
   setIntent(i) { manualIntent = { ...manualIntent, ...i }; },
   step(n = 1) { for (let i = 0; i < n; i++) tick(); },
-  loadCheckpoint(id) {
+  // tick: the beat clock to start from (the hazards' phase), default 0
+  loadCheckpoint(id, tick) {
     const cpDef = LEVEL.checkpoints.find((c) => c.id === id);
-    if (cpDef) runState = newRunState(cpDef, LEVEL);
+    if (cpDef) runState = newRunState(cpDef, LEVEL, tick !== undefined ? { tick } : {});
   },
   startPlay() { startRun(LEVEL.checkpoints[0]); },
   continueRun() { document.getElementById('continueBtn')?.click(); },

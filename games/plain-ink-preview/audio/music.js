@@ -42,6 +42,7 @@ export function barEvents(bar, tense) {
 
 const BEAT_S = 60 / BPM;
 const LOOKAHEAD_S = 0.3;
+const SYNC_TOL_S = 0.03; // ruling 4: re-sync when the music drifts more than 30 ms from the sim beat
 
 // one note of the score, at absolute time t (s). spring: the guitar's reverb send (THE-1568 D2 4)
 function play(mixer, e, t, spring) {
@@ -79,6 +80,21 @@ export function createMusic(mixer) {
     stop() { on = false; },
     playing: () => on,
     setTense(t) { tense = t; },
+    // CTO ruling 4: the music follows the sim's beat clock (never the other way round). beat = the sim's float
+    // beat now. Re-anchors the bar clock on the next whole bar when forced (play, resume, respawn) or when the
+    // music has drifted more than 30 ms from the sim.
+    sync(beat, force = false) {
+      if (!on || ctx.state !== 'running') return false;
+      const now = ctx.currentTime;
+      const musicBeat = bar * 4 - (barAt - now) / BEAT_S;
+      if (!force && Math.abs(musicBeat - beat) * BEAT_S <= SYNC_TOL_S) return false;
+      const next = Math.floor(beat / 4) + 1;
+      bar = next;
+      barAt = now + (next * 4 - beat) * BEAT_S;
+      return true;
+    },
+    // the beat the music is on now (tests: |music - sim| <= 30 ms)
+    beatNow: () => bar * 4 - (barAt - ctx.currentTime) / BEAT_S,
     // call once a frame: schedules every bar that starts within the look-ahead window
     update() {
       if (!on || ctx.state !== 'running') return;
