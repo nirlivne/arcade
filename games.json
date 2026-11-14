@@ -68,5 +68,12 @@
     "date": "2026-11-13",
     "status": "released",
     "description": "A bear gallops a winding 3D trail through forest, lagoon and desert: switch lanes, jump logs, duck under branches and grab coins while a bee swarm waits for your second slip. How far can you run?"
+  },
+  {
+    "slug": "plain-ink",
+    "title": "Hide in Plain Ink",
+    "date": "2026-11-14",
+    "status": "released",
+    "description": "A spy hides in a 60s cut-paper title sequence: flip your reversible coat to match the ink behind you, freeze, and let the Watchers look straight through you. Run the opening titles, crack the editor's riddles and beat your best time."
   }
 ]

@@ -1,0 +1,791 @@
+import * as paper from './engine/paper.js';
+import { C } from './engine/paper.js';
+import { DT } from './sim/physics.js';
+import { newRunState, step as runStep, RESPAWN_S, SNIP_FREEZE_S, SNIP_STOP_S, snipPhase, REVEAL_S } from './sim/run.js';
+import * as level1 from './data/level1.js';
+import { theme } from './theme.js';
+import { load, write } from './sim/save.js';
+import { createInput } from './input.js';
+import { drawBackground, drawFloor, drawPlatforms, drawHideShapes, drawFrontLayer, drawCheckpointFlag, drawWedge, drawOddPieces, drawR2, drawR1 } from './render/world.js';
+import { drawHero, drawWatcher, WATCHER_SCALE } from './render/actors.js';
+import { drawQueueExtras } from './render/queue.js';
+import { makeCamera, followHero, worldTransform } from './render/camera.js';
+import { drawGlint, drawCutBand, drawWipe } from './render/snipGag.js';
+import { scissorsX } from './sim/scissors.js';
+import { createMixer } from './audio/mixer.js';
+import { createMusic } from './audio/music.js';
+import { createSfx } from './audio/sfx.js';
+import { preloadVoice, createVoice, voiceLoaded } from './audio/voice.js';
+import { LINES, triggers, newNarration, narrate, tickNarration, continueSpent } from './ui/narration.js';
+import { createStrip } from './ui/strip.js';
+import { formatTime, applyResult } from './ui/results.js';
+import { endingCues, endingDone, canSkip, ENDING_TICKS, ENDING_SWEEP_START, ENDING_SWEEP_END, leanT, sweepT, scarfUntuck, editorLeanPose } from './ui/ending.js';
+import { drawTitleScreen } from './render/title.js';
+import { drawDemo } from './render/demo.js';
+import { DEMO_CARDS, demoCard, demoDone, canSkipDemo } from './ui/demo.js';
+import { TAGS, newTags, stepTags, visibleTag } from './ui/tags.js';
+import { CIRCLE, TITLE_LETTERS, drawCircle, drawTitleLetters, drawDesk, drawEditorAtDesk, drawScissors, drawEditorLean } from './render/finale.js';
+
+const RESPAWN_TICKS = Math.round(RESPAWN_S / DT);
+
+const QS = new URLSearchParams(location.search);
+const QA_STEP = QS.get('qa') === 'step';
+const QA_FLAT = QS.get('qa') === 'flat';
+
+// ---- theme.js slots (spec §8): colours, title, names, images ----
+// colour overrides replace the --pi-* tokens; then the canvas palette reads the tokens back, so the DOM
+// skin and the paper world share one palette (DESIGN §2, S9 Q2)
+const TOKEN_OF = { ink: '--pi-ink', paper: '--pi-cream', red: '--pi-lipstick', mus: '--pi-tangerine', inkL: '--pi-ink-2', paperD: '--pi-cream-2', redD: '--pi-lipstick-2', musD: '--pi-tangerine-2' };
+for (const [name, value] of Object.entries(theme.colors || {})) document.documentElement.style.setProperty(`--pi-${name}`, value);
+{
+  const css = getComputedStyle(document.documentElement);
+  for (const [key, token] of Object.entries(TOKEN_OF)) { const v = css.getPropertyValue(token).trim(); if (v) C[key] = v; }
+}
+document.title = theme.title;
+document.querySelector('h1.sr-only').textContent = theme.title;
+document.querySelector('link[rel="icon"]').href = theme.images.icon;
+document.querySelector('link[rel="apple-touch-icon"]').href = theme.images.icon;
+document.getElementById('aboutIcon').src = theme.images.icon;
+document.getElementById('aboutTitle').textContent = theme.title;
+document.getElementById('aboutCast').textContent = `${theme.names.hero} · ${theme.names.editor} · ${theme.names.watchers}`;
+
+const canvas = document.getElementById('c');
+paper.init(canvas);
+
+const LEVEL = {
+  checkpoints: level1.checkpoints,
+  rects: level1.platforms,
+  coverWorldAt: level1.coverWorldAt,
+  watchers: level1.watchers,
+  redSetAt: level1.redSetAt,
+  isInCrowdZone: level1.isInCrowdZone,
+  hideRectsAt: level1.hideRectsAt,
+  frontLayerAt: level1.frontLayerAt,
+  inISlotAt: level1.inISlotAt,
+  iSlotHideRectsAt: level1.iSlotHideRectsAt,
+  seekPieces: level1.SEEK_PIECES,
+  negative: level1.NEGATIVE,
+};
+const CP12_INDEX = LEVEL.checkpoints.findIndex((cp) => cp.id === 'cp12');
+let lastLayout = null; // __ink.layout()
+// spec §6 layout row (fix 10, CEO note 4): with the touch buttons on screen, the ground line sits >= 8 css px
+// above their tops, so feet and letter bottoms never run under a thumb. Measured from the DOM (the skin
+// owns the buttons' size and safe-area padding), cached until the viewport or the button layout changes.
+const FLOOR_MARGIN_PX = 8;
+let floorCap = { key: '', y: Infinity };
+function floorCapY() {
+  const touchEl = document.getElementById('touch');
+  if (touchEl.hidden) return Infinity;
+  const key = `${innerWidth}x${innerHeight}|${touchEl.className}`;
+  if (floorCap.key !== key) {
+    const tops = [...touchEl.querySelectorAll('.pi-tbtn')].map((b) => b.getBoundingClientRect()).filter((r) => r.height > 0).map((r) => r.top);
+    const canvasTop = canvas.getBoundingClientRect().top;
+    // buttons below the world band (tablet portrait) don't constrain it
+    const y = tops.length ? Math.min(...tops) - canvasTop - FLOOR_MARGIN_PX : Infinity;
+    floorCap = { key, y: y < canvas.clientHeight ? y : Infinity };
+  }
+  return floorCap.y;
+}
+
+const storage = (() => { try { return window.localStorage; } catch { return { getItem: () => null, setItem: () => {} }; } })();
+let saveData = load(storage, { osReduceMotion: matchMedia('(prefers-reduced-motion: reduce)').matches });
+
+let screen = 'title'; // title | demo | play | ending | results (design §4)
+let demoTick = 0, demoReturn = 'play'; // the demo = How to play: where it goes when it ends (play | title | pause)
+let endingTick = 0; // UI ticks since the last-hide tick (the sim has stopped: state.ended)
+let lastResult = null; // { clockMs, snips, newBestTime, newBestSnips } for the results strip
+let titleAt = null; // sim tick CP12 was reached this attempt (the title's fly-in); null = Continue at CP12
+let runState = newRunState(LEVEL.checkpoints[0], LEVEL);
+let facingLeft = false;
+let runPhase = 0;
+
+// ---- first-10-s in-world tags (spec §5 "First 10 s", THE-1637): RUN / JUMP / FLIP + FREEZE ----
+// DOM tags pinned to world x through the camera; the first hide ends the lesson for good (save.taught)
+let tags = newTags(saveData.taught);
+const TAG_Y = -level1.LETTER_H - 60; // world y of the tags' bottom edge: just above the letter tops
+const TAG_TOP_MIN_PX = 64; // keep clear of the HUD tags on short screens
+const wtagEls = Object.fromEntries([...document.querySelectorAll('.pi-wtag')].map((el) => [el.dataset.tag, el]));
+for (const [id, el] of Object.entries(wtagEls)) {
+  el.querySelector('.pi-tag__num').textContent = theme.text.tagKeys[id];
+  el.querySelector('.pi-tag__name').textContent = theme.text.tags[id];
+}
+let shownTag = null;
+function tagsStep() {
+  const next = stepTags(tags, runState.body.x, runState.hidden === true);
+  if (next.taught && !saveData.taught) { saveData.taught = true; write(saveData, storage); }
+  tags = next;
+}
+// a = scale, e/f = the world -> css px offsets of worldTransform
+function renderTags(a, e, f) {
+  const id = screen === 'play' && !runState.script ? visibleTag(tags, runState.body.x) : null;
+  if (id !== shownTag) {
+    if (shownTag) wtagEls[shownTag].hidden = true;
+    if (id) wtagEls[id].hidden = false; // un-hiding replays the skin's slap-in on twos
+    shownTag = id;
+    flipBtnCue(id === 'flip');
+  }
+  if (!id) return;
+  const tag = TAGS.find((t) => t.id === id);
+  const r = canvas.getBoundingClientRect(); // the world band is not at 0,0 on tablet portrait
+  const x = r.left + a * tag.x + e, y = r.top + Math.max(TAG_TOP_MIN_PX, a * TAG_Y + f);
+  wtagEls[id].style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+}
+function flipBtnCue(on) { document.getElementById('flipBtn').classList.toggle('is-cue', on); }
+let paused = false;
+
+// ---- sound (THE-1561): the context starts on the first gesture (browsers block it before) ----
+let audio = null; // { mixer, music, sfx }
+const TENSE_TICKS = Math.round(4 / DT); // the bongos stay doubled 4 s after a spot / close call
+let tenseTicks = 0, hushTicks = 0;
+function ensureAudio() {
+  if (audio) return audio;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  const mixer = createMixer(new AC(), saveData.settings);
+  audio = { mixer, music: createMusic(mixer), sfx: createSfx(mixer), voice: createVoice(mixer) };
+  return audio;
+}
+
+// ---- Hebrew narration (S7 THE-1563, spec §3.5): once-per-run lines, strip held in sim ticks ----
+preloadVoice(LINES);
+const strip = createStrip(document.getElementById('strip'));
+// touch clusters (spec §5): shown only after a touch input (or on a coarse-pointer device from the start);
+// html.has-touch is the skin hook that lifts the strip above the right cluster
+const touchEl = document.getElementById('touch');
+function revealTouch() {
+  document.documentElement.classList.add('has-touch');
+  touchEl.removeAttribute('hidden');
+}
+if (matchMedia('(pointer: coarse)').matches) revealTouch();
+addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') revealTouch(); }, { capture: true });
+const VOICE_RETRY_TICKS = 36; // the context may still be resuming on the PLAY tick: retry 0.3 s
+let narration = newNarration();
+let voiceRetry = 0;
+function resetNarration(spent) {
+  narration = newNarration(spent);
+  voiceRetry = 0;
+  audio?.voice.stop();
+  strip.hide();
+}
+function narrationTick(prev, events) {
+  narration = narrate(narration, triggers(prev, runState, events));
+  const r = tickNarration(narration);
+  narration = r.n;
+  if (r.ended) { strip.hide(); voiceRetry = 0; }
+  if (r.started) {
+    strip.show(theme.lines[r.started], ['cream', 'mus', 'red'].includes(LEVEL.coverWorldAt(runState.body.x).groundInk));
+    voiceRetry = VOICE_RETRY_TICKS;
+  }
+  if (voiceRetry > 0) {
+    voiceRetry -= 1;
+    if (saveData.settings.voice && audio?.voice.play(narration.current)) voiceRetry = 0;
+  }
+}
+const STRIDE_U = 210; // half the run cycle (render runPhase: 420 u per cycle): one foot-fall
+let stepDist = 0;
+const DOOR_IDS = new Set(LEVEL.seekPieces.filter((p) => p.kind === 'door').map((p) => p.id));
+function audioEvent(e) {
+  if (!audio) return;
+  // a seek on an R2 door is a blind flip, not the clue tape (THE-1568 D2 5)
+  audio.sfx.onEvent(e.type === 'seek' && DOOR_IDS.has(e.id) ? { type: 'door' } : e);
+  if (e.type === 'spotted' || e.type === 'closeCall') { tenseTicks = TENSE_TICKS; audio.music.setTense(true); }
+  // spec: the snip's 0.5 s stop-time is silence + stab
+  if (e.type === 'snip') { hushTicks = Math.round(SNIP_STOP_S / DT); audio.mixer.hushMusic(true); }
+}
+function audioTick() {
+  if (!audio) return;
+  if (tenseTicks > 0 && --tenseTicks === 0) audio.music.setTense(false);
+  if (hushTicks > 0 && --hushTicks === 0) audio.mixer.hushMusic(false);
+}
+// ---- settings sheet (spec §6/§8 comforts): one checkbox per save setting ----
+const settingInputs = [...document.querySelectorAll('[data-setting]')];
+for (const el of document.querySelectorAll('[data-setting-label]')) el.textContent = theme.text.settingLabels[el.dataset.settingLabel];
+for (const el of document.querySelectorAll('[data-setting-hint]')) el.textContent = theme.text.settingHints[el.dataset.settingHint];
+// what each setting changes outside the sim (longGrace rides on the sim state, see doRespawnOrStep)
+function applySettings() {
+  const s = saveData.settings;
+  for (const el of settingInputs) el.checked = !!s[el.dataset.setting];
+  document.documentElement.dataset.reduceMotion = String(s.reduceMotion); // skin hook: no slaps/slides
+  touchEl.classList.toggle('is-lefty', s.leftHanded);
+}
+function setSetting(key, on) {
+  saveData.settings[key] = on;
+  if (key === 'music' || key === 'sfx' || key === 'voice') audio?.mixer.setEnabled(key, on);
+  write(saveData, storage);
+  applySettings();
+}
+for (const el of settingInputs) el.addEventListener('change', () => setSetting(el.dataset.setting, el.checked));
+applySettings();
+const settingsEl = document.getElementById('settingsDialog');
+document.getElementById('settingsBtn').addEventListener('click', () => settingsEl.showModal());
+document.getElementById('pauseSettingsBtn').addEventListener('click', () => settingsEl.showModal());
+document.getElementById('settingsCloseBtn').addEventListener('click', () => settingsEl.close());
+
+const EVENTS = [];
+function pushEvents(list) { for (const e of list) { EVENTS.push(e); if (EVENTS.length > 200) EVENTS.shift(); } }
+
+const stats = { frameMs: 0, renderMs: 0, lastFrameAt: 0, cutHere: false };
+
+const root = {
+  moveZoneEl: document.getElementById('moveZone'),
+  jumpBtnEl: document.getElementById('jumpBtn'),
+  flipBtnEl: document.getElementById('flipBtn'),
+  pauseBtnEl: document.getElementById('pauseBtn'),
+};
+const input = createInput(root);
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function doRespawnOrStep(intent) {
+  const prevState = runState;
+  const prevBody = runState.body;
+  // spec §8 Longer grace: the setting rides on the sim state every tick, so a mid-run toggle counts at once
+  if (runState.longGrace !== saveData.settings.longGrace) runState = { ...runState, longGrace: saveData.settings.longGrace };
+  const r = runStep(runState, intent, LEVEL);
+  runState = r.state;
+  pushEvents(r.events);
+  audioTick();
+  narrationTick(prevState, r.events);
+  tagsStep();
+  if (runState.body.coat !== prevBody.coat) audioEvent({ type: 'flip' });
+  if (runState.body.grounded && !prevBody.grounded && !runState.snipping) audioEvent({ type: 'land' });
+  // THE-1568 D2 5 foley: jump "shh" on take-off, a pat as the hero goes hidden, a card tap every stride
+  if (prevBody.grounded && !runState.body.grounded && runState.body.vy < 0) audioEvent({ type: 'jump' });
+  if (runState.hidden && !prevState.hidden) audioEvent({ type: 'hidden' });
+  if (runState.body.grounded && !runState.snipping) {
+    stepDist += Math.abs(runState.body.x - prevBody.x);
+    if (stepDist >= STRIDE_U) { stepDist -= STRIDE_U; audioEvent({ type: 'step' }); }
+  } else stepDist = 0;
+  for (const e of r.events) {
+    // the last hide (spec §2.2 last row): the sim already stopped the clock on this tick; the
+    // ending owns its chord (played after the sweep, THE-1565 Q6), so no stab here
+    if (e.type === 'ended') { enterEnding(); continue; }
+    audioEvent(e);
+    // saves on a checkpoint, and when the Negative is taken (so it survives a reload, spec §8)
+    if (e.type === 'negative') updateGoalTag();
+    // R2 lobby entry (spec §3.4, THE-1559 Q8): the camera holds wide on the lobby for 0.8 s so the
+    // bulb and the sill dashes are on screen together. Render only: the sim never sees it.
+    if (e.type === 'checkpoint' && e.id === 'cp5') camHoldTicks = Math.round(0.8 / DT);
+    // beat 22: the title starts flying in on the CP12 tick (render only)
+    if (e.type === 'checkpoint' && e.id === 'cp12') titleAt = e.tick ?? runState.tick;
+    // ...and on a riddle solved, so a reload at CP10 keeps the R flipped (THE-1561)
+    if (e.type === 'checkpoint' || e.type === 'negative' || e.type === 'riddleSolved') {
+      saveData.run = { cp: runState.cp, clockMs: runState.clockMs, snips: runState.snips, coat: runState.body.coat, negative: runState.negative, framesThisRun: saveData.frames.slice(), resolved: runState.resolved.slice(), graceUsed: runState.graceUsed };
+      write(saveData, storage);
+    }
+  }
+  if (Math.abs(runState.body.vx) > 5) facingLeft = runState.body.vx < 0;
+  if (runState.body.grounded && Math.abs(runState.body.vx) > 5) runPhase = (runPhase + Math.abs(runState.body.vx) * DT / 420) % 1;
+  else runPhase = 0;
+}
+
+let manualIntent = { left: false, right: false, jumpHeld: false, jumpPressed: false, flipPressed: false };
+
+let camHoldTicks = 0;
+function tick() {
+  if (camHoldTicks > 0) camHoldTicks -= 1;
+  if (screen === 'ending') { endingStep(); return; }
+  if (screen === 'demo') { demoStep(); return; }
+  if (screen !== 'play' || paused) return;
+  const intent = QA_STEP ? manualIntent : input.sample();
+  doRespawnOrStep(intent);
+  if (!QA_STEP) { manualIntent.jumpPressed = false; manualIntent.flipPressed = false; }
+}
+
+function render() {
+  updateGoalTag();
+  updateHudSet();
+  if (document.body.dataset.screen !== screen) document.body.dataset.screen = screen; // CSS: touch UI only in play
+  if (screen === 'title') { // S8: the title is the set (brief 01-title); the DOM tickets sit over it
+    drawTitleScreen(canvas.width, canvas.height);
+    if (!QA_FLAT) paper.paperFinish();
+    return;
+  }
+  if (screen === 'demo') { drawDemo(canvas.width, canvas.height, demoTick); if (!QA_FLAT) paper.paperFinish(); return; }
+  const dpr = canvas.width / canvas.clientWidth;
+  const cam = makeCamera();
+  // the ending holds the whole cream circle + title in frame (spec §3.6)
+  // the reveal (input frozen, 5 s) frames the desk left of centre, clear of the strip's bottom-right spot
+  const camX = screen === 'ending' || screen === 'results' ? CIRCLE.x + 250
+    : runState.cp === 'cp11' && !runState.revealed ? runState.body.x + 500
+    : camHoldTicks > 0 ? level1.R2_LOBBY_VIEW_X : runState.body.x;
+  followHero(cam, camX);
+  const inEnding = screen === 'ending' || screen === 'results';
+  const endT = screen === 'results' ? ENDING_TICKS : endingTick;
+  const [a, b, c, d, e, f] = worldTransform(cam, canvas.clientWidth, canvas.clientHeight, screen === 'play' ? floorCapY() : Infinity);
+  lastLayout = { floorY: f + level1.GROUND_Y * d, scale: a, camX: cam.x, viewW: canvas.clientWidth, viewH: canvas.clientHeight };
+  renderTags(a, e, f);
+
+  const world = LEVEL.coverWorldAt(runState.body.x);
+  const groundInk = world.groundInk;
+  drawBackground(canvas.width, canvas.height, cam, groundInk);
+
+  paper.g.setTransform(a * dpr, b * dpr, c * dpr, d * dpr, e * dpr, f * dpr);
+  // THE-1557: was hardcoded to 10000, which is exactly where SET5_LETTERS starts -- the dark floor
+  // band stopped rendering right under set 5's letters (red letters on red background, no visible
+  // ground). 20000 clears set 5 and the still-to-be-built set 6 with real margin.
+  drawCircle(); // set 6's giant cream circle (S8), under the floor so the floor makes its horizon
+  drawFloor(-2000, 20000, level1.GROUND_Y);
+  // S9 perf: only the pieces near the camera (the level is ~15,000 u long; the view is at most ~2,400 u wide)
+  const halfView = canvas.clientWidth / 2 / a + 400;
+  const near = (p) => p.x + p.w > cam.x - halfView && p.x < cam.x + halfView;
+  drawPlatforms(level1.platforms.filter(near));
+  drawHideShapes(level1.hideOnlyShapes.filter(near));
+  // odd pieces: ink on cream ground, paper on the ink set 3 ground (so each one reads)
+  const darkGround = (p) => LEVEL.coverWorldAt(p.x).groundInk === 'ink';
+  const l3 = runState.watchers.find((w) => w.id === 'l3');
+  drawR2({
+    wall: level1.R2_WALL,
+    doors: level1.SEEK_PIECES.filter((p) => p.kind === 'door'),
+    bulb: { x: l3.rt.x, y: l3.rt.y, lit: l3.rt.lit },
+    wrongDoors: runState.wrongDoors || [],
+    resolved: runState.resolved || [],
+  });
+  drawR1({
+    letters: level1.SEEK_PIECES.filter((p) => p.kind === 'letter'),
+    door: level1.R1_DOOR,
+    negative: level1.NEGATIVE,
+    resolved: runState.resolved || [],
+    look: runState.look,
+    taken: !!runState.negative,
+    tSec: runState.tick / 120,
+  });
+  drawOddPieces(level1.SEEK_PIECES.filter((p) => p.kind === 'odd'), runState.resolved || [], (p) => (darkGround(p) ? C.paper : C.ink), (p) => (darkGround(p) ? C.ink : C.paper));
+  // the I-slot back-plate (spec beat 22, fix 4): ink on the cream circle (the ink coat hides there);
+  // it is the I of INK once the title assembles around it. The stage-end wall behind the Editor is
+  // paper, continuing the circle.
+  const slot = level1.I_SLOT_RECT;
+  drawHideShapes([{ ...slot, ink: 'ink' }]);
+  // THE-1566 carry-over 3 (S9 Q12): no end wall in the ending/results, so the whole cream circle sits on
+  // ink as in brief frame 08 (cream, it joined the circle; inked, it sliced the circle's right side off)
+  if (!inEnding) drawHideShapes([{ ...level1.STAGE_END_WALL, ink: 'cream' }]);
+  // beat 20: the Editor's desk; while the reveal plays the reels turn and he turns in its last second
+  const revealing = runState.cp === 'cp11' && !runState.revealed;
+  // the desk stands where the title's PLAIN will land, so it is gone once CP12 is reached
+  if (runState.cp === 'cp11') drawDesk(revealing ? runState.cpTick / 120 : 0);
+  if (runState.cp === 'cp11') drawEditorAtDesk(!revealing || runState.cpTick / 120 >= REVEAL_S - 1);
+  // beat 22: HIDE IN PLAIN INK flies in on reaching CP12 (1.2 s; a Continue at CP12 shows it built)
+  const titleT = runState.cp !== 'cp12' ? null : titleAt == null ? Infinity : (runState.tick - titleAt) / 120;
+  drawTitleLetters(titleT, saveData.settings.reduceMotion);
+  // §3.6: the scissors close on empty air in front of the title
+  // (THE-1566 carry-over 2: they used to close inside PLAIN's P. They hang on the cream circle at the
+  // HIDE IN row, the pivot a blade length (300 u) + a margin left of the H, which is the one spot where
+  // the whole pair fits in the 844x390 frame and still closes on empty air)
+  if (inEnding) {
+    const h = TITLE_LETTERS[0];
+    drawScissors(h.x - 300 - 40, Math.max(0, 1 - endT / 60), h.y + h.h / 2);
+  }
+  // no flags from CP12 on, and none in the ending/results (THE-1566 carry-over 1): CP12 sits inside the
+  // title, where its red flag read as a stray square between PLAIN and INK, and on the ink ground
+  // CP11's flag floats without its pole
+  if (!inEnding) for (const cp of LEVEL.checkpoints.slice(0, CP12_INDEX)) drawCheckpointFlag(cp, isPastCheckpoint(cp.id));
+  const wedgeRects = LEVEL.rectsAt ? LEVEL.rectsAt(runState.body.x) : LEVEL.rects;
+  const spotter = runState.snipping ? runState.watchers.find((w) => w.rt.spottedFired) : null;
+  for (const w of runState.watchers) {
+    // one Editor on screen: at his desk through CP11 (reveal + chase), leaning in during the ending
+    if (w.id === 'editor' && (inEnding || runState.cp === 'cp11')) continue;
+    if (w.rt.length > 0) drawWedge(w.rt, groundInk, wedgeRects, world.set); // L3's beam only while lit
+    if (w.id !== 'l3') drawWatcher(w.rt); // L3 is the code bulb (drawR2), not a figure
+  }
+  // §3.6: his sight runs along the title and passes over the I (reduce motion: it just rests on the I)
+  if (inEnding) {
+    const ed = runState.watchers.find((w) => w.id === 'editor').rt;
+    const p = editorLeanPose(ed.x, leanT(endT), WATCHER_SCALE);
+    const st = endT < ENDING_SWEEP_START ? null : saveData.settings.reduceMotion ? 1 : sweepT(endT);
+    if (st != null && endT < ENDING_SWEEP_END + 60) {
+      const fromX = TITLE_LETTERS[0].x, toX = slot.x + slot.w / 2;
+      const tx = fromX + (toX - fromX) * st, ty = slot.y + slot.h / 2;
+      const eyeX = p.x - 30;
+      drawWedge({ x: eyeX, y: p.eyeY, facingAngle: Math.atan2(ty - p.eyeY, tx - eyeX), halfAngleDeg: 5, length: Math.hypot(tx - eyeX, ty - p.eyeY) + 90 }, 'cream', [], 4);
+    }
+  }
+  // visible from CP8 on, not just once physically inside the zone (spec: "watch ~4s, cross ~10s"
+  // -- CP8 is the "behind the front-layer O" safe viewing spot the queue must already be marching
+  // in front of).
+  if (runState.cp === 'cp8') drawQueueExtras(runState.cpTick / 120);
+  // the scissors chase (spec beat 21): the blades snap open/shut as they cut along the line; the sim
+  // contact point (scissorsX) is the pivot
+  if (runState.cp === 'cp11' && runState.revealed) {
+    const cp11Def = LEVEL.checkpoints.find((c) => c.id === 'cp11');
+    const t = runState.chaseTick / 120;
+    drawScissors(scissorsX(cp11Def.spawnX, t), 0.5 + 0.5 * Math.sin(t * Math.PI * 5));
+  }
+
+  stats.cutHere = runState.hidden === true; // F1 done-when: stats().cutHere <=> state().hidden
+  // inside a door (R2 lift or closet) the hero is out of sight
+  if (!runState.script) drawHero({ x: runState.body.x, y: runState.body.y, coat: runState.body.coat, hidden: runState.hidden, facingLeft, runPhase, grounded: runState.body.grounded, untuck: inEnding && scarfUntuck(endT) });
+  drawFrontLayer(level1.SET5_LETTERS);
+  if (inEnding) drawEditorLean(runState.watchers.find((w) => w.id === 'editor').rt.x, leanT(endT)); // in front: he leans in
+
+  // the spotted beat: freeze (head snap already in sim + a lens glint) -> cut band -> screen wipe.
+  if (runState.snipping) {
+    const elapsedS = (RESPAWN_TICKS - runState.respawnTicksLeft) * DT;
+    const phase = snipPhase(elapsedS);
+    if (phase === 'freeze' && spotter) drawGlint(spotter.rt.x, spotter.rt.y);
+    // reduce motion (spec §8): a static band, and the wipe is a cut (drawn whole) instead of a slide
+    const still = saveData.settings.reduceMotion;
+    if (phase === 'cut') drawCutBand(runState.body.x, runState.body.y, still ? 0 : (elapsedS - SNIP_FREEZE_S) / (SNIP_STOP_S - SNIP_FREEZE_S));
+    if (phase === 'wipe') drawWipe(canvas.width, canvas.height, still ? 1 : (elapsedS - SNIP_STOP_S) / (RESPAWN_S - SNIP_STOP_S));
+  }
+
+  if (!QA_FLAT) paper.paperFinish();
+}
+
+function isPastCheckpoint(id) {
+  const order = LEVEL.checkpoints.map((c) => c.id);
+  return order.indexOf(id) <= order.indexOf(runState.cp);
+}
+
+let accumulator = 0;
+let lastT = performance.now();
+function frame(t) {
+  const frameStart = performance.now();
+  let dtMs = t - lastT; lastT = t;
+  if (dtMs > 250) dtMs = 250;
+  accumulator += dtMs;
+  if (!QA_STEP) {
+    while (accumulator >= DT * 1000) { tick(); accumulator -= DT * 1000; }
+  }
+  // the pause toggle (Escape/P key, or a tap on the touch pauseBtn, both collected by input.js)
+  // must drain every frame, not just while screen === 'play' && !paused -- otherwise it could
+  // never be seen while already paused, and Resume would have no way back in.
+  if (input.samplePause() && screen === 'play') setPaused(!paused);
+  // M (spec G10): one key mutes everything; pressed again, everything comes back on
+  if (input.sampleMute()) {
+    const buses = ['music', 'sfx', 'voice'];
+    const anyOn = buses.some((bus) => saveData.settings[bus]);
+    for (const bus of buses) setSetting(bus, !anyOn);
+  }
+  audio?.music.update();
+  const roughBefore = paper.roughCount;
+  render();
+  stats.roughPerFrame = paper.roughCount - roughBefore; // spec §8 gate: 0 for the static cut pieces
+  stats.frameMs = performance.now() - frameStart;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+const pauseScreenEl = document.getElementById('pauseScreen');
+// the pause sheet is a modal <dialog>: its own Esc "cancel" is swallowed, because Esc/P already
+// reach input.js and toggle the pause there (closing it twice would resume and re-pause)
+function showPauseSheet(show) {
+  if (show && !pauseScreenEl.open) pauseScreenEl.showModal();
+  if (!show && pauseScreenEl.open) { settingsEl.close(); pauseScreenEl.close(); }
+}
+pauseScreenEl.addEventListener('cancel', (e) => e.preventDefault());
+// a paused-while-backgrounded tab must not build up a tick backlog to burn through on resume
+// (spec: the visibilitychange freeze). Pausing always drops the accumulator and resyncs lastT.
+function setPaused(p) {
+  paused = p;
+  accumulator = 0;
+  lastT = performance.now();
+  showPauseSheet(p);
+  // spec §2: pause and tab-away suspend the audio (the whole context, so nothing scheduled plays);
+  // the voice is stopped for good, the strip finishes its remaining time on resume (THE-1563 Q6)
+  if (p) { voiceRetry = 0; audio?.voice.stop(); }
+  if (p) audio?.mixer.suspend(); else if (!document.hidden) audio?.mixer.resume();
+}
+
+function startRun(spawn, overrides) {
+  // the PLAY / CONTINUE press is the first gesture: start the sound there, with the title stab
+  if (ensureAudio()) {
+    audio.mixer.hushMusic(false); // the ending hushed it (Replay)
+    audio.mixer.resume().then(() => { audio.sfx.onEvent({ type: 'title' }); audio.music.start(); });
+  }
+  runState = newRunState(spawn, LEVEL, overrides);
+  tags = newTags(saveData.taught);
+  titleAt = null;
+  // a new run arms all 6 lines; Continue resumes the saved run (THE-1563 Q1/Q2)
+  resetNarration(overrides ? continueSpent(spawn.id, overrides.resolved || [], level1) : []);
+  screen = 'play';
+  document.getElementById('titleScreen')?.setAttribute('hidden', '');
+  resultsEl.setAttribute('hidden', '');
+  goalTagEl?.removeAttribute('hidden');
+  updateGoalTag();
+}
+
+// ---- the ending + results (S8 THE-1565; spec §3.6, §2.2 last row; design §4) ----
+// Entered from the sim's `ended` event only (no second end check). The bests are written here, on
+// the last-hide tick, so a reload during the ending still keeps them.
+const resultsEl = document.getElementById('resultsScreen');
+function enterEnding() {
+  screen = 'ending';
+  endingTick = 0;
+  goalTagEl?.setAttribute('hidden', '');
+  const r = applyResult(saveData, { clockMs: runState.clockMs, snips: runState.snips });
+  saveData = r.save;
+  write(saveData, storage);
+  lastResult = { clockMs: runState.clockMs, snips: runState.snips, newBestTime: r.newBestTime, newBestSnips: r.newBestSnips, graceUsed: runState.graceUsed };
+  endingCue(0);
+}
+function endingCue(t) {
+  for (const c of endingCues) {
+    if (c.tick !== t) continue;
+    // stop() halts scheduling; the hush also silences bars already queued in the look-ahead
+    if (c.type === 'musicStop') { audio?.music.stop(); audio?.mixer.hushMusic(true); }
+    if (c.type === 'chord') audio?.sfx.onEvent({ type: 'ended' });
+    if (c.type === 'bongo') audio?.sfx.onEvent({ type: 'bongo' });
+  }
+}
+function endingStep() {
+  endingTick += 1;
+  narrationTick(runState, []); // line 6's strip hold keeps counting while the sim is stopped
+  endingCue(endingTick);
+  if (endingDone(endingTick)) {
+    if (!saveData.seenEnding) { saveData.seenEnding = true; write(saveData, storage); }
+    showResults();
+  }
+}
+function skipEnding() {
+  if (screen === 'ending' && canSkip(saveData.seenEnding)) showResults();
+}
+// tap / any key skips after the first full view (spec §2.2); listeners check the screen first
+window.addEventListener('pointerdown', skipEnding);
+window.addEventListener('keydown', skipEnding);
+
+function showResults() {
+  screen = 'results';
+  strip.hide();
+  audio?.voice.stop();
+  const t = theme.text.results;
+  const best = saveData.best;
+  resultsEl.querySelector('[data-r="time"]').textContent = formatTime(lastResult.clockMs);
+  resultsEl.querySelector('[data-r="snips"]').textContent = String(lastResult.snips);
+  resultsEl.querySelector('[data-r="best"]').textContent = `${t.best} ${formatTime(best.timeMs)}`;
+  resultsEl.querySelector('[data-r="fewest"]').textContent = `${t.fewest} ${best.snips}`;
+  resultsEl.querySelector('[data-r="newBest"]').toggleAttribute('hidden', !(lastResult.newBestTime || lastResult.newBestSnips));
+  resultsEl.querySelector('[data-r="grace"]').toggleAttribute('hidden', !lastResult.graceUsed);
+  resultsEl.removeAttribute('hidden');
+}
+function toTitle() {
+  screen = 'title';
+  resultsEl.setAttribute('hidden', '');
+  showTitle();
+  document.getElementById('titleScreen')?.removeAttribute('hidden');
+}
+document.getElementById('replayBtn').addEventListener('click', () => startRun(LEVEL.checkpoints[0]));
+document.getElementById('toTitleBtn').addEventListener('click', toTitle);
+for (const el of resultsEl.querySelectorAll('[data-label]')) el.textContent = theme.text.results[el.dataset.label];
+
+// The HUD goal tag (spec §6 / beat 19): "FIND THE NEGATIVE" with the tangerine strip icon, ticked
+// once the Negative is taken. Text from theme.js.
+const goalTagEl = document.getElementById('goalTag');
+let goalTagDone = null;
+function updateGoalTag() {
+  const done = !!runState.negative;
+  if (!goalTagEl || done === goalTagDone) return;
+  goalTagDone = done;
+  goalTagEl.querySelector('.pi-goal__text').textContent = done ? theme.text.goalDone : theme.text.goal;
+  goalTagEl.classList.toggle('is-done', done); // skin.css hook
+}
+
+// HUD set tag + app ground (DESIGN §2: #app[data-ground] flips the tags to cream on ink) + FLIP disc
+// state (.is-cream when the coat is cream). Written only on change.
+const GROUND_OF_INK = { cream: 'cream', mus: 'tangerine', ink: 'ink', red: 'lipstick' };
+const setTagEl = document.getElementById('setTag');
+const flipBtnEl = document.getElementById('flipBtn');
+let hudSet = 0;
+function updateHudSet() {
+  if (screen !== 'play' || !runState) return;
+  const world = LEVEL.coverWorldAt(runState.body.x);
+  const ground = GROUND_OF_INK[world.groundInk] ?? 'cream';
+  if (document.body.dataset.ground !== ground) document.body.dataset.ground = ground;
+  flipBtnEl.classList.toggle('is-cream', runState.body.coat === 'cream');
+  if (world.set === hudSet) return;
+  hudSet = world.set;
+  setTagEl.querySelector('.pi-tag__num').textContent = `SET ${hudSet}/${level1.SET_COUNT}`;
+  setTagEl.querySelector('.pi-tag__name').textContent = theme.credits[hudSet - 1] ?? '';
+  setTagEl.classList.remove('is-new');
+  void setTagEl.offsetWidth; // restart the skin's set-entry slap
+  setTagEl.classList.add('is-new');
+}
+
+function showTitle() {
+  const run = saveData.run;
+  const continueBtnEl = document.getElementById('continueBtn');
+  const playBtnEl = document.getElementById('playBtn');
+  if (run) {
+    const cpDef = LEVEL.checkpoints.find((c) => c.id === run.cp);
+    continueBtnEl?.removeAttribute('hidden');
+    if (continueBtnEl) continueBtnEl.textContent = `CONTINUE (SET ${cpDef?.set ?? 1}/${level1.SET_COUNT})`;
+    if (playBtnEl) playBtnEl.textContent = 'NEW RUN';
+  } else {
+    continueBtnEl?.setAttribute('hidden', '');
+    if (playBtnEl) playBtnEl.textContent = 'PLAY';
+  }
+  // the return loop on the title (spec §8): best time + fewest snips, once there is a finish
+  const bestEl = document.getElementById('titleBest');
+  const best = saveData.best, t = theme.text.results;
+  bestEl.toggleAttribute('hidden', !best);
+  if (best) bestEl.textContent = `${t.best} ${formatTime(best.timeMs)} · ${t.fewest} ${best.snips}`;
+}
+showTitle();
+
+document.getElementById('playBtn')?.addEventListener('click', () => {
+  // New run abandons any saved progress -- otherwise quitting before the next checkpoint would
+  // still offer the stale CONTINUE (SET n/6) on the next load.
+  if (saveData.run) { saveData.run = null; write(saveData, storage); }
+  // first run: the onboarding demo plays first (spec §8). The context resumes on this gesture,
+  // since the run itself then starts from a tick, not a gesture.
+  if (!saveData.seenDemo) { if (ensureAudio()) audio.mixer.resume(); startDemo('play'); return; }
+  startRun(LEVEL.checkpoints[0]);
+});
+
+// ---- the demo = How to play (S8; spec §8 onboarding script, THE-1565 Q10) ----
+const demoEl = document.getElementById('demoScreen');
+const demoCaptionEl = document.getElementById('demoCaption');
+const demoSkipEl = document.getElementById('demoSkip');
+demoSkipEl.textContent = theme.captions.skip;
+let demoShownCard = -1;
+function startDemo(ret) {
+  demoReturn = ret;
+  demoTick = 0;
+  demoShownCard = -1;
+  screen = 'demo';
+  document.getElementById('titleScreen').setAttribute('hidden', '');
+  showPauseSheet(false);
+  demoEl.removeAttribute('hidden');
+  demoStep(0);
+}
+function demoStep(dt = 1) {
+  demoTick += dt;
+  if (demoDone(demoTick)) return endDemo();
+  const i = demoCard(demoTick);
+  if (i !== demoShownCard) { demoShownCard = i; demoCaptionEl.textContent = theme.captions.demo[DEMO_CARDS[i].id]; }
+  demoSkipEl.toggleAttribute('hidden', !canSkipDemo(demoTick));
+}
+function endDemo() {
+  demoEl.setAttribute('hidden', '');
+  if (!saveData.seenDemo) { saveData.seenDemo = true; write(saveData, storage); }
+  if (demoReturn === 'play') return startRun(LEVEL.checkpoints[0]);
+  if (demoReturn === 'pause') { screen = 'play'; showPauseSheet(true); return; }
+  screen = 'title';
+  document.getElementById('titleScreen').removeAttribute('hidden');
+}
+// tap / any key skips after 1 s; listeners check the screen first
+const skipDemo = () => { if (screen === 'demo' && canSkipDemo(demoTick)) endDemo(); };
+window.addEventListener('pointerdown', skipDemo);
+window.addEventListener('keydown', skipDemo);
+document.getElementById('howtoBtn').addEventListener('click', () => startDemo('title'));
+document.getElementById('pauseHowtoBtn').addEventListener('click', () => startDemo('pause'));
+
+// ---- PWA (spec §8): offline via sw.js (built by tools/sw-build.mjs) + our own install button ----
+// glyphs.js has a top-level await, so this module can finish after `load` has already fired: register
+// now if it has (a bare load listener then never ran, and the game never went offline-capable)
+// (not under ?qa=...: the test modes must always run the files on disk, never a cached copy)
+if ('serviceWorker' in navigator && location.protocol !== 'file:' && !new URLSearchParams(location.search).has('qa')) {
+  const registerSw = () => navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {});
+  if (document.readyState === 'complete') registerSw(); else addEventListener('load', registerSw);
+}
+const installBtnEl = document.getElementById('installBtn');
+let installPrompt = null;
+addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; installBtnEl.hidden = false; });
+addEventListener('appinstalled', () => { installPrompt = null; installBtnEl.hidden = true; });
+installBtnEl.addEventListener('click', async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => null);
+  installPrompt = null;
+  installBtnEl.hidden = true;
+});
+
+// ---- About (spec §6: credits + licences) ----
+const aboutEl = document.getElementById('aboutDialog');
+document.getElementById('aboutBtn').addEventListener('click', () => aboutEl.showModal());
+document.getElementById('aboutCloseBtn').addEventListener('click', () => aboutEl.close());
+for (const el of document.querySelectorAll('[data-t]')) el.textContent = theme.text[el.dataset.t]; // title + About labels
+document.getElementById('continueBtn')?.addEventListener('click', () => {
+  const run = saveData.run;
+  if (!run) return;
+  const cpDef = LEVEL.checkpoints.find((c) => c.id === run.cp);
+  if (cpDef) startRun(cpDef, { clockMs: run.clockMs, snips: run.snips, coat: run.coat, negative: run.negative, resolved: run.resolved, graceUsed: run.graceUsed, longGrace: saveData.settings.longGrace });
+});
+
+// no click listener on pauseBtn itself: input.js's pointerdown binding already feeds pauseEdge,
+// drained once per frame above -- a second click-driven toggle here would double-fire and cancel.
+document.getElementById('resumeBtn')?.addEventListener('click', () => setPaused(false));
+document.getElementById('restartFlagBtn')?.addEventListener('click', () => {
+  const cpDef = LEVEL.checkpoints.find((c) => c.id === runState.cp);
+  // graceUsed carries over (THE-1569): a FROM FLAG restart is the same run, so the results' grace tag must stay
+  if (cpDef) runState = newRunState(cpDef, LEVEL, { clockMs: runState.clockMs, snips: runState.snips, negative: runState.negative, resolved: runState.resolved, graceUsed: runState.graceUsed, longGrace: saveData.settings.longGrace });
+  setPaused(false);
+});
+document.getElementById('restartLevelBtn')?.addEventListener('click', () => {
+  runState = newRunState(LEVEL.checkpoints[0], LEVEL);
+  tags = newTags(saveData.taught);
+  resetNarration();
+  setPaused(false);
+});
+
+// turn your phone (spec §5, S9 Q5): the skin shows the card on this same query; play pauses behind it,
+// and turning back leaves the pause sheet up (no auto-resume mid-wedge)
+const PORTRAIT_PHONE = matchMedia('(orientation: portrait) and (max-width: 600px)');
+const pauseIfTurned = () => { if (PORTRAIT_PHONE.matches && screen === 'play' && !paused) setPaused(true); };
+PORTRAIT_PHONE.addEventListener('change', pauseIfTurned);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && screen === 'play') setPaused(true);
+  else if (document.hidden) audio?.mixer.suspend();
+  else if (!paused) audio?.mixer.resume();
+});
+
+window.__ink = {
+  state() {
+    return {
+      screen, paused, cp: runState.cp, clockMs: runState.clockMs, snips: runState.snips,
+      ended: !!runState.ended, endingTick, // S8: the last hide + the ending's own UI tick count
+      hero: { x: runState.body.x, y: runState.body.y, vx: runState.body.vx, vy: runState.body.vy, coat: runState.body.coat, grounded: runState.body.grounded },
+      hidden: runState.hidden === true,
+      cover: runState.cover,
+      snipping: runState.snipping,
+      resolved: (runState.resolved || []).slice(), // seek pieces already resolved (THE-1559)
+      script: runState.script ? { ...runState.script } : null, // R2 lift/closet in progress
+      wrongDoors: (runState.wrongDoors || []).slice(),
+      negative: !!runState.negative, // the Negative taken (spec beat 19)
+      longGrace: !!runState.longGrace, graceUsed: !!runState.graceUsed, // spec §8 Longer grace
+      look: runState.look ? { ...runState.look } : null, // R1: W8 turned by a wrong letter
+      l3Lit: !!runState.watchers.find((w) => w.id === 'l3')?.rt.lit,
+    };
+  },
+  events() { return EVENTS.slice(); },
+  stats() { return { ...stats }; },
+  palette: () => ({ ...C }), // the canvas inks after theme.js colour slots (swap check)
+  // the last play frame's world->screen mapping, css px (layout check, spec §6): floorY = the ground line
+  layout: () => ({ ...lastLayout }),
+  // every inked piece the world draws (letters, hide shapes, front layer), world units, for the layout check;
+  // the 1 u ground-hide markers that lie on the floor line (e.g. set4-ground-hide) are floor, not letters
+  layoutPieces: () => [...level1.platforms, ...level1.hideOnlyShapes, ...level1.SET5_LETTERS]
+    .filter((p) => p.ink && p.h > 2).map((p) => ({ x: p.x, y: p.y - level1.GROUND_Y, w: p.w, h: p.h })),
+  level: LEVEL,
+  save: () => saveData,
+  setIntent(i) { manualIntent = { ...manualIntent, ...i }; },
+  step(n = 1) { for (let i = 0; i < n; i++) tick(); },
+  loadCheckpoint(id) {
+    const cpDef = LEVEL.checkpoints.find((c) => c.id === id);
+    if (cpDef) runState = newRunState(cpDef, LEVEL);
+  },
+  startPlay() { startRun(LEVEL.checkpoints[0]); },
+  continueRun() { document.getElementById('continueBtn')?.click(); },
+  setPaused,
+  input,
+  // THE-1561: sound state for the lifecycle check, and the voice duck hook (music -7 dB)
+  audio() {
+    if (!audio) return null;
+    return { state: audio.mixer.ctx.state, live: audio.mixer.liveVoices(), music: audio.music.playing(), settings: { ...saveData.settings } };
+  },
+  duck: (on) => audio?.mixer.duck(on),
+  audioEvent, // fire one sound event by type (the Designer's listen-pass capture)
+  audioMaster: () => audio?.mixer.out ?? null, // the last node before the speakers
+  // THE-1563: the narration queue, and one line forced onto the strip (the layout test)
+  narration: () => ({ ...narration, voicePlaying: !!audio?.voice.playing(), voiceLoaded: voiceLoaded() }),
+  showLine: (id) => strip.show(theme.lines[id], false),
+  // THE-1637: the in-world tag on screen now (run | jump | flip | null) and whether the lesson is done
+  tags: () => ({ shown: shownTag, taught: tags.taught }),
+};

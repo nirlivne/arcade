@@ -1,0 +1,71 @@
+/* The developer's layer. Load order (DESIGN §2): ui-kit.css -> style.css -> tokens.css -> skin.css, so the
+   Designer's skin wins on equal specificity. Only layout and pieces the skin has no hook for live here. */
+
+* { box-sizing: border-box; }
+
+/* the kit and the skin give many pieces a display value, which would beat the UA's [hidden] rule */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--pi-ink);
+  overflow: hidden;
+  touch-action: none;
+}
+
+#c {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+/* tablet portrait (spec §6 768x1024): the world is a 16:9 band across the top; the skin puts the strip just
+   under it and the thumbs in the paper margin below (same query as skin.css) */
+@media (orientation: portrait) and (min-width: 601px) {
+  #c { height: 56.25vw; }
+}
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── play-only DOM: the HUD and the touch clusters show in play, never over title/demo/ending/results ── */
+body:not([data-screen="play"]) :is(.pi-hud, .pi-touch) { display: none; }
+
+/* ── first-10-s in-world tags (spec §5, THE-1637): game.js pins each over its world x (viewport px), bottom-centred.
+   The skin's .pi-tag (ink tag, cream on ink ground) + .pi-tag__num for the key; slapped in on twos. ── */
+/* .pi-hud > .pi-wtags, not .pi-wtags: skin.css loads later and sets .pi-hud > * { pointer-events: auto },
+   which turned this full-screen layer into a tap/click trap over the Pause button (THE-1638) */
+.pi-hud > .pi-wtags { position: fixed; inset: 0; pointer-events: none; }
+.pi-wtag { position: absolute; left: 0; top: 0; translate: -50% -100%; font-size: max(20px, calc(var(--pi-hud-size) * .82)); } /* spec §6: HUD tags >= 20 css px */
+.pi-wtag .pi-tag { white-space: nowrap; animation: pi-slap var(--dur-med) var(--ease-twos); }
+.has-touch .pi-wtag .pi-tag__num { display: none; } /* on touch the FLIP disc is cued instead of a key name */
+.pi-tbtn--flip.is-cue { outline: 3px solid var(--pi-tangerine); outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) { .pi-wtag .pi-tag { animation: none; } }
+:root[data-reduce-motion="true"] .pi-wtag .pi-tag { animation: none; }
+
+/* ── pause sheet layout (the skin styles the sheet and the buttons) ── */
+.sheet-stack { display: grid; gap: var(--space-3); }
+.sheet-row { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.sheet-row > * { flex: 1 1 auto; }
+
+/* ── title: the kicker sits top-left over the canvas title set (brief 01-title); the skin owns the ticket row ── */
+.title-kicker { position: absolute; margin: 0; top: 13vh; left: max(8vw, env(safe-area-inset-left)); color: var(--pi-ink); font: var(--weight-strong) clamp(11px, 2.6vh, 28px)/1 var(--font-body); letter-spacing: var(--track-caption); }
+
+/* title util row: HOW TO PLAY stays one tag at 390 px tall (it wrapped to three lines) */
+.pi-title__util .pi-tag-btn { white-space: nowrap; }
+
+/* S8 ending: the title fills the lower frame, so line 6 sits top-right (brief 08-ending) */
+body[data-screen="ending"] .pi-strip { top: max(var(--space-4), env(safe-area-inset-top)); bottom: auto; }
+
+/* results best line (no skin hook for it) */
+.results__best { margin: 0; font: var(--weight-body) var(--text-md)/1.2 var(--font-body); letter-spacing: var(--track-caption); }
+
+/* About list: small print inside the skin's sheet */
+.about__list { margin: 0 0 var(--space-4); padding-left: var(--space-4); display: grid; gap: var(--space-2); font: var(--weight-body) var(--text-sm)/1.4 var(--font-body); }
+
+.about__lead { list-style: none; margin-left: calc(-1 * var(--space-4)); display: flex; gap: var(--space-3); align-items: center; }
+.about__icon { flex: none; }
+
+/* demo captions: one line under the puppet card (canvas), the skip hint after 1 s */
+.demo { position: fixed; inset: 0; pointer-events: none; display: grid; align-content: end; justify-items: center; padding-bottom: 3vh; color: var(--pi-cream); }
+.demo__caption { margin: 0; font: 400 clamp(22px, 7vh, 64px)/1 var(--font-display); letter-spacing: var(--track-display); }
+.demo__skip { margin: var(--space-1) 0 0; font: var(--weight-body) var(--text-sm)/1 var(--font-body); letter-spacing: var(--track-caption); color: var(--pi-cream-2); }

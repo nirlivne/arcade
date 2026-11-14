@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Hide in Plain Ink</title>
+<meta name="theme-color" content="#1a1613">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!-- load order (DESIGN §2): ui-kit.css -> style.css -> tokens.css -> skin.css (the Designer's, last) -->
+<link rel="stylesheet" href="ui-kit.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="skin.css">
+</head>
+<body id="app">
+  <canvas id="c"></canvas>
+
+  <!-- title (spec §6, brief 01-title): the canvas draws the set as the title (hero = the I of INK);
+       this DOM layer is the kicker + the ticket row, bottom-left (DESIGN §2 DOM contract) -->
+  <section id="titleScreen" class="uk-screen pi-title is-active">
+    <h1 class="sr-only">HIDE IN PLAIN INK</h1>
+    <p class="title-kicker pi-caption" data-t="kicker"></p>
+    <div class="pi-title__menu">
+      <button id="continueBtn" class="uk-btn uk-btn--lg" hidden>CONTINUE</button>
+      <button id="playBtn" class="uk-btn uk-btn--lg">PLAY</button>
+      <div class="pi-title__meta">
+        <p class="pi-caption" data-t="level"></p>
+        <p id="titleBest" class="pi-best" hidden></p>
+      </div>
+    </div>
+    <div class="pi-title__util">
+      <button id="howtoBtn" class="pi-tag-btn" data-t="howto"></button>
+      <button id="aboutBtn" class="pi-tag-btn" data-t="about"></button>
+      <button id="settingsBtn" class="uk-icon-btn" aria-label="Settings">⚙</button>
+      <!-- own install button (spec §8 PWA): shown only once the browser offers an install (beforeinstallprompt) -->
+      <button id="installBtn" class="uk-icon-btn" aria-label="Install" hidden>⤓</button>
+    </div>
+  </section>
+
+  <!-- first-run demo = How to play (spec §8): the canvas draws the puppet stage; captions here -->
+  <div id="demoScreen" class="demo" hidden>
+    <p id="demoCaption" class="demo__caption" aria-live="polite"></p>
+    <p id="demoSkip" class="demo__skip" hidden></p>
+  </div>
+
+  <!-- About (spec §6): credits + licences -->
+  <dialog id="aboutDialog" class="uk-sheet pi-about">
+    <!-- close sits in the head so it stays in view when the list scrolls at 390 px tall -->
+    <div class="uk-sheet__head"><h2 class="uk-sheet__title" data-t="about"></h2><button id="aboutCloseBtn" class="uk-icon-btn" aria-label="Close">✕</button></div>
+    <div class="uk-sheet__body">
+    <ul class="about__list">
+      <!-- title, icon and cast from theme.js (game.js) -->
+      <li class="about__lead"><img id="aboutIcon" class="about__icon" alt="" width="48" height="48"><span><strong id="aboutTitle"></strong> by The Game Company.<br><span id="aboutCast"></span></span></li>
+      <li>Look and paper engine after LemoLab's "60s Spy Title Sequence" style, MIT licence (<a href="licenses/LemoLab-MIT.txt">licence</a>).</li>
+      <li>Fonts: League Gothic, League Spartan (The League of Moveable Type) and Secular One, SIL Open Font License 1.1 (<a href="licenses/LeagueGothic-OFL.txt">League Gothic</a>, <a href="licenses/LeagueSpartan-OFL.txt">League Spartan</a>, <a href="licenses/SecularOne-OFL.txt">Secular One</a>).</li>
+      <li>Hebrew narration voiced with Google Gemini text-to-speech, generated once and shipped as files (<a href="licenses/Gemini-TTS.txt">note</a>).</li>
+      <li>Music and sound effects are synthesised in the browser; no recordings.</li>
+    </ul>
+    </div>
+  </dialog>
+
+  <!-- results (spec §3.6): TIME · SNIPS, best time, fewest snips, Replay / Title; slides in from the right -->
+  <section id="resultsScreen" class="uk-screen is-active" hidden>
+    <div class="pi-results">
+      <div class="pi-results__row">
+        <span class="uk-stat pi-time"><span class="uk-stat__label" data-label="time"></span><span class="uk-stat__value" data-r="time"></span></span>
+        <span class="uk-stat"><span class="uk-stat__label" data-label="snips"></span><span class="uk-stat__value" data-r="snips"></span></span>
+        <span class="pi-grace-tag" data-r="grace" data-label="grace" hidden></span>
+      </div>
+      <p class="results__best"><span data-r="best"></span> · <span data-r="fewest"></span> <span class="pi-new-best" data-r="newBest" data-label="newBest" hidden></span></p>
+      <div class="pi-results__actions">
+        <button id="replayBtn" class="uk-btn uk-btn--lg" data-label="replay"></button>
+        <button id="toTitleBtn" class="uk-btn uk-btn--secondary" data-label="title"></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- pause (spec §6/§8): the skin's pause sheet; Esc/P close it through the game's own pause key -->
+  <dialog id="pauseScreen" class="uk-sheet pi-pause-sheet">
+    <div class="uk-sheet__head"><h2 class="uk-sheet__title" data-t="paused"></h2></div>
+    <div class="uk-sheet__body sheet-stack">
+      <button id="resumeBtn" class="uk-btn uk-btn--lg" data-t="resume"></button>
+      <div class="sheet-row">
+        <button id="restartFlagBtn" class="uk-btn uk-btn--secondary" data-t="restartFlag"></button>
+        <button id="restartLevelBtn" class="uk-btn uk-btn--secondary" data-t="restartLevel"></button>
+      </div>
+      <div class="sheet-row">
+        <button id="pauseHowtoBtn" class="uk-btn uk-btn--secondary" data-t="howto"></button>
+        <button id="pauseSettingsBtn" class="uk-btn uk-btn--secondary" data-t="settings"></button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- settings (spec §6/§8 comforts): kit .uk-setting rows, the skin's two-sided paper toggle (ink = on).
+       data-setting = the save key; music/effects/voice also carry data-sound (the mixer bus) -->
+  <dialog id="settingsDialog" class="uk-sheet">
+    <div class="uk-sheet__head"><h2 class="uk-sheet__title" data-t="settings"></h2><button id="settingsCloseBtn" class="uk-icon-btn" aria-label="Close">✕</button></div>
+    <div class="uk-sheet__body">
+      <label class="uk-setting"><span class="uk-setting__label" data-setting-label="music"></span><span class="uk-toggle"><input type="checkbox" data-setting="music" data-sound="music"><span class="uk-toggle__track"></span></span></label>
+      <label class="uk-setting"><span class="uk-setting__label" data-setting-label="sfx"></span><span class="uk-toggle"><input type="checkbox" data-setting="sfx" data-sound="sfx"><span class="uk-toggle__track"></span></span></label>
+      <label class="uk-setting"><span class="uk-setting__label" data-setting-label="voice"></span><span class="uk-toggle"><input type="checkbox" data-setting="voice" data-sound="voice"><span class="uk-toggle__track"></span></span></label>
+      <label class="uk-setting"><span class="uk-setting__label" data-setting-label="reduceMotion"></span><span class="uk-toggle"><input type="checkbox" data-setting="reduceMotion"><span class="uk-toggle__track"></span></span></label>
+      <label class="uk-setting"><span><span class="uk-setting__label" data-setting-label="longGrace"></span><br><span class="uk-setting__hint" data-setting-hint="longGrace"></span></span><span class="uk-toggle"><input type="checkbox" data-setting="longGrace"><span class="uk-toggle__track"></span></span></label>
+      <label class="uk-setting"><span class="uk-setting__label" data-setting-label="leftHanded"></span><span class="uk-toggle"><input type="checkbox" data-setting="leftHanded"><span class="uk-toggle__track"></span></span></label>
+    </div>
+  </dialog>
+
+  <!-- turn your phone (spec §5/§6): the skin shows it on portrait <= 600 px; game.js pauses with the same query -->
+  <div class="pi-turn" aria-live="polite"><div class="pi-turn__card"><div class="pi-turn__phone"></div><div class="pi-turn__title" data-t="turnTitle"></div><div class="pi-caption" data-t="turnCaption"></div></div></div>
+
+  <!-- play HUD (spec §6): set tag top-left, goal tag + pause top-right, no clock. Shown in play only (style.css).
+       Film frames are cut (G1c), so no .pi-frames here. -->
+  <div id="hud" class="pi-hud">
+    <div id="setTag" class="pi-hud__set"><span class="pi-tag"><span class="pi-tag__num"></span><span class="pi-tag__name"></span></span></div>
+    <div class="pi-hud__goal">
+      <span id="goalTag" class="pi-tag pi-goal" hidden><i class="pi-negicon" aria-hidden="true"></i><span class="pi-goal__text"></span></span>
+      <button id="pauseBtn" class="uk-icon-btn pi-pause" aria-label="Pause"><i class="pi-ico-pause"></i></button>
+    </div>
+    <!-- first-10-s in-world tags (spec §5, THE-1637): pinned to world x by game.js, one at a time -->
+    <div class="pi-wtags" aria-live="polite">
+      <div class="pi-wtag" data-tag="run" hidden><span class="pi-tag"><span class="pi-tag__num"></span><span class="pi-tag__name"></span></span></div>
+      <div class="pi-wtag" data-tag="jump" hidden><span class="pi-tag"><span class="pi-tag__num"></span><span class="pi-tag__name"></span></span></div>
+      <div class="pi-wtag" data-tag="flip" hidden><span class="pi-tag"><span class="pi-tag__num"></span><span class="pi-tag__name"></span></span></div>
+    </div>
+  </div>
+
+  <!-- Hebrew narration strip (spec §3.5/§6): RTL, Secular One, bottom-right -->
+  <div id="strip" class="pi-strip" dir="rtl" lang="he" role="status" aria-live="polite" hidden><i class="pi-strip__reel" aria-hidden="true"></i><span class="strip__text"></span></div>
+
+  <!-- touch clusters (spec §5, brief frame 03): one sliding ◀ ▶ zone bottom-left; FLIP + JUMP bottom-right.
+       Shown after the first touch input (game.js); .is-lefty swaps sides. -->
+  <div id="touch" class="pi-touch" hidden>
+    <div id="moveZone" class="pi-touch__move"><span class="pi-tbtn pi-tbtn--left" aria-hidden="true"></span><span class="pi-tbtn pi-tbtn--right" aria-hidden="true"></span></div>
+    <div class="pi-touch__act">
+      <button id="flipBtn" class="pi-tbtn pi-tbtn--flip" aria-label="Flip coat"><span class="pi-tbtn__label" data-t="flip"></span></button>
+      <button id="jumpBtn" class="pi-tbtn pi-tbtn--jump" aria-label="Jump"><span class="pi-tbtn__label" data-t="jump"></span></button>
+    </div>
+  </div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
