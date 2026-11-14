@@ -224,7 +224,7 @@ footer a { display:inline-flex; align-items:center; min-height:44px; }
 <p class="stale-note" role="alert">Not updated for over 30 min. Numbers may be out of date.</p>
 <header class="top"><h1>Passport Run</h1><p class="sub">Game #12 · build status</p></header>
 <section class="verdict" aria-label="At a glance"><div class="state tone-amber">
-    <p class="state-title"><svg class="dot amber" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5"/></svg><strong>Out of usage quota</strong> <span class="clock" data-since="1794652846905">49 min</span></p>
+    <p class="state-title"><svg class="dot amber" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5"/></svg><strong>Out of usage quota</strong> <span class="clock" data-since="1794652846905">59 min</span></p>
     <p class="state-line">The usage limit was hit at 12:40. Work resumes on its own when the window resets at <b>16:40</b>.</p>
     <div class="load">
       <p class="load-line"><span class="lvl lvl-none">No work</span> in the last hour</p>
@@ -244,7 +244,7 @@ footer a { display:inline-flex; align-items:center; min-height:44px; }
 <section class="block" aria-labelledby="h-day"><h2 id="h-day">Last 24 hours</h2>
     <p class="lede"><b>0 slices merged</b>.</p>
     <h3>Timeline, newest first</h3>
-    <ol class="timeline"><li class="tl wait open"><span class="t">13:30–now</span><span class="who">Idle</span><span class="what"><b>24 h</b> · Out of quota 19:35–20:00</span></li></ol>
+    <ol class="timeline"><li class="tl wait open"><span class="t">13:40–now</span><span class="who">Idle</span><span class="what"><b>24 h</b> · Out of quota 19:35–20:00</span></li></ol>
     
     <h3>Tokens per hour</h3>
     <figure class="chart">
@@ -311,12 +311,12 @@ footer a { display:inline-flex; align-items:center; min-height:44px; }
     
   </section>
 <section class="block" aria-labelledby="h-next"><h2 id="h-next">Coming up</h2>
-    <ol class="sched"><li data-at="1794656100000"><span class="t">13:35</span><span class="what">CEO hourly stuck check</span></li><li data-at="1794657900000"><span class="t">14:05</span><span class="what">CTO usage-limit resume and stall watchdog</span></li></ol></section>
+    <ol class="sched"><li data-at="1794657900000"><span class="t">14:05</span><span class="what">CTO usage-limit resume and stall watchdog</span></li><li data-at="1794659700000"><span class="t">14:35</span><span class="what">CEO hourly stuck check</span></li></ol></section>
 <section class="block" aria-labelledby="h-spend"><h2 id="h-spend">Token spend, whole game</h2><p class="lede"><b>70k</b> tokens so far. No limits are set for this game.</p>
     <p class="aside">All runs on this game's tickets. Forecast: a typical slice for each slice left, a typical review for each closing step.</p></section>
 <section class="block"><details class="more"><summary>Elsewhere in the studio</summary><ul class="plain"><li>Open board decision: <a class="id" href="http://localhost:3100/THE/issues/THE-975">THE-975</a> Board decision: game standards for bigger games and online features (size, offl… <span class="age">· waiting 20 days</span></li><li>16 games shipped (5 link-only).</li></ul></details></section>
 </main>
-<footer class="wrap foot" data-stamp="1794655801966"><p>Updated 13:30 Israel time, <span class="ago">just now</span>. Rebuilt every 10 minutes when something changes.</p><p><a href="./">Back to the arcade</a></p></footer>
+<footer class="wrap foot" data-stamp="1794656402223"><p>Updated 13:40 Israel time, <span class="ago">just now</span>. Rebuilt every 10 minutes when something changes.</p><p><a href="./">Back to the arcade</a></p></footer>
 <script>(()=>{const now=()=>Date.now();const dur=ms=>{const m=Math.max(0,Math.round(ms/6e4));if(m<60)return m+" min";if(m>=2880)return Math.round(m/1440)+" days";const h=Math.floor(m/60),r=m%60;return r?h+" h "+r+" min":h+" h"};
 const st=document.querySelector("[data-stamp]"),built=st?+st.dataset.stamp:0;
 const tick=()=>{document.querySelectorAll("[data-since]").forEach(e=>{e.textContent=dur(now()-+e.dataset.since)});
@@ -333,5 +333,5 @@ const show=g=>{const r=g.getBoundingClientRect(),f=svg.parentNode.getBoundingCli
 svg.querySelectorAll(".col").forEach(g=>{g.addEventListener("pointerenter",()=>show(g));g.addEventListener("pointerdown",()=>show(g))});
 svg.addEventListener("pointerleave",e=>{if(e.pointerType==="mouse")tip.hidden=true});document.addEventListener("pointerdown",e=>{if(!svg.contains(e.target))tip.hidden=true})})();</script>
 </body>
-<!-- sig:eyJzdCI6WyJsaW1pdCIsImFtYmVyIixudWxsLDE3OTQ2NjcyMDAwMDBdLCJsb2FkIjoibm9uZSIsInN0ZXBzIjoiZG9uZWRvbmVjdXJyZW50dG9kb3RvZG90b2RvIiwibmVlZHMiOltdLCJldGEiOm51bGwsInNwZW5kIjowLCJyb3dzIjoxLCJ3YWtlcyI6WzE3OTQ2NTYxMDAwMDAsMTc5NDY1NzkwMDAwMF19 -->
+<!-- sig:eyJzdCI6WyJsaW1pdCIsImFtYmVyIixudWxsLDE3OTQ2NjcyMDAwMDBdLCJsb2FkIjoibm9uZSIsInN0ZXBzIjoiZG9uZWRvbmVjdXJyZW50dG9kb3RvZG90b2RvIiwibmVlZHMiOltdLCJldGEiOm51bGwsInNwZW5kIjowLCJyb3dzIjoxLCJ3YWtlcyI6WzE3OTQ2NTc5MDAwMDAsMTc5NDY1OTcwMDAwMF19 -->
 </html>
