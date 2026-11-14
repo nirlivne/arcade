@@ -1,0 +1,126 @@
+/* Hide in Plain Ink (game #15) -- design tokens. Designer-owned (THE-1549); the developer reads, never edits.
+   Four flat inks + four shadow-paper variants (brief §2). No gradients anywhere. Token names match
+   tools/design/tokens.example.css; the --pi-* names are this game's own and are what skin.css and the
+   canvas renderer should read (getComputedStyle) so the DOM and the paper world share one palette. */
+:root {
+  /* the four inks (brief §2) */
+  --pi-ink: #1a1613;        /* letters, floor, figures, hiding */
+  --pi-cream: #f0e4c6;      /* paper: letters on night sets, beams, cream coat, subtitle strip */
+  --pi-lipstick: #e0335a;   /* hot: scarf + DANGER only (alert eye, SNIP band, JUMP, PLAY ticket) */
+  --pi-tangerine: #f07f2c;  /* warm: the Negative, clue film frames, set-2 ground */
+  /* shadow-paper variants: depth only (props, far lamps, curtains, pressed states) */
+  --pi-ink-2: #3b322b;
+  --pi-cream-2: #d6c6a2;
+  --pi-lipstick-2: #a3243f;
+  --pi-tangerine-2: #b8591a;
+  --pi-shadow: #0d0b09;     /* the paper shadow under a raised piece (solid, offset, never blurred) */
+
+  /* the four looks (gameplay rework, THE-1645 spec-amendment §2). Canvas values are world units (u), unitless;
+     the renderer reads them with getComputedStyle. Only stand-ons get the tape and the shadow. */
+  --pi-tape: #f0e4c6;              /* stand-on tape strip along the top edge (= cream) */
+  --pi-tape-h: 14;                 /* u */
+  --pi-standon-shadow-x: 10;       /* u; hard shadow under stand-ons only, colour --pi-shadow */
+  --pi-standon-shadow-y: 12;
+  --pi-cut-dash: 18 12;            /* go-behind "cut here" dashes: dash gap (u) */
+  --pi-cut-w: 5;
+  --pi-cut-inset: 10;
+  --pi-decor-tangerine: #b8591a;   /* decoration = darker ground shade, never pure ink/cream (= tangerine-2) */
+  --pi-decor-cream: #d6c6a2;       /* = cream-2 */
+  --pi-decor-ink: #3b322b;         /* = ink-2: on ink the low-contrast shade has to be the lighter one */
+  --pi-cone-line: #e0335a;         /* guard sight cone edges, 4 u (= lipstick); no fill */
+  --pi-cone-hatch: #a3243f;        /* cone hatching, 3 u every 28 u at 45 deg (= lipstick-2) */
+  --pi-warn-fill: #e0335a;         /* the "!" warning mark's fill */
+  --pi-hidden-dash: 10 8;          /* hero dashed cut-line outline when hidden: dash gap (u), 4 u stroke */
+
+  /* color: surfaces (menus sit on cream paper; the world behind is whatever set ink) */
+  --color-bg: #f0e4c6;
+  --color-bg-2: #d6c6a2;
+  --color-surface: #f0e4c6;
+  --color-surface-2: #d6c6a2;
+  --color-outline: #1a1613;
+
+  /* color: text */
+  --color-text: #1a1613;
+  --color-text-muted: #3b322b;
+  --color-text-on-ink: #f0e4c6;
+
+  /* color: actions and signals */
+  --color-primary: #e0335a;        /* the PLAY ticket and JUMP disc: the one hot thing on a menu */
+  --color-primary-text: #f0e4c6;   /* large text only (League Gothic >= 28 px): 3.5:1 */
+  --color-accent: #f07f2c;         /* focus ring, clue frames, "new best" */
+  --color-accent-text: #1a1613;
+  --color-danger: #e0335a;
+
+  /* type (brief §4): League Gothic = cut display + HUD numbers/tags; League Spartan 600 = captions, buttons,
+     About; Secular One = the Hebrew strip. @font-face rules live in skin.css. */
+  --font-display: "PI Gothic", "League Gothic", Impact, "Arial Narrow", sans-serif;
+  --font-body: "PI Spartan", "League Spartan", "Futura", "Century Gothic", system-ui, sans-serif;
+  --font-strip: "PI Secular", "Secular One", "Arial Hebrew", system-ui, sans-serif;
+  --text-sm: 15px;
+  --text-md: 18px;
+  --text-lg: 26px;
+  --text-xl: 40px;
+  --text-2xl: 72px;
+  --text-hud: 24px;     /* HUD tags: >= 20 css px at 844x390 (spec §6) */
+  --text-strip: 22px;   /* Hebrew strip on a phone (brief §6: >= 20 css px); scaled up by clamp in skin.css */
+  --weight-body: 600;
+  --weight-strong: 700;
+  --text-min: 15px;     /* smallest text anywhere (About small print); play text is >= 20 */
+  --track-display: 0.06em;
+  --track-caption: 0.14em;
+
+  /* space (4 px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* shape: cut paper has corners, not radii. Discs (touch buttons, reel bullet) use --radius-pill. */
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-pill: 999px;
+  --outline-w: 3px;
+  --cut-gap: 3px;       /* the cut gap: a ring of ground colour between a piece and what is under it */
+  --hit-min: 48px;
+  --tilt: 1deg;         /* strips and panels sit a degree off square */
+  /* scissor-cut edge masks for panels/strips (polygons; the jitter is baked so it never animates) */
+  --cut-panel: polygon(0.6% 1.4%, 22% 0.4%, 51% 1.1%, 78% 0%, 99.4% 0.9%, 100% 34%, 99.2% 67%, 99.8% 98.8%, 74% 100%, 47% 99.1%, 19% 100%, 0.3% 99.3%, 0% 64%, 0.8% 31%);
+  --cut-ticket: polygon(0 0, 100% 0, 94% 50%, 100% 100%, 0 100%, 6% 50%);
+  --cut-strip-r: polygon(0 0, 100% 0, 98.4% 46%, 100% 100%, 0 100%, 1.6% 54%);
+  --cut-tag: polygon(0.8% 2%, 99% 0%, 100% 97%, 0% 100%);
+
+  /* light: paper shadows are solid, offset and unblurred (the piece sits on the page) */
+  --shadow-1: 2px 3px 0 var(--pi-shadow);
+  --shadow-2: 5px 7px 0 var(--pi-shadow);
+  --glow: 0 0 0 3px var(--pi-tangerine);
+  --scrim: rgba(26, 22, 19, 0.82);   /* menus over the paused world; the only alpha in the game, never in-world */
+
+  /* motion: puppets on twos. Menus snap in on a few steps, like a cut-out slapped onto the page. */
+  --ease-out: cubic-bezier(0.2, 0.9, 0.25, 1);
+  --ease-spring: cubic-bezier(0.3, 1.5, 0.6, 1);
+  --ease-twos: steps(3, end);
+  --dur-fast: 83ms;    /* 2 frames at 24 fps */
+  --dur-med: 167ms;
+  --dur-slow: 333ms;
+  --dur-strip: 180ms;  /* strip slides in from the right (brief §6) */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; --dur-med: 0ms; --dur-slow: 0ms; --dur-strip: 0ms; }
+}
+:root[data-reduce-motion="true"] { --dur-fast: 0ms; --dur-med: 0ms; --dur-slow: 0ms; --dur-strip: 0ms; }
+
+/* contrast: --color-text on --color-bg >= 4.5 */
+/* contrast: --color-text-muted on --color-bg >= 4.5 */
+/* contrast: --color-text on --color-surface-2 >= 4.5 */
+/* contrast: --color-text-on-ink on --pi-ink >= 4.5 */
+/* contrast: --color-primary-text on --color-primary >= 3 */
+/* contrast: --color-accent-text on --color-accent >= 4.5 */
+/* contrast: --pi-ink on --pi-tangerine >= 4.5 */
+/* contrast: --pi-ink on --pi-lipstick >= 3 */
+/* contrast: --pi-lipstick on --pi-ink >= 3 */
+/* contrast: --color-danger on --color-bg >= 3 */
+/* contrast: --pi-cream on --pi-lipstick-2 >= 4.5 */

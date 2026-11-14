@@ -1,0 +1,302 @@
+/* Hide in Plain Ink (game #15) -- skin. Designer-owned (THE-1549). Loaded LAST, after ui-kit.css and style.css.
+   Cut paper, four flat inks, solid offset paper shadows, scissor edges, a degree of tilt; no gradients, no blur,
+   no glossy pills, no confetti. The DOM contract (class names the developer puts in index.html) is in DESIGN.md
+   §"DOM contract"; everything here is a .uk-* kit class or a .pi-* class from that list. */
+
+@font-face { font-family: "PI Gothic"; src: url("fonts/leaguegothic-latin.woff2") format("woff2"); font-weight: 400; font-display: block; }
+@font-face { font-family: "PI Spartan"; src: url("fonts/leaguespartan-latin.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "PI Secular"; src: url("fonts/secular-hebrew.woff2") format("woff2"); font-weight: 400; font-display: block; unicode-range: U+0590-05FF, U+FB1D-FB4F, U+0020-0040; }
+
+:root {
+  /* paper grain for DOM panels (the canvas has its own paperFinish). Off under ?qa=flat. */
+  --pi-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .086 0 0 0 0 .075 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  --pi-ui: clamp(1px, calc(100vh / 1080), 2px);   /* 1 brief px at 1080p, never below 1 css px */
+  --pi-hud-size: clamp(22px, min(3.7vh, 2.1vw), 40px);      /* 40 px at 1920×1080; never wider than the 16:9 band allows */
+  --pi-strip-size: clamp(22px, min(4.26vh, 2.4vw), 46px);   /* 46 px at 1080p (brief §6), >= 22 css px on a phone */
+  --pi-floor-band: 120px;
+}
+:root[data-qa="flat"] { --pi-grain: none; }
+
+html, body { background: var(--pi-ink); }
+body { font-family: var(--font-body); font-weight: var(--weight-body); color: var(--color-text); -webkit-tap-highlight-color: transparent; }
+::selection { background: var(--pi-tangerine); color: var(--pi-ink); }
+
+/* ── paper pieces ────────────────────────────────────────────────────────────────────────────────
+   CSS runs filter BEFORE clip-path, so a drop-shadow on a clipped box is cut away. Every shadowed piece therefore
+   draws its paper on ::before (fill = --pi-fill, scissor edge = --pi-cut) and carries the solid paper shadow as a
+   filter on the element itself, where it follows the cut edge. Pieces set --pi-fill/--pi-cut, never background. */
+:where(.uk-panel, .pi-card, .pi-results, .pi-turn__card, .uk-btn, .uk-icon-btn, .pi-tag-btn, .pi-tag) { position: relative; }
+:is(.uk-panel, .uk-sheet, .pi-card, .pi-results, .pi-turn__card, .uk-btn, .uk-icon-btn, .pi-tag-btn, .pi-tag, .pi-strip, .uk-toast) {
+  isolation: isolate; box-sizing: border-box; background: transparent; border: 0; border-radius: 0; box-shadow: none;
+}
+:is(.uk-panel, .uk-sheet, .pi-card, .pi-results, .pi-turn__card, .uk-btn, .uk-icon-btn, .pi-tag-btn, .pi-tag, .pi-strip, .uk-toast)::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--pi-fill, var(--pi-cream)); clip-path: var(--pi-cut, var(--cut-panel));
+}
+.uk-panel, .uk-sheet, .pi-card, .pi-results, .pi-turn__card {
+  --pi-fill: var(--pi-grain), var(--pi-cream); --pi-cut: var(--cut-panel);
+  color: var(--pi-ink);
+  filter: drop-shadow(5px 7px 0 var(--pi-shadow));   /* solid offset shadow that follows the cut edge */
+}
+.uk-sheet[open] { display: flex; flex-direction: column; }   /* the body scrolls (6 settings rows at 390 px tall) */
+.uk-sheet__body { min-height: 0; }
+.uk-panel--raised { filter: drop-shadow(7px 9px 0 var(--pi-shadow)); }
+.uk-title, .uk-sheet__title, .pi-card__title {
+  font-family: var(--font-display); font-weight: 400; letter-spacing: var(--track-display); text-transform: uppercase;
+  line-height: .92; color: var(--pi-ink);
+}
+.uk-title { font-size: var(--text-2xl); }
+.uk-sheet__title { font-size: var(--text-xl); }
+.uk-subtitle, .pi-caption {
+  font: 600 var(--text-sm)/1.25 var(--font-body); letter-spacing: var(--track-caption); text-transform: uppercase; color: var(--color-text-muted);
+}
+
+/* ── buttons: ticket stubs with scissor-cut ends; slap down on press ───────────────────────────── */
+.uk-btn {
+  min-height: var(--hit-min); padding: .55em 1.6em .4em;
+  --pi-fill: var(--pi-grain), var(--pi-cream); --pi-cut: var(--cut-ticket); color: var(--pi-ink);
+  font: 400 var(--text-lg)/1 var(--font-display); letter-spacing: .08em; text-transform: uppercase;
+  filter: drop-shadow(3px 4px 0 var(--pi-shadow));
+  transition: transform var(--dur-fast) var(--ease-twos), filter var(--dur-fast) var(--ease-twos);
+}
+.uk-btn--lg { font-size: var(--text-xl); padding: .45em 1.9em .32em; --pi-fill: var(--pi-grain), var(--pi-lipstick); color: var(--pi-cream); }
+.uk-btn--secondary { --pi-fill: var(--pi-grain), var(--pi-cream-2); color: var(--pi-ink); }
+.uk-btn--ghost { --pi-fill: var(--pi-ink); color: var(--pi-cream); }
+.uk-btn:hover { transform: rotate(-1deg); }
+.uk-btn:active, .uk-btn.is-down { transform: translate(3px, 4px); filter: none; }
+.uk-btn--lg:active { --pi-fill: var(--pi-lipstick-2); }
+.uk-btn[hidden] { display: none; }
+/* focus: a solid tangerine rim that follows the ticket's cut, plus the paper shadow */
+.uk-btn:focus-visible { outline: none; filter: drop-shadow(0 4px 0 var(--pi-tangerine)) drop-shadow(0 -4px 0 var(--pi-tangerine)) drop-shadow(4px 0 0 var(--pi-tangerine)) drop-shadow(-4px 0 0 var(--pi-tangerine)) drop-shadow(3px 4px 0 var(--pi-shadow)); }
+
+/* small square tag buttons: pause, settings, About, mute */
+.uk-icon-btn, .pi-tag-btn {
+  width: 48px; height: 48px; min-width: 48px; padding: 0;
+  display: grid; place-items: center;
+  --pi-fill: var(--pi-ink); --pi-cut: var(--cut-tag); color: var(--pi-cream);
+  filter: drop-shadow(2px 3px 0 var(--pi-shadow));
+  font: 400 26px/1 var(--font-display);
+  transition: transform var(--dur-fast) var(--ease-twos);
+}
+/* word tags (HOW TO, ABOUT) size to their word: at 48 px wide the words spilled out and ran together (THE-1571) */
+.pi-tag-btn { width: auto; padding: 0 14px; font-size: 22px; letter-spacing: .06em; white-space: nowrap; margin-inline: 3px; }
+.uk-icon-btn:active, .pi-tag-btn:active { transform: translate(2px, 3px); filter: none; }
+.uk-icon-btn:focus-visible, .pi-tag-btn:focus-visible { outline: 3px solid var(--pi-tangerine); outline-offset: 3px; }
+.uk-icon-btn[aria-pressed="true"] { --pi-fill: var(--pi-cream-2); color: var(--pi-ink); }
+.uk-icon-btn svg { width: 24px; height: 24px; stroke-width: 3; stroke-linecap: square; stroke-linejoin: miter; }
+.pi-ico-pause { position: relative; width: 18px; height: 22px; }
+.pi-ico-pause::before, .pi-ico-pause::after { content: ""; position: absolute; top: 0; bottom: 0; width: 6px; background: currentColor; }
+.pi-ico-pause::before { left: 0; } .pi-ico-pause::after { right: 0; }
+/* on cream/tangerine grounds the tags are ink; on ink grounds they flip to cream (brief frame hud(light)) */
+[data-ground="ink"] :is(.uk-icon-btn, .pi-tag-btn) { --pi-fill: var(--pi-cream); color: var(--pi-ink); }
+
+/* ── screens ──────────────────────────────────────────────────────────────────────────────────── */
+.uk-screen { background: var(--scrim); }
+.uk-screen--clear { background: transparent; }
+.uk-screen > * { transform: translateY(10px) rotate(-1.5deg); transition: transform var(--dur-med) var(--ease-twos); }
+.uk-screen.is-active > * { transform: rotate(0deg); }
+.uk-sheet { padding: var(--space-5) var(--space-6) var(--space-6); transform: rotate(calc(var(--tilt) * -1)); max-height: calc(100dvh - 32px); }
+.uk-sheet::backdrop { background: var(--scrim); }
+/* phone landscape: the pause sheet is wide and its rows stay two-up, so all five tags fit 390 px tall with no
+   scroll (they wrapped one per line and HOW TO PLAY + SETTINGS fell under the fold, THE-1571) */
+@media (max-height: 430px) and (orientation: landscape) {
+  .pi-pause-sheet { width: min(620px, calc(100vw - 48px)); max-width: none; }
+  .pi-pause-sheet .sheet-row { flex-wrap: nowrap; }
+  .pi-pause-sheet .uk-btn--secondary { padding-inline: .8em; white-space: nowrap; }
+}
+.uk-sheet__head { border-bottom: 3px solid var(--pi-ink); padding-bottom: var(--space-2); margin-bottom: var(--space-3); }
+.uk-sheet__foot { gap: var(--space-4); }
+.uk-sheet[open], .uk-pop { animation: pi-slap var(--dur-med) var(--ease-twos); }
+@keyframes pi-slap { 0% { transform: translateY(-14px) rotate(-4deg) scale(1.04); } 100% { transform: rotate(calc(var(--tilt) * -1)); } }
+
+/* ── title: the title is the set (canvas); the DOM is the bottom-left ticket stack + top-right tags ── */
+.pi-title { background: transparent; place-items: end start; padding: 0 0 max(var(--space-5), env(safe-area-inset-bottom)) max(7.8vw, env(safe-area-inset-left)); }
+.pi-title__menu { display: grid; grid-auto-flow: column; align-items: center; justify-content: start; gap: var(--space-4) var(--space-5); transform: none !important; }
+.pi-title__menu .uk-btn--lg { font-size: clamp(30px, 4.8vh, 52px); }
+.pi-title__meta { display: grid; gap: var(--space-1); }
+.pi-title__meta .pi-caption { color: var(--pi-ink); font-size: clamp(13px, 2.4vh, 26px); letter-spacing: .1em; }
+.pi-best { font: 400 clamp(20px, 3.4vh, 34px)/1 var(--font-display); letter-spacing: .06em; color: var(--pi-ink); }
+.pi-title__util { position: absolute; top: max(var(--space-4), env(safe-area-inset-top)); right: max(var(--space-4), env(safe-area-inset-right)); display: flex; gap: var(--space-3); }
+@media (max-height: 430px) { .pi-title__menu { gap: var(--space-2) var(--space-4); } .pi-title__meta .pi-caption { display: none; } }
+
+/* clue film frames (3): a sprocketed frame -- clue = this SHAPE, never colour alone (spec §8) */
+.pi-frames { display: flex; gap: 8px; }
+.pi-frame {
+  position: relative; width: calc(var(--pi-hud-size) * .9); height: calc(var(--pi-hud-size) * 1.15);
+  background: var(--pi-ink); clip-path: var(--cut-tag);
+}
+.pi-frame::before { content: ""; position: absolute; inset: 22% 18%; background: var(--pi-cream-2); }
+.pi-frame::after {   /* sprocket holes, top and bottom */
+  content: ""; position: absolute; left: 12%; right: 12%; top: 6%; bottom: 6%;
+  border-top: 3px dotted var(--pi-cream-2); border-bottom: 3px dotted var(--pi-cream-2);
+}
+/* found: the window lights tangerine; the body stays ink so it reads on the tangerine set-2 ground too */
+.pi-frame.is-found::before { background: var(--pi-tangerine); inset: 20% 12%; }
+.pi-frame.is-new { animation: pi-frame-land var(--dur-slow) var(--ease-twos); }
+@keyframes pi-frame-land { 0% { transform: translateY(-30px) rotate(-12deg) scale(1.6); } 100% { transform: none; } }
+[data-ground="ink"] .pi-frame { background: var(--pi-cream); }
+[data-ground="ink"] .pi-frame:not(.is-found)::before { background: var(--pi-ink-2); }
+[data-ground="ink"] .pi-frame::after { border-color: var(--pi-ink-2); }
+
+/* ── play HUD: credit tag top-left, goal tag + frames + pause top-right. No clock. ───────────────── */
+.pi-hud { position: absolute; inset: 0; pointer-events: none; font: 400 var(--pi-hud-size)/1 var(--font-display); letter-spacing: .06em; text-transform: uppercase; }
+.pi-hud > * { pointer-events: auto; }
+.pi-hud__set { position: absolute; top: max(14px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); }
+.pi-hud__goal { position: absolute; top: max(14px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); display: flex; align-items: center; gap: var(--space-3); }
+.pi-tag {
+  display: inline-flex; align-items: center; gap: .45em; padding: .3em .55em .2em;
+  --pi-fill: var(--pi-ink); --pi-cut: var(--cut-tag); color: var(--pi-cream);
+  filter: drop-shadow(2px 3px 0 var(--pi-shadow));
+}
+.pi-tag__num { color: var(--pi-lipstick); }   /* SET 2/6: the hot ink, as frame 02 */
+.pi-goal { font-size: max(20px, calc(var(--pi-hud-size) * .82)); } /* spec §6: HUD text never under 20 px */
+.pi-negicon { width: 1.25em; height: .9em; background: var(--pi-tangerine); position: relative; clip-path: var(--cut-tag); }
+.pi-negicon::after { content: ""; position: absolute; inset: 28% 34%; background: var(--pi-ink); border-radius: 50%; }
+.pi-goal.is-done { --pi-fill: var(--pi-tangerine); color: var(--pi-ink); }
+[data-ground="ink"] .pi-tag { --pi-fill: var(--pi-cream); color: var(--pi-ink); }
+[data-ground="ink"] .pi-tag__num { color: var(--pi-lipstick-2); }
+/* a set entry: the tag slaps in on twos */
+.pi-hud__set.is-new .pi-tag { animation: pi-slap var(--dur-med) var(--ease-twos); }
+/* the goal words stay on phones: icon-only, a fresh player read the Negative icon as "a camera button" (THE-1571
+   onboarding run). They fit beside the set tag down to ~600 px wide; only narrower screens drop to the icon. */
+@media (max-width: 600px) { .pi-goal__text { display: none; } }
+#app:has(.uk-sheet[open]) .pi-hud { visibility: hidden; }
+
+/* ── Hebrew subtitle strip: bottom-RIGHT, RTL, scissor-cut ends, +1°, lipstick reel bullet on the right ── */
+.pi-strip {
+  position: absolute; right: max(6vw, env(safe-area-inset-right)); bottom: max(6vh, env(safe-area-inset-bottom));
+  max-width: min(78vw, 1100px); direction: rtl; text-align: right;
+  display: flex; align-items: center; gap: .55em; padding: .32em 1.1em .3em 1.5em;
+  font: 400 var(--pi-strip-size)/1.25 var(--font-strip);
+  --pi-fill: var(--pi-grain), var(--pi-cream); --pi-cut: var(--cut-strip-r); color: var(--pi-ink);
+  filter: drop-shadow(4px 5px 0 var(--pi-shadow));
+  transform: translateX(calc(100% + 10vw)) rotate(var(--tilt)); transition: transform var(--dur-strip) var(--ease-out);
+  pointer-events: none;
+}
+.pi-strip.is-shown { transform: translateX(0) rotate(var(--tilt)); }
+.pi-strip--ink { --pi-fill: var(--pi-ink); color: var(--pi-cream); }  /* on light sets (cream, tangerine grounds) */
+.pi-strip__reel {   /* the film-reel bullet: a lipstick disc with four cut holes */
+  position: relative; flex: none; width: .8em; height: .8em; border-radius: 50%; background: var(--pi-lipstick); color: var(--pi-cream);
+}
+.pi-strip__reel::before {   /* four cut holes: one dot, copied by solid shadows */
+  content: ""; position: absolute; left: 50%; top: 50%; width: .16em; height: .16em; margin: -.08em 0 0 -.08em; border-radius: 50%;
+  box-shadow: 0 -.2em 0 currentColor, 0 .2em 0 currentColor, .2em 0 0 currentColor, -.2em 0 0 currentColor;
+}
+.pi-strip--ink .pi-strip__reel { color: var(--pi-ink); }
+/* phone landscape with touch: the floor now sits on the button tops (S9 camera), so 132 px up put the strip
+   over the hero. It lives in the floor band instead, between the two thumb clusters (each <= 226 px wide). */
+.has-touch .pi-strip { bottom: calc(132px + env(safe-area-inset-bottom)); right: max(16px, env(safe-area-inset-right)); max-width: 62vw; }
+@media (orientation: landscape) {
+  .has-touch .pi-strip { left: calc(max(16px, env(safe-area-inset-left)) + 222px); right: calc(max(16px, env(safe-area-inset-right)) + 222px);
+    bottom: max(14px, env(safe-area-inset-bottom)); max-width: none; transform: translateX(calc(100% + 60vw)) rotate(var(--tilt)); }
+  .has-touch .pi-strip.is-shown { transform: translateX(0) rotate(var(--tilt)); }
+  .has-touch .pi-strip--ink { --pi-fill: var(--pi-grain), var(--pi-cream); color: var(--pi-ink); }   /* the floor band is ink on every set */
+  .has-touch .pi-strip--ink .pi-strip__reel { color: var(--pi-cream); }
+}
+
+/* ── touch: the floor band is the thumb zone (bottom 120 px). Discs, never pills. ────────────────── */
+.pi-touch { position: absolute; left: 0; right: 0; bottom: 0; height: var(--pi-floor-band); display: flex; justify-content: space-between; align-items: flex-end;
+  padding: 0 max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); pointer-events: none; touch-action: none; user-select: none; -webkit-user-select: none; }
+.pi-touch[hidden] { display: none; }
+.pi-touch.is-lefty { flex-direction: row-reverse; }
+.pi-touch.is-lefty .pi-touch__act { flex-direction: row-reverse; }
+.pi-touch__move, .pi-touch__act { display: flex; align-items: flex-end; gap: 18px; pointer-events: auto; touch-action: none; }
+.pi-tbtn {
+  position: relative; width: 88px; height: 88px; padding: 0; border: 0;
+  border-radius: 49% 51% 50% 50% / 51% 49% 51% 49%;   /* a scissor-cut disc, not a perfect circle */
+  background: var(--pi-grain), var(--pi-cream); color: var(--pi-ink);
+  box-shadow: 3px 5px 0 var(--pi-shadow);
+  font: 400 32px/1 var(--font-display); letter-spacing: .06em;
+  transition: transform 40ms steps(1), box-shadow 40ms steps(1);
+}
+.pi-tbtn.is-down { transform: translate(3px, 5px); box-shadow: 0 0 0 var(--pi-shadow); background: var(--pi-grain), var(--pi-cream-2); }
+.pi-tbtn--left::before, .pi-tbtn--right::before {   /* cut triangle arrows */
+  content: ""; position: absolute; left: 50%; top: 50%; width: 30px; height: 34px; background: var(--pi-ink);
+  clip-path: polygon(100% 50%, 0 0, 0 100%); transform: translate(-38%, -50%);
+}
+.pi-tbtn--left::before { transform: translate(-62%, -50%) scaleX(-1); }
+.pi-tbtn--jump { width: 104px; height: 104px; background: var(--pi-grain), var(--pi-lipstick); color: var(--pi-cream); font-size: 36px; }
+.pi-tbtn--jump.is-down { background: var(--pi-grain), var(--pi-lipstick-2); }
+/* the reversible coat: an inked ring with its right half filled (two flat pieces, no gradient) */
+.pi-tbtn--flip::before { content: ""; position: absolute; inset: 12px; border-radius: 50%; border: 3px solid var(--pi-ink); }
+.pi-tbtn--flip::after { content: ""; position: absolute; top: 12px; bottom: 12px; left: 50%; right: 12px; border-radius: 0 999px 999px 0; background: var(--pi-ink); }
+.pi-tbtn--flip.is-cream::after { left: 12px; right: 50%; border-radius: 999px 0 0 999px; }   /* coat is cream: the ink half moves */
+.pi-tbtn--flip .pi-tbtn__label { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); font: 700 15px/1 var(--font-body); letter-spacing: .14em; color: var(--pi-cream); }
+.pi-tbtn:focus-visible { outline: 3px solid var(--pi-tangerine); outline-offset: 4px; }
+.pi-tbtn__label { pointer-events: none; }
+@media (max-height: 360px) { .pi-tbtn { width: 76px; height: 76px; } .pi-tbtn--jump { width: 90px; height: 90px; } :root { --pi-floor-band: 104px; } }
+
+/* tablet portrait: the world is a 16:9 band on top; the strip sits just under it, thumbs in the paper margin */
+@media (orientation: portrait) and (min-width: 601px) {
+  body { background: var(--pi-grain), var(--pi-cream-2); }
+  .pi-strip, .has-touch .pi-strip { top: calc(56.25vw + 16px); bottom: auto; left: auto; right: 24px; max-width: calc(100vw - 48px); }
+  .pi-touch { height: auto; padding-bottom: max(32px, env(safe-area-inset-bottom)); }
+  .pi-tbtn--flip .pi-tbtn__label { color: var(--pi-ink); }
+}
+
+/* ── settings: rows on paper; the toggle is a two-sided paper tab (ink side = on) ────────────────── */
+.uk-setting { border-bottom: 2px dashed var(--pi-cream-2); padding-block: var(--space-2); }
+.uk-setting__label { font: 600 var(--text-md)/1.2 var(--font-body); letter-spacing: .04em; color: var(--pi-ink); }
+.uk-setting__hint { font-size: var(--text-sm); color: var(--color-text-muted); }
+.uk-toggle { width: 64px; }
+.uk-toggle__track { border-radius: 0; height: 30px; background: var(--pi-cream-2); border: 3px solid var(--pi-ink); clip-path: none; }
+.uk-toggle__track::after { border-radius: 0; box-sizing: border-box; width: 22px; height: 22px; top: 1px; left: 1px; background: var(--pi-ink); border: 0; box-shadow: none; }
+.uk-toggle input:checked + .uk-toggle__track { background: var(--pi-ink); }
+.uk-toggle input:checked + .uk-toggle__track::after { transform: translateX(32px); background: var(--pi-cream); box-shadow: none; }
+.uk-toggle input:focus-visible + .uk-toggle__track { outline: 3px solid var(--pi-tangerine); outline-offset: 3px; }
+
+/* ── pause: a tilted cream sheet; title in Gothic; music / effects / voice tabs ───────────────────── */
+.pi-pause-sheet .uk-sheet__title::before { content: "▮▮ "; color: var(--pi-ink-2); font-size: .6em; vertical-align: .25em; }
+
+/* ── results: a cut card; one huge time; snips + frames; new best is a tangerine tag ─────────────── */
+.pi-results { padding: var(--space-5) var(--space-6) var(--space-6); display: grid; gap: var(--space-3); justify-items: start; transform: rotate(-1deg); width: min(92vw, 460px); }
+.pi-results .uk-stat { display: grid; gap: 0; }
+.pi-results .uk-stat__label { font: 600 var(--text-sm)/1 var(--font-body); letter-spacing: var(--track-caption); text-transform: uppercase; color: var(--color-text-muted); }
+.pi-results .uk-stat__value { font: 400 var(--text-xl)/1 var(--font-display); letter-spacing: .04em; color: var(--pi-ink); }
+.pi-results .pi-time .uk-stat__value { font-size: clamp(48px, 13vh, 96px); }
+.pi-results__row { display: flex; gap: var(--space-6); align-items: end; }
+.pi-new-best, .pi-grace-tag { display: inline-block; padding: .25em .6em .15em; font: 400 var(--text-md)/1 var(--font-display); letter-spacing: .1em; clip-path: var(--cut-tag); }
+.pi-new-best { background: var(--pi-tangerine); color: var(--pi-ink); animation: pi-slap var(--dur-med) var(--ease-twos); }
+.pi-grace-tag { background: var(--pi-cream-2); color: var(--pi-ink); font-size: var(--text-sm); align-self: end; margin-bottom: .35em; }
+.pi-results__actions { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+@media (max-height: 430px) { .pi-results { padding: var(--space-4) var(--space-5); gap: var(--space-2); } .pi-results .pi-time .uk-stat__value { font-size: 56px; } }
+
+/* ── how to play: the 3 pictures are film frames ─────────────────────────────────────────────────── */
+.uk-step__art { background: var(--pi-ink); border: 0; border-radius: 0; padding: 10px 6px; clip-path: var(--cut-tag); }
+.uk-step__text { font: 400 var(--text-lg)/1.05 var(--font-display); letter-spacing: .06em; text-transform: uppercase; color: var(--pi-ink); }
+.uk-dot { border-radius: 0; background: var(--pi-cream-2); }
+.uk-dot.is-current { background: var(--pi-ink); width: 24px; }
+
+/* ── About: credits roll as small print ──────────────────────────────────────────────────────────── */
+.pi-about { max-width: min(92vw, 560px); }
+.pi-about dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); margin: 0; }
+.pi-about dt { font: 400 var(--text-md)/1.2 var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--pi-ink); text-align: right; }
+.pi-about dd { margin: 0; font: 600 var(--text-sm)/1.35 var(--font-body); color: var(--color-text-muted); }
+.pi-about a { color: var(--pi-ink); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+/* ── toast: a strip of tape ──────────────────────────────────────────────────────────────────────── */
+.uk-toast { --pi-fill: var(--pi-ink); --pi-cut: var(--cut-strip-r); color: var(--pi-cream); font: 400 var(--text-md)/1 var(--font-display); letter-spacing: .08em; text-transform: uppercase; filter: drop-shadow(3px 4px 0 var(--pi-shadow)); }
+[data-ground="ink"] .uk-toast { --pi-fill: var(--pi-cream); color: var(--pi-ink); }
+.uk-celebrate-layer { display: none; }   /* no confetti: the brass stab + slap-in IS the celebration */
+
+/* ── turn your phone: a paper card on ink (phone portrait only; the game pauses behind it) ───────── */
+.pi-turn { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; background: var(--pi-ink); padding: 24px; }
+.pi-turn__card { display: grid; justify-items: center; gap: var(--space-4); padding: var(--space-6) var(--space-5); transform: rotate(-2deg); width: min(84vw, 320px); text-align: center; }
+.pi-turn__phone { width: 54px; height: 92px; border: 5px solid var(--pi-ink); border-radius: 6px; position: relative; animation: pi-turn 1.6s steps(4, end) infinite; }
+.pi-turn__phone::after { content: ""; position: absolute; left: 50%; bottom: 6px; width: 10px; height: 10px; margin-left: -5px; background: var(--pi-lipstick); border-radius: 50%; }
+@keyframes pi-turn { 0%, 30% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
+.pi-turn__title { font: 400 44px/.95 var(--font-display); letter-spacing: .06em; text-transform: uppercase; }
+.pi-turn .pi-caption { color: var(--color-text-muted); }
+@media (orientation: portrait) and (max-width: 600px) { .pi-turn { display: grid; } }
+
+/* ── comforts ────────────────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .uk-screen > *, .uk-sheet[open], .uk-pop, .pi-new-best, .pi-frame.is-new, .pi-hud__set.is-new .pi-tag { animation: none !important; transition: none !important; transform: none !important; }
+  .pi-strip { transition: none; }
+  .pi-turn__phone { animation: none; transform: rotate(-90deg); }
+  .uk-btn:hover { transform: none; }
+}
+:root[data-reduce-motion="true"] :is(.uk-screen > *, .uk-sheet[open], .uk-pop, .pi-new-best, .pi-frame.is-new, .pi-hud__set.is-new .pi-tag) { animation: none !important; transition: none !important; transform: none !important; }
+:root[data-reduce-motion="true"] .pi-strip { transition: none; }
+:root[data-reduce-motion="true"] .pi-turn__phone { animation: none; transform: rotate(-90deg); }
+:root[data-reduce-motion="true"] .uk-btn:hover { transform: none; }

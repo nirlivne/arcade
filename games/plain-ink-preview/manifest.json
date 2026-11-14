@@ -1,0 +1,15 @@
+{
+  "name": "Hide in Plain Ink",
+  "short_name": "Plain Ink",
+  "description": "A hide-and-seek spy platformer in a 60s cut-paper title sequence. Match the ink, freeze, and let the danger pass.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1a1613",
+  "theme_color": "#1a1613",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

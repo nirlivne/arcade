@@ -1,0 +1,9 @@
+Hebrew narration voice -- Hide in Plain Ink
+
+The six Hebrew narration lines (voice/*.mp3) were generated once, at build time, with Google
+Gemini text-to-speech (tools/plain-ink-voice.mjs), then processed offline (band-pass, light
+saturation, tape hiss) and encoded as MP3. The game only plays these shipped files. It never calls
+Gemini or any other online service, and it holds no API key.
+
+The generated audio is used under the Gemini API terms of service. The line texts are original to
+this game (theme.js, lines.*).
