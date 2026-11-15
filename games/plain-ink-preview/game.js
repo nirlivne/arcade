@@ -469,6 +469,7 @@ pauseScreenEl.addEventListener('cancel', (e) => e.preventDefault());
 // (spec: the visibilitychange freeze). Pausing always drops the accumulator and resyncs lastT.
 function setPaused(p) {
   paused = p;
+  if (!p) cancelWatchCatchUp(); // THE-1678: resumed before SEE THIS PART finished catching up
   if (!p) musicResync = true;
   accumulator = 0;
   lastT = performance.now();
@@ -670,12 +671,41 @@ const watchKeyEls = Object.fromEntries([...watchBarEl.querySelectorAll('[data-k]
 const touchDiscEls = { left: touchEl.querySelector('.pi-tbtn--left'), right: touchEl.querySelector('.pi-tbtn--right'), jump: root.jumpBtnEl, flip: root.flipBtnEl };
 let watchTape = null;
 function showWatchHint() { watchHintEl.textContent = theme.text.watchHints[runState.cp] ?? ''; }
+// THE-1678: the silent fast-forward to a late checkpoint (cp4c is ~5800 ticks) blocked the main thread
+// ~400 ms in one loop. It now runs in chunks of FF_BUDGET_MS per animation frame, the button shows it
+// is busy, and it is dropped if the player resumes or leaves the pause sheet before it finishes.
+const FF_BUDGET_MS = 8;
+const pauseWatchBtnEl = document.getElementById('pauseWatchBtn');
+let watchCatchUp = null; // { s, i, until } while the pause-sheet fast-forward runs
+function cancelWatchCatchUp() {
+  if (!watchCatchUp) return;
+  watchCatchUp = null;
+  pauseWatchBtnEl.removeAttribute('aria-busy');
+  pauseWatchBtnEl.disabled = false;
+}
 function startWatch(from) { // 'title' | 'pause'
+  if (watchCatchUp) return;
   watchTape ??= decodeTape(SOLUTION.tape);
-  const back = { to: from, runState, narration, tags };
   const startAt = from === 'pause' ? SOLUTION.cpTicks[runState.cp] ?? 0 : 0;
-  let s = newRunState(LEVEL.checkpoints[0], LEVEL);
-  for (let i = 0; i < startAt; i++) s = runStep(s, intentOf(watchTape[i]), LEVEL).state;
+  const ff = { s: newRunState(LEVEL.checkpoints[0], LEVEL), i: 0, until: startAt };
+  if (startAt === 0) return beginWatch(from, ff.s, 0);
+  watchCatchUp = ff;
+  pauseWatchBtnEl.setAttribute('aria-busy', 'true');
+  pauseWatchBtnEl.disabled = true;
+  const chunk = () => {
+    if (watchCatchUp !== ff) return; // cancelled
+    const stopAt = performance.now() + FF_BUDGET_MS;
+    while (ff.i < ff.until && performance.now() < stopAt) {
+      for (let k = 0; k < 32 && ff.i < ff.until; k++) ff.s = runStep(ff.s, intentOf(watchTape[ff.i++]), LEVEL).state;
+    }
+    if (ff.i < ff.until) { requestAnimationFrame(chunk); return; }
+    cancelWatchCatchUp();
+    if (screen === 'play' && paused && !watch) beginWatch(from, ff.s, ff.until);
+  };
+  chunk();
+}
+function beginWatch(from, s, startAt) {
+  const back = { to: from, runState, narration, tags };
   if (from === 'pause') setPaused(false);
   watch = { tape: watchTape, i: startAt, speed: 1, hold: 0, jumpLit: 0, flipLit: 0, mask: 0, back };
   runState = s;
